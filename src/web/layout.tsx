@@ -10,6 +10,7 @@ import { currentLocale } from '../i18n/locale';
 import { t } from '../i18n/t';
 import { LanguageInvite, LanguageMenu } from './language-menu';
 import { browserMessagesJson } from './browser-messages';
+import { signInEnabled } from './oidc/enabled';
 
 export type NavKey =
   | 'overview'
@@ -322,6 +323,24 @@ const NavLink: FC<{ item: NavItem; active?: NavKey }> = ({ item, active }) => {
   );
 };
 
+/** Only when the dashboard asks people to sign in (ADR 0064). A POST, so the origin guard covers it. */
+const SignOut: FC = () => {
+  const label = t('oidc.signOut');
+  return (
+    <form method="post" action="/auth/logout" class="flex">
+      <button
+        type="submit"
+        aria-label={label}
+        title={label}
+        class="flex w-full cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors duration-150 hover:bg-surface-overlay hover:text-ink md:justify-center md:px-0 lg:justify-start lg:px-3"
+      >
+        <Icon name="log-out" size={18} />
+        <span class="truncate md:hidden lg:block">{label}</span>
+      </button>
+    </form>
+  );
+};
+
 const Sidebar: FC<{ active?: NavKey }> = ({ active }) => (
   <aside class="app-sidebar flex h-full shrink-0 flex-col border-r border-line bg-surface-raised md:w-16 lg:w-60">
     <div class="flex h-16 shrink-0 items-center px-5 md:justify-center md:px-0 lg:justify-start lg:px-5">
@@ -353,6 +372,7 @@ const Sidebar: FC<{ active?: NavKey }> = ({ active }) => (
     </nav>
     <div class="shrink-0 space-y-2 border-t border-line px-3 py-3 md:px-2.5 lg:px-3">
       <NavLink item={SETTINGS_ITEM} active={active} />
+      {signInEnabled() && <SignOut />}
       <LanguageMenu variant="sidebar" />
       <LanguageInvite place="sidebar" />
       <p class="px-3 text-meta leading-4 text-ink-faint md:hidden lg:block">

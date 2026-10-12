@@ -136,7 +136,8 @@ docker compose logs -f --no-log-prefix app | npx pino-pretty
 
 Both containers carry a healthcheck, so `docker compose ps` says `healthy`
 or `unhealthy`. The dashboard's asks `/health`, which answers 503 when the
-database is gone; it signs in with `WEB_BASIC_AUTH` when that is set. The
+database is gone; it signs in with `WEB_BASIC_AUTH` when that is set, also
+with OpenID Connect sign-in on. The
 worker's reads the age of a file the worker touches every minute: three
 missed minutes means the process is stuck or gone, and a long fetch tick
 does not count. The reason for an unhealthy state is in
@@ -162,8 +163,8 @@ They find the database through `db.json` in the data folder, and so do
 `npm run fetch:once` and the other scripts.
 
 `WEB_HOST` defaults to `127.0.0.1` here on purpose. The dashboard has no
-authentication unless you set `WEB_BASIC_AUTH`, so bind it wider only
-together with that. (Under Docker, compose sets `0.0.0.0` for the
+authentication unless you set `WEB_BASIC_AUTH` or OpenID Connect sign-in
+([oidc-login.md](./oidc-login.md)), so bind it wider only together with one. (Under Docker, compose sets `0.0.0.0` for the
 container and publishes the port on loopback only.)
 
 Writes are refused when they come from another origin: a POST whose
@@ -229,6 +230,7 @@ per-install, so give each instance its own database rather than sharing one
 
 One practical note: compose binds the dashboard to `127.0.0.1` on purpose.
 Exposing it is your call and your reverse proxy; ApplyPack has no user
-accounts, and its only lock is the one `user:password` pair in
-`WEB_BASIC_AUTH`.
+accounts, and its locks are the one `user:password` pair in
+`WEB_BASIC_AUTH` or sign-in through your own OpenID Connect provider
+([oidc-login.md](./oidc-login.md)), which lets in whoever that provider does.
 
