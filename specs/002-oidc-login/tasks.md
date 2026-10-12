@@ -135,7 +135,7 @@ description: "Task list for OIDC login for the dashboard"
 - [x] T033 Run `npm audit --omit=dev --audit-level=high`
 - [x] T034 Run the route smoke on a throwaway database only (`npm run build` then `npm run smoke:routes`, see `.github/workflows/test.yml` for the env); if no throwaway Postgres is available, say so and list it as unverified instead of running it against real data
 - [x] T035 Walk the quickstart: default-unchanged and fail-closed by hand; list the real-provider scenario as unverified unless a provider is available
-- [ ] T036 Review the diff against the repo rules (testing-gate, commit-discipline, code-review-expert) before the review stage
+- [x] T036 Review the diff against the repo rules (testing-gate, commit-discipline, code-review-expert) before the review stage
 
 ---
 

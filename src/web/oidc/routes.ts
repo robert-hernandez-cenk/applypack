@@ -3,7 +3,7 @@ import type { Context } from 'hono';
 import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie';
 import { z } from 'zod';
 import { logger } from '../../logger';
-import { PENDING_COOKIE, PENDING_SECONDS, SESSION_COOKIE, cookieOptions } from './cookies';
+import { PENDING_COOKIE, PENDING_SECONDS, SESSION_COOKIE, clearOptions, cookieOptions } from './cookies';
 import { safeNext } from './next-path';
 import { signInFailedPage, signedOutPage } from './pages';
 import type { SignInRuntime } from './runtime';
@@ -39,7 +39,7 @@ export function signInRoutes(runtime: SignInRuntime, now: () => number = Date.no
 
   routes.get('/auth/callback', async (c) => {
     const stored = await getSignedCookie(c, secret, PENDING_COOKIE);
-    deleteCookie(c, PENDING_COOKIE, { path: '/' });
+    deleteCookie(c, PENDING_COOKIE, clearOptions(settings));
     if (!stored) return refuse(c, 'no pending sign-in');
     let json: unknown;
     try {
@@ -71,7 +71,7 @@ export function signInRoutes(runtime: SignInRuntime, now: () => number = Date.no
 
   // A POST, so the origin guard that covers every write covers this too: another site cannot sign the person out.
   routes.post('/auth/logout', async (c) => {
-    deleteCookie(c, SESSION_COOKIE, { path: '/' });
+    deleteCookie(c, SESSION_COOKIE, clearOptions(settings));
     return c.html(await signedOutPage(LOGIN_PATH));
   });
 

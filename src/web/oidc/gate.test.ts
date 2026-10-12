@@ -227,3 +227,14 @@ test('a cross-site page cannot sign the person out', async () => {
   });
   assert.equal(res.status, 403);
 });
+
+test('the cookies it clears carry Secure too, so a browser lets the deletion through', async () => {
+  const r = rig();
+  const { cookies } = await signIn(r);
+  const out = await r.app.request('/auth/logout', { method: 'POST', headers: { cookie: cookies } });
+  const cleared = out.headers.getSetCookie().find((c) => c.startsWith('ap_session='));
+  assert.match(cleared ?? '', /Secure/i);
+  const login = await r.app.request('/auth/login', { headers: html });
+  const failed = await r.app.request('/auth/callback?code=a&state=WRONG', { headers: { ...html, cookie: jar(login) } });
+  assert.match(failed.headers.getSetCookie().find((c) => c.startsWith('ap_oidc=')) ?? '', /Secure/i);
+});

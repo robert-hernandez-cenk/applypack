@@ -63,7 +63,9 @@ function basicLock({ username, password }: Credentials): MiddlewareHandler {
 /** The middleware that holds the door for a plan, or null when there is none. */
 export function authLock(plan: AuthPlan, runtime: SignInRuntime | null, now?: () => number): MiddlewareHandler | null {
   if (plan.kind === 'basic') return basicLock(plan);
-  if (plan.kind !== 'oidc' || !runtime) return null;
+  if (plan.kind !== 'oidc') return null;
+  // Not `null` here: a plan that asks for sign-in and has nothing to run it would serve the dashboard open.
+  if (!runtime) throw new Error('sign-in is planned but has no runtime');
   const gate = signInGate(runtime, now);
   const health = plan.healthBasic ? basicLock(plan.healthBasic) : null;
   return (c, next) => (c.req.path === '/health' ? (health ? health(c, next) : next()) : gate(c, next));

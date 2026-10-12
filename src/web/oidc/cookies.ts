@@ -11,3 +11,8 @@ export const PENDING_SECONDS = 600;
 export function cookieOptions(settings: OidcSettings, maxAge: number): CookieOptions {
   return { path: '/', httpOnly: true, sameSite: 'Lax', secure: settings.secureCookies, maxAge };
 }
+
+/** To clear one. A Secure cookie is only reliably replaced by a Set-Cookie that is Secure as well. */
+export function clearOptions(settings: OidcSettings): CookieOptions {
+  return { path: '/', secure: settings.secureCookies };
+}

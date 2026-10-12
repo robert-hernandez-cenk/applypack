@@ -116,3 +116,9 @@ test('connecting with sign-in off does nothing', async () => {
   const { connect } = signInRuntime(undefined, async () => assert.fail('must not be asked'));
   await connect();
 });
+
+test('a sign-in plan with nothing to run it is an error, never an open dashboard', () => {
+  const plan = planAuth(OIDC);
+  assert.equal(plan.kind, 'oidc');
+  assert.throws(() => authLock(plan, null), /sign-in/);
+});
