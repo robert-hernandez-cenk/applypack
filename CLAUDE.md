@@ -22,8 +22,7 @@
 - Branch off `main` first. **Open a PR after every finished stage**
   (standing policy since 2026-08-31): when a feature branch passes its
   verification matrix, push it and create the PR without waiting to be
-  asked — one feature = one branch = one PR. Never merge to `main`
-  yourself; Nazar reviews, merges and tags.
+  asked — one feature = one branch = one PR.
 - **Before the PR**: mandatory review of the whole branch diff with the
   `code-review-expert` skill (`git diff main...HEAD`) — every line
   earns its place, simpler and more readable wins; P2/P3 findings go
