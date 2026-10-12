@@ -53,14 +53,14 @@ description: "Task list for OIDC login for the dashboard"
 
 ### Tests for User Story 1 (write first, confirm they fail)
 
-- [ ] T012 [P] [US1] Write failing tests `src/web/oidc/gate.test.ts` using a small Hono app, a fake `OidcClient` and the gate and routes from T014 to T015: unauthenticated `GET /x` with `Accept: text/html` gives 302 to `/auth/login?next=%2Fx`; the same with `Accept: application/json` or a `POST` gives 401 `text/plain`; `/static/a.css`, `/health` and `/auth/login` are not gated; `GET /auth/login?next=//evil.test` stores `/` in the pending cookie; the redirect carries the provider URL from the fake and sets an `HttpOnly; SameSite=Lax` `ap_oidc` cookie; callback with matching `state` sets `ap_session`, clears `ap_oidc` and redirects to the stored `next`; callback with a different `state`, with no pending cookie, with `error=access_denied`, and with a fake `exchange` that returns null each give 401, set no session and render the retry page; a request carrying the cookie from a successful callback passes the gate and reaches the handler
-- [ ] T013 [P] [US1] Add the strings to all four catalogs (`en`, `es`, `fr`, `uk`): `oidc.failed.title`, `oidc.failed.body`, `oidc.failed.retry`, `oidc.unauthorized` (the 401 text); run `npx tsx --test src/i18n/catalog.test.ts` to confirm parity
+- [x] T012 [P] [US1] Write failing tests `src/web/oidc/gate.test.ts` using a small Hono app, a fake `OidcClient` and the gate and routes from T014 to T015: unauthenticated `GET /x` with `Accept: text/html` gives 302 to `/auth/login?next=%2Fx`; the same with `Accept: application/json` or a `POST` gives 401 `text/plain`; `/static/a.css`, `/health` and `/auth/login` are not gated; `GET /auth/login?next=//evil.test` stores `/` in the pending cookie; the redirect carries the provider URL from the fake and sets an `HttpOnly; SameSite=Lax` `ap_oidc` cookie; callback with matching `state` sets `ap_session`, clears `ap_oidc` and redirects to the stored `next`; callback with a different `state`, with no pending cookie, with `error=access_denied`, and with a fake `exchange` that returns null each give 401, set no session and render the retry page; a request carrying the cookie from a successful callback passes the gate and reaches the handler
+- [x] T013 [P] [US1] Add the strings to all four catalogs (`en`, `es`, `fr`, `uk`): `oidc.failed.title`, `oidc.failed.body`, `oidc.failed.retry`, `oidc.unauthorized` (the 401 text); run `npx tsx --test src/i18n/catalog.test.ts` to confirm parity
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] Implement `src/web/oidc/gate.ts`: `oidcGate({ settings, sessionKey })` middleware per contracts/http-routes.md (exemptions `/auth/`, `/static/`, `/health`; reads `ap_session` with `getSignedCookie`, applies `readSession` with the current time; HTML GET redirects, anything else 401 with `t('oidc.unauthorized')`); expose the verified session on the Hono context for later use
-- [ ] T015 [US1] Implement `src/web/oidc/routes.tsx`: `authRoutes({ settings, client })` with `GET /auth/login` (generate state, nonce, verifier with `crypto.randomBytes`/base64url, `safeNext`, set signed `ap_oidc` for 600 s, redirect) and `GET /auth/callback` (read and delete `ap_oidc`, compare state in constant time, call `client.exchange`, set signed `ap_session` using `newSession` with `HttpOnly`, `SameSite=Lax`, `Secure` per settings, redirect to `next`; every failure path logs the reason with pino, no tokens, and returns the retry page with status 401). Make T012 pass
-- [ ] T016 [US1] Mount in `src/web/app.ts` at the place Basic Auth is applied today: when `readOidcSettings` is enabled, build the client, `app.use('*', oidcGate(...))` and `app.route('/', authRoutes(...))` before the origin guard and the rest of the routes; keep the guard order so `POST /auth/logout` stays covered by `originGuard()`
+- [x] T014 [US1] Implement `src/web/oidc/gate.ts`: `oidcGate({ settings, sessionKey })` middleware per contracts/http-routes.md (exemptions `/auth/`, `/static/`, `/health`; reads `ap_session` with `getSignedCookie`, applies `readSession` with the current time; HTML GET redirects, anything else 401 with `t('oidc.unauthorized')`); expose the verified session on the Hono context for later use
+- [x] T015 [US1] Implement `src/web/oidc/routes.tsx`: `authRoutes({ settings, client })` with `GET /auth/login` (generate state, nonce, verifier with `crypto.randomBytes`/base64url, `safeNext`, set signed `ap_oidc` for 600 s, redirect) and `GET /auth/callback` (read and delete `ap_oidc`, compare state in constant time, call `client.exchange`, set signed `ap_session` using `newSession` with `HttpOnly`, `SameSite=Lax`, `Secure` per settings, redirect to `next`; every failure path logs the reason with pino, no tokens, and returns the retry page with status 401). Make T012 pass
+- [x] T016 [US1] Mount in `src/web/app.ts` at the place Basic Auth is applied today: when `readOidcSettings` is enabled, build the client, `app.use('*', oidcGate(...))` and `app.route('/', authRoutes(...))` before the origin guard and the rest of the routes; keep the guard order so `POST /auth/logout` stays covered by `originGuard()`
 
 **Checkpoint**: US1 works end to end against the fake; with a real provider it is the quickstart's manual check.
 
@@ -74,12 +74,12 @@ description: "Task list for OIDC login for the dashboard"
 
 ### Tests for User Story 3
 
-- [ ] T017 [P] [US3] Extend `src/web/oidc/gate.test.ts` (or add `src/web/app-auth.test.ts` if app.ts cannot be imported without starting a server; extract a small `applyAuth(app, config)` into `src/web/oidc/mount.ts` for the test and use it from `app.ts`): with OIDC off, `/auth/login` is 404 and no gate runs; with OIDC on and `WEB_BASIC_AUTH=u:p`, `/health` without credentials gives 401 with a Basic challenge, with them passes; a page with Basic credentials and no session still redirects to sign-in; with OIDC on and no `WEB_BASIC_AUTH`, `/health` is open
+- [x] T017 [P] [US3] Extend `src/web/oidc/gate.test.ts` (or add `src/web/app-auth.test.ts` if app.ts cannot be imported without starting a server; extract a small `applyAuth(app, config)` into `src/web/oidc/mount.ts` for the test and use it from `app.ts`): with OIDC off, `/auth/login` is 404 and no gate runs; with OIDC on and `WEB_BASIC_AUTH=u:p`, `/health` without credentials gives 401 with a Basic challenge, with them passes; a page with Basic credentials and no session still redirects to sign-in; with OIDC on and no `WEB_BASIC_AUTH`, `/health` is open
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] In `src/web/app.ts` (via `mount.ts` if T017 required it): when OIDC is on, apply `basicAuth` to `/health` only when `WEB_BASIC_AUTH` is set; when OIDC is off keep the existing `*` Basic Auth block untouched. Keep the existing fail-closed exit for a malformed `WEB_BASIC_AUTH`
-- [ ] T019 [US3] Confirm `src/scripts/health-check.ts` needs no change (it already sends `basicAuthHeader(config.WEB_BASIC_AUTH)`), and that `docker-compose.yml` and the `local` launcher health probes still work; record the finding in the PR body rather than editing them
+- [x] T018 [US3] In `src/web/app.ts` (via `mount.ts` if T017 required it): when OIDC is on, apply `basicAuth` to `/health` only when `WEB_BASIC_AUTH` is set; when OIDC is off keep the existing `*` Basic Auth block untouched. Keep the existing fail-closed exit for a malformed `WEB_BASIC_AUTH`
+- [x] T019 [US3] Confirm `src/scripts/health-check.ts` needs no change (it already sends `basicAuthHeader(config.WEB_BASIC_AUTH)`), and that `docker-compose.yml` and the `local` launcher health probes still work; record the finding in the PR body rather than editing them
 
 **Checkpoint**: the full existing suite is still green with no `OIDC_*` set.
 
@@ -93,12 +93,12 @@ description: "Task list for OIDC login for the dashboard"
 
 ### Tests for User Story 4
 
-- [ ] T020 [P] [US4] Add to `src/web/oidc/settings.test.ts` (or `mount` tests) a case per Story 4 scenario if not already covered in T005, and a test that the start-up helper `startAuth(config, deps)` returns `{ fatal: string }` when `readOidcSettings` errors and when `createOidcClient` rejects (discovery failure), and returns the gate and routes otherwise; the helper is pure over injected `createClient`
+- [x] T020 [P] [US4] Add to `src/web/oidc/settings.test.ts` (or `mount` tests) a case per Story 4 scenario if not already covered in T005, and a test that the start-up helper `startAuth(config, deps)` returns `{ fatal: string }` when `readOidcSettings` errors and when `createOidcClient` rejects (discovery failure), and returns the gate and routes otherwise; the helper is pure over injected `createClient`
 
 ### Implementation for User Story 4
 
-- [ ] T021 [US4] Implement `startAuth` in `src/web/oidc/mount.ts` and call it from `src/web/app.ts`: on `fatal`, `logger.error({}, 'web: …')` with the message and `process.exit(1)`, mirroring the existing `WEB_BASIC_AUTH` exit; top-level await or an async init consistent with how `server.ts` starts the app (check `src/web/server.ts` and adapt without making the module start a server on import)
-- [ ] T022 [US4] Add the fatal-message strings only to logs (English, not translated, per CLAUDE.md "logs are not translated")
+- [x] T021 [US4] Implement `startAuth` in `src/web/oidc/mount.ts` and call it from `src/web/app.ts`: on `fatal`, `logger.error({}, 'web: …')` with the message and `process.exit(1)`, mirroring the existing `WEB_BASIC_AUTH` exit; top-level await or an async init consistent with how `server.ts` starts the app (check `src/web/server.ts` and adapt without making the module start a server on import)
+- [x] T022 [US4] Add the fatal-message strings only to logs (English, not translated, per CLAUDE.md "logs are not translated")
 
 **Checkpoint**: quickstart "Fail closed" scenario passes by hand with a throwaway `.env`.
 

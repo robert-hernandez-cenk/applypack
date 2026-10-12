@@ -6,13 +6,14 @@
  */
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
-import { basicAuth } from 'hono/basic-auth';
 import { bodyLimit } from 'hono/body-limit';
 import { HTTPException } from 'hono/http-exception';
 import { secureHeaders } from 'hono/secure-headers';
 import { config } from '../config';
 import { logger } from '../logger';
 import { originGuard } from './origin-guard';
+import { authLock, planAuth, signInRuntime } from './oidc/mount';
+import { signInRoutes } from './oidc/routes';
 import { overviewRoute } from './routes/overview';
 import { jobsRoute } from './routes/jobs';
 import { packRoute } from './routes/pack';
@@ -68,27 +69,19 @@ app.use(
   }),
 );
 
-if (config.WEB_BASIC_AUTH) {
-  const [username, ...rest] = config.WEB_BASIC_AUTH.split(':');
-  const password = rest.join(':');
-  if (username && password) {
-    app.use(
-      '*',
-      basicAuth({
-        username,
-        password,
-        realm: 'applypack',
-      }),
-    );
-    logger.info({ user: username }, 'web: basic auth enabled');
-  } else {
-    // Fail closed: the operator asked for a lock and got the value wrong.
-    // Serving open with a warning in the log is how that goes unnoticed on
-    // a host bound to 0.0.0.0 (audit 2026-09-10, SEC-7).
-    logger.error('web: WEB_BASIC_AUTH is set but not user:password — refusing to start without the lock');
-    process.exit(1);
-  }
+const authPlan = planAuth(config);
+if (authPlan.kind === 'error') {
+  // Fail closed: the operator asked for a lock and got the value wrong.
+  // Serving open with a warning in the log is how that goes unnoticed on
+  // a host bound to 0.0.0.0 (audit 2026-09-10, SEC-7).
+  logger.error(`web: ${authPlan.message} — refusing to start without the lock`);
+  process.exit(1);
 }
+const { runtime: signIn, connect: connectSignIn } = signInRuntime(authPlan.kind === 'oidc' ? authPlan.settings : undefined);
+const lock = authLock(authPlan, signIn);
+if (lock) app.use('*', lock);
+if (authPlan.kind === 'basic') logger.info({ user: authPlan.username }, 'web: basic auth enabled');
+if (authPlan.kind === 'oidc') logger.info({ issuer: authPlan.settings.issuer.origin }, 'web: sign-in through an OpenID Connect provider enabled');
 
 /**
  * Cross-origin writes are refused (issue #69). The dashboard binds to
@@ -173,6 +166,9 @@ app.use('*', async (c, next) =>
     : bodyLimit({ maxSize: DEFAULT_BODY_BYTES, onError: (ctx) => ctx.text(t('http.tooLarge'), 413) })(c, next),
 );
 
+// After the language middleware, so the pages it draws read in the person's language.
+if (signIn) app.route('/', signInRoutes(signIn));
+
 app.route('/', overviewRoute);
 app.route('/', welcomeRoute);
 app.route('/', countriesRoute);
@@ -225,4 +221,4 @@ app.onError((err, c) => {
   return c.text(t('http.serverError'), 500);
 });
 
-export { app };
+export { app, connectSignIn };
