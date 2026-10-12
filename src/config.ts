@@ -6,6 +6,12 @@ import { AI_PROVIDER_IDS } from './ai-engine';
 import { dataDirFor, localPaths } from './local/data-dir';
 import { resolveDatabaseUrl } from './local/db-state';
 
+/** A setting that is either written or absent: an empty value in .env means absent. */
+const optionalText = z
+  .string()
+  .optional()
+  .transform((v) => (v && v.length > 0 ? v : undefined));
+
 export const ConfigSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required: start with `npm start`, which runs a database of its own, or set DATABASE_URL in .env'),
   // Default AI backend; /settings → "AI engine" can override it at runtime.
@@ -59,10 +65,16 @@ export const ConfigSchema = z.object({
   // container, whose published port is loopback-only; a bare `docker run`
   // needs `-e WEB_HOST=0.0.0.0` for the same reason.
   WEB_HOST: z.string().default('127.0.0.1'),
-  WEB_BASIC_AUTH: z
-    .string()
-    .optional()
-    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  WEB_BASIC_AUTH: optionalText,
+  // OIDC sign-in for the dashboard (ADR 0064). OIDC_ISSUER switches it on; the
+  // rest are checked together by web/oidc/settings.ts, so a half-written block
+  // stops the start instead of leaving the dashboard open.
+  OIDC_ISSUER: optionalText,
+  OIDC_CLIENT_ID: optionalText,
+  OIDC_CLIENT_SECRET: optionalText,
+  OIDC_SESSION_SECRET: optionalText,
+  OIDC_SESSION_HOURS: optionalText,
+  WEB_PUBLIC_URL: optionalText,
   // production = one JSON object a line (the image and compose set it, for
   // `docker compose logs` and any log collector); anything else = pino-pretty,
   // for a person reading `npm start` or a dev watcher in a terminal.

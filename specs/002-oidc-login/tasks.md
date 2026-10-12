@@ -22,10 +22,10 @@ description: "Task list for OIDC login for the dashboard"
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `openid-client` (^6.8) as a runtime dependency with `npm --prefix . install openid-client` in `package.json` and `package-lock.json`; confirm `npm audit --omit=dev --audit-level=high` stays clean and note the installed version
-- [ ] T002 [P] Write ADR 0064 `docs/adr/0064-oidc-login-for-the-dashboard.md` using the adr-writer template (decisions: `openid-client` dependency, stateless signed-cookie sessions, OIDC replaces Basic Auth for pages while Basic Auth guards `/health` only, no allowlist) and add its line to `docs/adr/README.md`
-- [ ] T003 [P] Add the six optional fields to `ConfigSchema` in `src/config.ts` (`OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_SESSION_SECRET`, `WEB_PUBLIC_URL`, `OIDC_SESSION_HOURS`), each `z.string().optional()` with empty string transformed to `undefined`, the same way `WEB_BASIC_AUTH` is
-- [ ] T004 Document the block in `.env.example` under the Dashboard section (all six names, one comment each, the "restrict your provider to the intended users" warning, and that OIDC replaces Basic Auth for pages while `WEB_BASIC_AUTH` still guards `/health`); run `npx tsx --test src/env-example.test.ts` until green
+- [x] T001 Add `openid-client` (^6.8) as a runtime dependency with `npm --prefix . install openid-client` in `package.json` and `package-lock.json`; confirm `npm audit --omit=dev --audit-level=high` stays clean and note the installed version
+- [x] T002 [P] Write ADR 0064 `docs/adr/0064-oidc-login-for-the-dashboard.md` using the adr-writer template (decisions: `openid-client` dependency, stateless signed-cookie sessions, OIDC replaces Basic Auth for pages while Basic Auth guards `/health` only, no allowlist) and add its line to `docs/adr/README.md`
+- [x] T003 [P] Add the six optional fields to `ConfigSchema` in `src/config.ts` (`OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_SESSION_SECRET`, `WEB_PUBLIC_URL`, `OIDC_SESSION_HOURS`), each `z.string().optional()` with empty string transformed to `undefined`, the same way `WEB_BASIC_AUTH` is
+- [x] T004 Document the block in `.env.example` under the Dashboard section (all six names, one comment each, the "restrict your provider to the intended users" warning, and that OIDC replaces Basic Auth for pages while `WEB_BASIC_AUTH` still guards `/health`); run `npx tsx --test src/env-example.test.ts` until green
 
 ---
 
