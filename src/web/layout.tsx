@@ -11,6 +11,7 @@ import { t } from '../i18n/t';
 import { LanguageInvite, LanguageMenu } from './language-menu';
 import { browserMessagesJson } from './browser-messages';
 import { signInEnabled } from './oidc/enabled';
+import { currentUser } from './current-user';
 
 export type NavKey =
   | 'overview'
@@ -372,6 +373,11 @@ const Sidebar: FC<{ active?: NavKey }> = ({ active }) => (
     </nav>
     <div class="shrink-0 space-y-2 border-t border-line px-3 py-3 md:px-2.5 lg:px-3">
       <NavLink item={SETTINGS_ITEM} active={active} />
+      {signInEnabled() && (
+        <p class="truncate px-3 text-meta leading-4 text-ink-faint md:hidden lg:block" translate="no" data-ui="hint">
+          {currentUser().name}
+        </p>
+      )}
       {signInEnabled() && <SignOut />}
       <LanguageMenu variant="sidebar" />
       <LanguageInvite place="sidebar" />

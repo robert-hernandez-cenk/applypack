@@ -65,3 +65,10 @@ a message saying so rather than running without the lock.
 - Serve the dashboard over https when it leaves your machine; cookies are marked
   `Secure` when `WEB_PUBLIC_URL` is https.
 - The worker is not involved and needs none of these settings.
+
+## Users
+
+Signing in creates or finds the person's row in `users` (ADR 0065). The first
+person to sign in takes over the install's default user and is its admin;
+anyone after is a member. Sessions issued before this change carry no user id,
+so everyone signs in once more after upgrading.

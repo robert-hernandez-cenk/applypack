@@ -15,6 +15,8 @@ import { originGuard } from './origin-guard';
 import { authLock, planAuth, signInRuntime } from './oidc/mount';
 import { markSignInEnabled } from './oidc/enabled';
 import { signInRoutes } from './oidc/routes';
+import { withCurrentUser } from './current-user';
+import { loadUser, provisionOidcUser } from '../users/store';
 import { overviewRoute } from './routes/overview';
 import { jobsRoute } from './routes/jobs';
 import { packRoute } from './routes/pack';
@@ -170,8 +172,11 @@ app.use('*', async (c, next) =>
     : bodyLimit({ maxSize: DEFAULT_BODY_BYTES, onError: (ctx) => ctx.text(t('http.tooLarge'), 413) })(c, next),
 );
 
+// Who the request acts as (ADR 0065): after the lock has read the session, before any route.
+app.use('*', withCurrentUser(loadUser));
+
 // After the language middleware, so the pages it draws read in the person's language.
-if (signIn) app.route('/', signInRoutes(signIn));
+if (signIn) app.route('/', signInRoutes(signIn, provisionOidcUser));
 
 app.route('/', overviewRoute);
 app.route('/', welcomeRoute);

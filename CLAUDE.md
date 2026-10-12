@@ -185,6 +185,12 @@
   only one that touches `application_pack`. The dashboard never prepares a
   pack: it queues a row, and `jobs/pack-job.ts` takes it. The limits are
   code, never a prompt rule (gotcha 11), and a pack never changes a resume.
+- `src/users/` is who uses the install (ADR 0065): `identity.ts` is pure (the
+  default user's id, `provisionStep`), `store.ts` is the only file that
+  touches `users`. The dashboard reads `currentUser()` (`web/current-user.ts`);
+  the worker has no request, so code that works on a person's data takes
+  `userId: number` and its caller says whose. The job catalog is shared; a
+  table becomes per-user only in its own slice of issue #5.
 - `src/starter-packs/` is the curated-pack module: `catalog.json` (data),
   `catalog.ts` and `resolve.ts` are pure (tested), `probe.ts` calls
   `probeAts`. Web-only — the worker never imports it. Every catalog entry

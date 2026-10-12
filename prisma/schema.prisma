@@ -1157,3 +1157,24 @@ model ScreeningVerdict {
   @@index([applicantId, createdAt])
   @@map("screening_verdict")
 }
+
+enum UserRole {
+  ADMIN
+  MEMBER
+}
+
+// The people who use this install (ADR 0065). The job catalog is shared; what
+// later slices scope to a person points here. Row 1 is the default user the
+// migration creates: the owner of everything that existed before, and the one
+// person an install without sign-in has. The first OIDC sign-in claims it.
+model User {
+  id        Int      @id @default(autoincrement())
+  // The identity provider's stable id for the person; NULL until someone
+  // signs in as this user (and always for an install without sign-in).
+  oidcSub   String?  @unique
+  name      String
+  role      UserRole @default(MEMBER)
+  createdAt DateTime @default(now())
+
+  @@map("users")
+}

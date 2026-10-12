@@ -3,7 +3,14 @@ import { getSignedCookie } from 'hono/cookie';
 import { t } from '../../i18n/t';
 import { SESSION_COOKIE } from './cookies';
 import type { SignInRuntime } from './runtime';
-import { readSession } from './session';
+import { readSession, type Session } from './session';
+
+declare module 'hono' {
+  interface ContextVariableMap {
+    /** Set by the gate for a request that carries a live session. */
+    session: Session;
+  }
+}
 
 /*
  * The lock (ADR 0064). A request with a live session passes. One without is
@@ -26,7 +33,11 @@ export function signInGate(runtime: SignInRuntime, now: () => number = Date.now)
   return async (c, next) => {
     if (isOpen(c.req.path)) return next();
     const stored = await getSignedCookie(c, sessionSecret, SESSION_COOKIE);
-    if (stored && readSession(stored, Math.floor(now() / 1000))) return next();
+    const session = stored ? readSession(stored, Math.floor(now() / 1000)) : null;
+    if (session) {
+      c.set('session', session);
+      return next();
+    }
     if (!opensAPage(c)) return c.text(t('oidc.unauthorized'), 401);
     const wanted = new URL(c.req.url);
     return c.redirect(`/auth/login?next=${encodeURIComponent(wanted.pathname + wanted.search)}`);
