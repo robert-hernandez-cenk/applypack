@@ -112,14 +112,14 @@ description: "Task list for OIDC login for the dashboard"
 
 ### Tests for User Story 2
 
-- [ ] T023 [P] [US2] Extend `src/web/oidc/gate.test.ts`: `POST /auth/logout` with a valid session clears `ap_session` (expired `Set-Cookie`) and returns the signed-out page with a link to `/auth/login`; a cookie whose `exp` has passed (fake clock) redirects; a cookie signed with a different secret redirects; a cookie value altered by one character redirects; a cross-origin `POST /auth/logout` is refused by the origin guard when mounted with it
-- [ ] T024 [P] [US2] Add catalog strings in all four languages: `oidc.signedOut.title`, `oidc.signedOut.body`, `oidc.signedOut.signIn`, `oidc.signOut` (the sidebar button); run the catalog parity test
+- [x] T023 [P] [US2] Extend `src/web/oidc/gate.test.ts`: `POST /auth/logout` with a valid session clears `ap_session` (expired `Set-Cookie`) and returns the signed-out page with a link to `/auth/login`; a cookie whose `exp` has passed (fake clock) redirects; a cookie signed with a different secret redirects; a cookie value altered by one character redirects; a cross-origin `POST /auth/logout` is refused by the origin guard when mounted with it
+- [x] T024 [P] [US2] Add catalog strings in all four languages: `oidc.signedOut.title`, `oidc.signedOut.body`, `oidc.signedOut.signIn`, `oidc.signOut` (the sidebar button); run the catalog parity test
 
 ### Implementation for User Story 2
 
-- [ ] T025 [US2] Add `POST /auth/logout` and the signed-out page to `src/web/oidc/routes.tsx`
-- [ ] T026 [US2] Show a Sign out form (`method="post" action="/auth/logout"`) in the sidebar footer in `src/web/layout.tsx`, only when OIDC is on: pass a boolean from the existing layout props or a module-level getter set by `mount.ts` (choose whichever matches how layout already reads global state such as `employerMode`); follow the accessible-interactions skill (real `<button>`, visible focus, label from `t('oidc.signOut')`), and keep `data-ui="hint"` rules for any helper text
-- [ ] T027 [US2] If the layout change adds a Tailwind class not already in `src/web/public/tailwind.css`, run `npm run css` and commit the regenerated file
+- [x] T025 [US2] Add `POST /auth/logout` and the signed-out page to `src/web/oidc/routes.tsx`
+- [x] T026 [US2] Show a Sign out form (`method="post" action="/auth/logout"`) in the sidebar footer in `src/web/layout.tsx`, only when OIDC is on: pass a boolean from the existing layout props or a module-level getter set by `mount.ts` (choose whichever matches how layout already reads global state such as `employerMode`); follow the accessible-interactions skill (real `<button>`, visible focus, label from `t('oidc.signOut')`), and keep `data-ui="hint"` rules for any helper text
+- [x] T027 [US2] If the layout change adds a Tailwind class not already in `src/web/public/tailwind.css`, run `npm run css` and commit the regenerated file
 
 **Checkpoint**: all four stories pass their independent tests.
 

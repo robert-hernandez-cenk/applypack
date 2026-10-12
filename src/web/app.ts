@@ -13,6 +13,7 @@ import { config } from '../config';
 import { logger } from '../logger';
 import { originGuard } from './origin-guard';
 import { authLock, planAuth, signInRuntime } from './oidc/mount';
+import { markSignInEnabled } from './oidc/enabled';
 import { signInRoutes } from './oidc/routes';
 import { overviewRoute } from './routes/overview';
 import { jobsRoute } from './routes/jobs';
@@ -81,7 +82,10 @@ const { runtime: signIn, connect: connectSignIn } = signInRuntime(authPlan.kind 
 const lock = authLock(authPlan, signIn);
 if (lock) app.use('*', lock);
 if (authPlan.kind === 'basic') logger.info({ user: authPlan.username }, 'web: basic auth enabled');
-if (authPlan.kind === 'oidc') logger.info({ issuer: authPlan.settings.issuer.origin }, 'web: sign-in through an OpenID Connect provider enabled');
+if (authPlan.kind === 'oidc') {
+  markSignInEnabled();
+  logger.info({ issuer: authPlan.settings.issuer.origin }, 'web: sign-in through an OpenID Connect provider enabled');
+}
 
 /**
  * Cross-origin writes are refused (issue #69). The dashboard binds to

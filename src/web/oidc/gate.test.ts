@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Hono } from 'hono';
+import { originGuard } from '../origin-guard';
 import { signInGate } from './gate';
 import { signInRoutes } from './routes';
 import type { SignInRuntime } from './runtime';
@@ -190,4 +191,39 @@ test('a session past its lifetime is treated as none', async () => {
   assert.equal((await r.app.request('/jobs', { headers: { ...html, cookie: cookies } })).status, 200);
   r.advance(1);
   assert.equal((await r.app.request('/jobs', { headers: { ...html, cookie: cookies } })).status, 302);
+});
+
+test('signing out ends the session and offers a way back in', async () => {
+  const r = rig();
+  const { cookies } = await signIn(r);
+  const res = await r.app.request('/auth/logout', { method: 'POST', headers: { cookie: cookies } });
+  assert.equal(res.status, 200);
+  assert.ok(res.headers.getSetCookie().some((c) => c.startsWith('ap_session=') && /Max-Age=0/i.test(c)), 'the session cookie is cleared');
+  const body = await res.text();
+  assert.match(body, /Signed out/);
+  assert.match(body, /href="\/auth\/login"/);
+  assert.equal((await r.app.request('/jobs', { headers: { ...html, cookie: jar(res) } })).status, 302);
+});
+
+test('signing out with no session is harmless', async () => {
+  const res = await rig().app.request('/auth/logout', { method: 'POST' });
+  assert.equal(res.status, 200);
+});
+
+test('signing out is a POST only', async () => {
+  const res = await rig().app.request('/auth/logout', { headers: html });
+  assert.doesNotMatch(await res.text(), /Signed out/);
+  assert.equal(res.headers.getSetCookie().length, 0);
+});
+
+test('a cross-site page cannot sign the person out', async () => {
+  const r = rig();
+  const guarded = new Hono();
+  guarded.use('*', originGuard());
+  guarded.route('/', r.app);
+  const res = await guarded.request('https://jobs.example.test/auth/logout', {
+    method: 'POST',
+    headers: { origin: 'https://evil.test', 'sec-fetch-site': 'cross-site', host: 'jobs.example.test' },
+  });
+  assert.equal(res.status, 403);
 });

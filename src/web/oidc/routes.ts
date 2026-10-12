@@ -5,12 +5,12 @@ import { z } from 'zod';
 import { logger } from '../../logger';
 import { PENDING_COOKIE, PENDING_SECONDS, SESSION_COOKIE, cookieOptions } from './cookies';
 import { safeNext } from './next-path';
-import { signInFailedPage } from './pages';
+import { signInFailedPage, signedOutPage } from './pages';
 import type { SignInRuntime } from './runtime';
 import { newSession } from './session';
 
 /*
- * Signing in (ADR 0064). The round trip to the provider is carried in a signed
+ * Signing in and out (ADR 0064). The round trip to the provider is carried in a signed
  * cookie, so nothing is stored here: it holds what the provider's answer is
  * checked against, and where to land afterwards.
  */
@@ -67,6 +67,12 @@ export function signInRoutes(runtime: SignInRuntime, now: () => number = Date.no
     await setSignedCookie(c, SESSION_COOKIE, JSON.stringify(session), secret, cookieOptions(settings, settings.sessionSeconds));
     logger.info({ sub: session.sub, name: session.name }, 'web: signed in');
     return c.redirect(pending.data.next);
+  });
+
+  // A POST, so the origin guard that covers every write covers this too: another site cannot sign the person out.
+  routes.post('/auth/logout', async (c) => {
+    deleteCookie(c, SESSION_COOKIE, { path: '/' });
+    return c.html(await signedOutPage(LOGIN_PATH));
   });
 
   return routes;
