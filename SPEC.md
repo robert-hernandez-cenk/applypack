@@ -1053,9 +1053,20 @@ postings not worth the evening — when the schedule lets a held message out;
 the Overview lists the ones ready and not yet sent. Nothing is ever submitted
 for the person.
 
+## Users (ADR 0065)
+
+An install has a `users` table. Row 1, "Default user", is an admin created by
+the migration and owns everything stored before users existed. With OIDC
+sign-in (ADR 0064) a person is provisioned from the provider's `sub` on first
+sign-in: the first person takes over the default user and is the admin, later
+ones are members. Without OIDC (open or Basic Auth) the dashboard runs as the
+default user. The session carries the user id; `web/current-user.ts` makes it
+available as `currentUser()`. No table is scoped to a user yet (issue #5, later
+slices).
+
 ## Hard out-of-scope (Phase 7+)
 
-- Multi-user / per-user views (auth, sessions). Single-deployment-per-friend stays the answer — employer mode included: one HR person or hiring manager per install.
+- Per-user AI keys and employer mode (screenings) for several people. An install now has users (ADR 0065, issue #5): the job catalog is shared and the workspace becomes private slice by slice; employer mode stays one HR person or hiring manager per install.
 - Jooble / The Muse aggregators (free tiers exist, not added; Adzuna is a
   source since stage 3e, ADR 0034)
 - Built In, Wellfound, YC WAAS — fragile or behind anti-bot

@@ -27,7 +27,7 @@ function appFor(env: AuthEnv): Hono {
   const { runtime } = signInRuntime(plan.kind === 'oidc' ? plan.settings : undefined, async () => FAKE_CLIENT);
   const lock = authLock(plan, runtime);
   if (lock) app.use('*', lock);
-  if (runtime) app.route('/', signInRoutes(runtime));
+  if (runtime) app.route('/', signInRoutes(runtime, async () => 1));
   app.all('*', (c) => c.text('reached'));
   return app;
 }

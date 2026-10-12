@@ -4,11 +4,15 @@
  * file only decides what goes inside and whether what came back is still good.
  */
 
+import type { Identity } from '../../users/identity';
+
 export interface Session {
   /** The provider's stable id for the person. */
   sub: string;
   /** A name to show, never used to decide anything. */
   name: string | null;
+  /** The `users` row the sign-in resolved to (ADR 0065): what every request acts as. */
+  uid: number;
   /** Epoch seconds; the session is over from this second on. */
   exp: number;
 }
@@ -24,10 +28,14 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value : null;
 }
 
-export function newSession(claims: IdentityClaims, nowSec: number, ttlSec: number): Session | null {
+export function identityOf(claims: IdentityClaims): Identity | null {
   const sub = text(claims.sub);
   if (!sub) return null;
-  return { sub, name: text(claims.name) ?? text(claims.preferred_username) ?? text(claims.email), exp: nowSec + ttlSec };
+  return { sub, name: text(claims.name) ?? text(claims.preferred_username) ?? text(claims.email) };
+}
+
+export function newSession(identity: Identity, uid: number, nowSec: number, ttlSec: number): Session {
+  return { ...identity, uid, exp: nowSec + ttlSec };
 }
 
 export function readSession(json: string, nowSec: number): Session | null {
@@ -38,7 +46,9 @@ export function readSession(json: string, nowSec: number): Session | null {
     return null;
   }
   if (typeof value !== 'object' || value === null) return null;
-  const { sub, name, exp } = value as Record<string, unknown>;
+  const { sub, name, uid, exp } = value as Record<string, unknown>;
   if (!text(sub) || typeof exp !== 'number' || !Number.isFinite(exp) || nowSec >= exp) return null;
-  return { sub: sub as string, name: text(name), exp };
+  // A session from before users existed has no uid: signing in again gives it one.
+  if (typeof uid !== 'number' || !Number.isInteger(uid) || uid < 1) return null;
+  return { sub: sub as string, name: text(name), uid, exp };
 }
