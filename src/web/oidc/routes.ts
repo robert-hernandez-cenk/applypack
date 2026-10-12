@@ -15,7 +15,7 @@ import { newSession } from './session';
  * checked against, and where to land afterwards.
  */
 
-export const LOGIN_PATH = '/auth/login';
+const LOGIN_PATH = '/auth/login';
 
 const PendingSchema = z.object({ state: z.string(), nonce: z.string(), verifier: z.string(), next: z.string() });
 

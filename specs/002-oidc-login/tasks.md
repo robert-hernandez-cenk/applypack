@@ -127,14 +127,14 @@ description: "Task list for OIDC login for the dashboard"
 
 ## Phase 7: Polish and cross-cutting
 
-- [ ] T028 [P] Add a row to `docs/where-to-look.md` ("where does OIDC sign-in live?" and "how do I configure it?") and a short `docs/oidc-login.md` (provider registration, the six variables, redirect URI, the warning that the provider must be restricted to the intended users, session lifetime, how to end every session by rotating `OIDC_SESSION_SECRET`, what `/health` does)
-- [ ] T029 [P] Add the CHANGELOG entry in `CHANGELOG.md` in the format the file already uses, and update the dashboard-security wording in `README.md` / `SECURITY.md` if they say "Basic Auth only"
-- [ ] T030 Run `npm run lint:types`
-- [ ] T031 Run the whole suite: `DATABASE_URL=postgresql://ci:ci@localhost:5432/ci ANTHROPIC_API_KEY=sk-ci-dummy npx tsx --test "src/**/*.test.ts"` and compare with the baseline (3,499 tests, 0 failing); paste the totals
-- [ ] T032 Run `npm run exports:audit`; fix any export that nothing outside its own file uses (drop `export` or use it)
-- [ ] T033 Run `npm audit --omit=dev --audit-level=high`
-- [ ] T034 Run the route smoke on a throwaway database only (`npm run build` then `npm run smoke:routes`, see `.github/workflows/test.yml` for the env); if no throwaway Postgres is available, say so and list it as unverified instead of running it against real data
-- [ ] T035 Walk the quickstart: default-unchanged and fail-closed by hand; list the real-provider scenario as unverified unless a provider is available
+- [x] T028 [P] Add a row to `docs/where-to-look.md` ("where does OIDC sign-in live?" and "how do I configure it?") and a short `docs/oidc-login.md` (provider registration, the six variables, redirect URI, the warning that the provider must be restricted to the intended users, session lifetime, how to end every session by rotating `OIDC_SESSION_SECRET`, what `/health` does)
+- [x] T029 [P] Add the CHANGELOG entry in `CHANGELOG.md` in the format the file already uses, and update the dashboard-security wording in `README.md` / `SECURITY.md` if they say "Basic Auth only"
+- [x] T030 Run `npm run lint:types`
+- [x] T031 Run the whole suite: `DATABASE_URL=postgresql://ci:ci@localhost:5432/ci ANTHROPIC_API_KEY=sk-ci-dummy npx tsx --test "src/**/*.test.ts"` and compare with the baseline (3,499 tests, 0 failing); paste the totals
+- [x] T032 Run `npm run exports:audit`; fix any export that nothing outside its own file uses (drop `export` or use it)
+- [x] T033 Run `npm audit --omit=dev --audit-level=high`
+- [x] T034 Run the route smoke on a throwaway database only (`npm run build` then `npm run smoke:routes`, see `.github/workflows/test.yml` for the env); if no throwaway Postgres is available, say so and list it as unverified instead of running it against real data
+- [x] T035 Walk the quickstart: default-unchanged and fail-closed by hand; list the real-provider scenario as unverified unless a provider is available
 - [ ] T036 Review the diff against the repo rules (testing-gate, commit-discipline, code-review-expert) before the review stage
 
 ---

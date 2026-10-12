@@ -11,7 +11,7 @@ const SESSION_HOURS_MAX = 168;
 const SECONDS_PER_HOUR = 3600;
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
-export const CALLBACK_PATH = '/auth/callback';
+const CALLBACK_PATH = '/auth/callback';
 
 export interface OidcEnv {
   OIDC_ISSUER?: string;

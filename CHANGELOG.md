@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.56.0] — 2026-10-12
+
+### Added
+- **Sign in to the dashboard through your identity provider.** Set
+  `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`,
+  `OIDC_SESSION_SECRET` and `WEB_PUBLIC_URL` and the dashboard sends anyone
+  without a sign-in through an OpenID Connect provider (authorization code
+  with PKCE), then back to the page they asked for. **Sign out** is in the
+  menu; a sign-in lasts 8 hours unless `OIDC_SESSION_HOURS` says otherwise.
+  It replaces `WEB_BASIC_AUTH` for pages — the shared password then guards
+  `/health` only, which the container healthcheck sends. A half-written block,
+  or a provider that does not answer at start, stops the dashboard instead of
+  leaving it open. Whoever the provider signs in is let in, so restrict the
+  client at the provider (docs/oidc-login.md, ADR 0064, #2). With none of the
+  settings, nothing changes.
+
 ## [2.55.61] — 2026-10-12
 
 ### Changed

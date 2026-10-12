@@ -343,6 +343,15 @@
   `src/web/public/evidence.mjs` mirrors `src/resume/evidence.ts` the same
   way (`src/web/evidence.test.ts`): since score v6 the live ring reads the
   evidence grade too (ADR 0058).
+- `src/web/oidc/` is the dashboard's OpenID Connect sign-in (ADR 0064), web-only
+  — the worker never imports it. `mount.ts:planAuth`, `settings.ts`,
+  `next-path.ts`, `session.ts` are pure (tested); `client.ts` is the only file
+  that imports `openid-client`; `gate.ts` / `routes.ts` / `pages.ts` are the
+  lock, the routes and the two pages, tested with a fake `OidcClient` (the pages
+  are `hono/html`, not JSX, because tsx cannot render JSX under a test, gotcha 2).
+  Sessions are signed cookies, nothing stored. A setting that cannot work stops
+  the start, never an open dashboard; `WEB_BASIC_AUTH` then guards `/health`
+  only. Anyone the provider signs in is let in — there is no allowlist.
 - The cron worker (`src/index.ts` + `src/jobs/*`) MUST NOT run an HTTP server.
 - The dashboard lives in `src/web/` as a SEPARATE service (Hono). It shares
   Postgres with the worker but runs in its own container/process. It is
