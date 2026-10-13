@@ -4,6 +4,38 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.58.0] — 2026-10-14
+
+### Added
+- **Several people can share one ApplyPack.** With sign-in switched on, each
+  person who signs in has a private workspace over one shared job catalog:
+  their own searches, job list, applications, resumes, comparisons, letters,
+  alerts, chats and mutes. The first person to sign in is the
+  **administrator** and keeps everything the install held; everyone after is a
+  **member**. An install without sign-in is one person and behaves as before
+  (ADR 0065-0070, #5).
+- **Administrators run the install.** Sources and companies, discovery, imports,
+  the fetch schedule, pause and "Fetch now", the AI engine, keys and usage,
+  update check, employer mode and its screenings, and the setup wizard are
+  administrators' only. A member sees none of them in the menu or on
+  Settings, and is refused with a 403 page if they type the address; a member's
+  Companies page shows their muted companies, and Runs is read-only (#12).
+- **A Users page for administrators.** Everyone on the install with their role,
+  when they joined and were last active. Make a member an administrator, make
+  another administrator a member, or remove a user (the confirmation lists what
+  goes with them: searches, held postings, resumes, destinations; the shared
+  job catalog stays). Nobody can demote or remove themselves, and the last
+  administrator can never be demoted or removed.
+- The route smoke now sorts every route into administrators' or personal (a new
+  route fails the build until it is), then sends a member to each of them and
+  checks that another person's ids read as "not found" and nothing changed.
+
+### Changed
+- A tailoring run's progress and result pages belong to the person who started
+  it; a search can only be linked to its owner's resume even if a page forgets
+  to check (follow-ups of #16 and #17).
+- A new member is not walked through the setup wizard.
+
 ## [2.57.0] — 2026-10-12
 
 ### Added

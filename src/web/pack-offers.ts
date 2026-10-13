@@ -1,5 +1,6 @@
 import { prisma } from '../db';
 import { listActiveProfiles } from '../profiles';
+import { currentUser } from './current-user';
 import { isBlankProfile } from '../profile-guards';
 import { packsForSearches } from '../starter-packs/suggest';
 import { companiesInSegments, countsBySegment, segments } from '../starter-packs/catalog';
@@ -21,7 +22,7 @@ export interface PackOffer {
  */
 export async function packOffers(): Promise<PackOffer[]> {
   const [profiles, tracked] = await Promise.all([
-    listActiveProfiles(),
+    listActiveProfiles(currentUser().id),
     prisma.company.findMany({ select: { atsType: true, atsToken: true } }),
   ]);
   const fit = new Set(packsForSearches(profiles.filter((p) => !isBlankProfile(p))));

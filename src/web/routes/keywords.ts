@@ -8,6 +8,7 @@ import { readKeywords, type MatchKeyword } from '../../resume/prompts';
 import { REQUIREMENT_LEVELS, type RequirementLevel } from '../../resume/score';
 import { getMatch, rescoreMatchKeywords } from '../../resume/store';
 import { flashRedirect, safeBack } from '../flash';
+import { currentUser } from '../current-user';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 
@@ -67,7 +68,7 @@ keywordsRoute.post('/jobs/:id/matches/:matchId/keywords', async (c) => {
   const form = parsed.data;
   const back = safeBack(form.back, `/jobs/${id}?match=${matchId}#resume-match`);
 
-  const existing = await getMatch(matchId);
+  const existing = await getMatch(currentUser().id, matchId);
   if (!existing || existing.jobId !== id) return c.text(t('http.notFound'), 404);
 
   // The edit itself is pure; everything it needs from the database is loaded
@@ -95,7 +96,7 @@ keywordsRoute.post('/jobs/:id/matches/:matchId/keywords', async (c) => {
   // Read, edit and write under one row lock: the same JSON is rewritten by
   // /facts and by the next re-run, and the loser of an unlocked race lost an
   // edit outright.
-  const outcome = await rescoreMatchKeywords<EditResult>(matchId, (match) => {
+  const outcome = await rescoreMatchKeywords<EditResult>(currentUser().id, matchId, (match) => {
     const result = edit(readKeywords(match.keywords), match.resumeText);
     return { keywords: result.ok ? result.keywords : null, detail: result };
   });

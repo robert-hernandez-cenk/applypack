@@ -25,6 +25,7 @@ import { newLines, pageLines, pasteSummary, roleLines, titleWordsOf } from '../.
 import { beginFetchNow } from '../fetch-now';
 import { activeFetchRun } from '../fetch-runs';
 import { listActiveProfiles } from '../../profiles';
+import { currentUser } from '../current-user';
 import { isBlankProfile } from '../../profile-guards';
 import { formatDate } from '../format';
 import { t } from '../../i18n/t';
@@ -257,7 +258,7 @@ watchlistRoute.post('/companies/:id/paste', async (c) => {
     return flashRedirect('/companies#browser-pages', 'err', t('watchlist.flash.emptyPaste', { name: company.name }));
   }
   const added = company.pastedAt === null ? [] : newLines(company.pastedLines, lines);
-  const searches = titleWordsOf((await listActiveProfiles()).filter((p) => !isBlankProfile(p)));
+  const searches = titleWordsOf((await listActiveProfiles(currentUser().id)).filter((p) => !isBlankProfile(p)));
   await prisma.company.update({ where: { id }, data: { pastedLines: lines, pastedNew: added, pastedAt: new Date() } });
   return flashRedirect(
     '/companies#browser-pages',

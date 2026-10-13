@@ -172,6 +172,8 @@ export interface ScheduleView {
   held: HeldLine | null;
   /** No schedule saved yet: the zone is the install's default, and the browser's is the better guess (TASKS S28). */
   unsaved: boolean;
+  /** When the search runs is the install's: only an administrator edits it (ADR 0069). */
+  fetchEditable: boolean;
 }
 
 export interface AiStatusSummary {
@@ -191,7 +193,15 @@ const SETTINGS_TABS = ['profile', 'sources', 'notifications', 'applications', 'a
 
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
-export function isSettingsTab(value: unknown): value is SettingsTab {
+/** Tabs that only configure the install (ADR 0070): a member is not shown them and a link to one lands on the first tab. */
+const ADMIN_TABS: readonly SettingsTab[] = ['sources', 'ai', 'screening'];
+
+/** The tab to draw: the one asked for when this person may see it, else the first. */
+export function tabFor(asked: unknown, admin: boolean): SettingsTab {
+  return isSettingsTab(asked) && (admin || !ADMIN_TABS.includes(asked)) ? asked : 'profile';
+}
+
+function isSettingsTab(value: unknown): value is SettingsTab {
   return (SETTINGS_TABS as readonly unknown[]).includes(value);
 }
 
@@ -204,6 +214,8 @@ export interface ProfileDraftNotice {
 }
 
 export interface SettingsProps {
+  /** An administrator also sees and edits what runs the install (ADR 0070). */
+  admin: boolean;
   /** `?fill=<resume id>` from a resume's page: the fill form starts on that resume (TASKS R20). */
   fillResumeId?: number;
   telegramEnabled: boolean;
@@ -394,6 +406,7 @@ const SearchScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
           {nextFetch ? t('settings.scheduleWithNext', { schedule: describeSchedule(s), next: nextFetch }) : describeSchedule(s)}
         </Hint>
       </div>
+      <fieldset disabled={!view.fetchEditable} class="space-y-3">
       <div class="flex flex-wrap items-end gap-3">
         <Field label={t('settings.howOften')} class="w-44">
           <Select name="fetchEvery">
@@ -408,9 +421,14 @@ const SearchScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
         <HourSelect name="fetchTo" value={s.fetch.to} label={t('settings.toInclusive')} />
       </div>
       <DayPills name="fetchDays" days={s.fetch.days} />
+      </fieldset>
       <ZoneLine zone={s.timezone} />
       <Hint>{t('settings.fetchNowIgnoresTheSchedule')}</Hint>
-      <Button type="submit" variant="secondary">{t('settings.saveSchedule')}</Button>
+      {view.fetchEditable ? (
+        <Button type="submit" variant="secondary">{t('settings.saveSchedule')}</Button>
+      ) : (
+        <Hint>{t('settingsRoute.schedule.adminOnly')}</Hint>
+      )}
     </form>
   );
 };
@@ -597,6 +615,7 @@ const TAB_ICON = {
 } as const satisfies Record<SettingsTab, IconName>;
 
 export const SettingsPage: FC<SettingsProps> = ({
+  admin,
   fillResumeId,
   telegramEnabled,
   classifierMode,
@@ -641,7 +660,7 @@ export const SettingsPage: FC<SettingsProps> = ({
         aria-label={t('settings.settingsSections')}
         class="mb-6 inline-flex flex-wrap gap-0.5 rounded-lg border border-line bg-surface-overlay p-0.5 lg:sticky lg:top-0 lg:mb-0 lg:flex lg:flex-col lg:gap-0 lg:self-start lg:rounded-none lg:border-0 lg:border-l lg:bg-transparent lg:p-0"
       >
-        {SETTINGS_TABS.map((tab) => (
+        {SETTINGS_TABS.filter((tab) => admin || !ADMIN_TABS.includes(tab)).map((tab) => (
           <a
             href={`/settings?tab=${tab}`}
             aria-current={tab === activeTab ? 'page' : undefined}
@@ -666,17 +685,19 @@ export const SettingsPage: FC<SettingsProps> = ({
       <Card flush class="divide-y divide-line !overflow-clip">
       {activeTab === 'profile' && (
       <Section id="schedule" title={t('settings.jobFetching')} desc={t('settings.savedChangesReachTheBackground')}>
-        <ToggleRow
-          label={t('settings.pipeline')}
-          enabled={fetchingEnabled}
-          action="/settings/fetching-toggle"
-          onLabel={t('settings.running')}
-          offLabel={t('settings.paused')}
-          more={t('settings.thePipelineIsTheHourly')}
-        >
-          {t('settings.pausingStopsNewJobsAnd')}
-        </ToggleRow>
-        <div class="border-t border-line pt-5">
+        {admin && (
+          <ToggleRow
+            label={t('settings.pipeline')}
+            enabled={fetchingEnabled}
+            action="/settings/fetching-toggle"
+            onLabel={t('settings.running')}
+            offLabel={t('settings.paused')}
+            more={t('settings.thePipelineIsTheHourly')}
+          >
+            {t('settings.pausingStopsNewJobsAnd')}
+          </ToggleRow>
+        )}
+        <div class={admin ? 'border-t border-line pt-5' : undefined}>
           <SearchScheduleForm view={schedule} />
         </div>
       </Section>
@@ -935,16 +956,18 @@ export const SettingsPage: FC<SettingsProps> = ({
           <ToggleRow label={t('settings.alerts')} enabled={telegramEnabled} action="/settings/telegram-toggle">
             {t('settings.offSendsNothingToAny')}
           </ToggleRow>
-          <div class="border-t border-line pt-5">
-            <ToggleRow
-              label={t('settings.sourceHealthAlerts')}
-              enabled={sourceHealthAlerts}
-              action="/settings/source-health-toggle"
-              more={t('settings.aBoardUsuallyGoesQuiet')}
-            >
-              {t('settings.oneLineInTheDaily')}
-            </ToggleRow>
-          </div>
+          {admin && (
+            <div class="border-t border-line pt-5">
+              <ToggleRow
+                label={t('settings.sourceHealthAlerts')}
+                enabled={sourceHealthAlerts}
+                action="/settings/source-health-toggle"
+                more={t('settings.aBoardUsuallyGoesQuiet')}
+              >
+                {t('settings.oneLineInTheDaily')}
+              </ToggleRow>
+            </div>
+          )}
           <div class="border-t border-line pt-5">
             <ToggleRow
               label={t('settings.staleDigest')}
@@ -1464,7 +1487,7 @@ export const SettingsPage: FC<SettingsProps> = ({
       </Section>
       )}
 
-      {activeTab === 'general' && loginItem.available && (
+      {activeTab === 'general' && admin && loginItem.available && (
       <Section
         id="login"
         title={t('settings.startWithThisComputer')}
@@ -1490,7 +1513,7 @@ export const SettingsPage: FC<SettingsProps> = ({
       </Section>
       )}
 
-      {activeTab === 'general' && (
+      {activeTab === 'general' && admin && (
       <Section id="updates" title={t('settings.updates')} desc={t('settings.updatesDesc', { version: updates.current })}>
         <ToggleRow
           label={t('settings.newVersions')}

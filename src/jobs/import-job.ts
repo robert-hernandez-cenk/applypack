@@ -2,7 +2,7 @@ import type { FolderAlerts } from '../datasets/map';
 import { t } from '../i18n/t';
 import { logger } from '../logger';
 import { listActiveProfiles } from '../profiles';
-import { getSchedule, getSettings } from '../settings';
+import { getSettings } from '../settings';
 import type { NormalizedJob } from '../types';
 import { deliverHeldAlerts } from './alert-delivery';
 import type { CronStats } from './cron-run';
@@ -24,8 +24,11 @@ import { emptyProcessStats, processNormalizedJobs } from './process-jobs';
  * and leave as one message a chat when the import ends, the best listed and
  * the rest counted (alert-delivery.ts). With `alerts: 'off'` nothing is sent
  * or held and no pack is queued, as for a folder whose alerts are off.
+ *
+ * The rows are the importing person's own (ADR 0067): scored by their searches
+ * and held by them alone.
  */
-export async function runImportJob(source: { id: number; name: string }, jobs: NormalizedJob[], alerts: FolderAlerts): Promise<{ stats: CronStats }> {
+export async function runImportJob(source: { id: number; name: string }, jobs: NormalizedJob[], alerts: FolderAlerts, userId: number): Promise<{ stats: CronStats }> {
   const lock = await tryFetchLock();
   if (!lock) {
     logger.warn({ source: source.name }, 'import-job: a fetch is running; nothing imported');
@@ -34,13 +37,12 @@ export async function runImportJob(source: { id: number; name: string }, jobs: N
   const startedAt = new Date();
   try {
     const settings = await getSettings();
-    const profiles = await listActiveProfiles();
+    const profiles = await listActiveProfiles(userId);
     if (profiles.length === 0) {
       logger.warn({ source: source.name }, 'import-job: no active search; nothing imported');
       return { stats: { aborted: 1, reason: 'no-active-profile', source: source.name } };
     }
     const classify = settings.fetchingEnabled;
-    const schedule = await getSchedule();
     const inner = emptyProcessStats();
     await processNormalizedJobs(
       jobs.map((job) => ({ job, companyName: source.name, ...(alerts === 'off' && { quiet: true }) })),
@@ -51,14 +53,15 @@ export async function runImportJob(source: { id: number; name: string }, jobs: N
         classify,
         // A pause on /settings stops an import that is scoring, as it stops a tick.
         isCancelled: classify ? makeFetchPauseProbe() : undefined,
-        schedule,
+        respectAlertHours: true,
         groupAlerts: true,
+        ownerId: userId,
       },
     );
     // The one message. A send every chat refuses leaves the rows held, and the next heartbeat tries again.
     let alertCounted = 0;
     if (inner.alertHeld > 0) {
-      const sent = await deliverHeldAlerts(new Date(), schedule, { companyId: source.id, title: t('import.alertTitle', { source: source.name }) }).catch((err: unknown) => {
+      const sent = await deliverHeldAlerts(new Date(), { companyId: source.id, title: t('import.alertTitle', { source: source.name }) }, userId).catch((err: unknown) => {
         logger.error({ err, source: source.name }, 'import-job: the matches were not sent; they stay held');
         return { delivered: 0, messages: 0, counted: 0, failed: 0 };
       });

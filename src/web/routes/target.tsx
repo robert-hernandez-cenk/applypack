@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx */
+import { currentUser } from '../current-user';
 import { Hono } from 'hono';
 import { getAiRuntime } from '../../ai-runtime';
 import { laneOf, type Lane } from '../lane';
@@ -16,7 +17,7 @@ import { idParam } from '../params';
 import { TargetStartPage } from '../pages/target-start';
 import { TargetRunPage, type RunLanes } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { claimRun, getRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
+import { claimRun, getOwnRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
 import { listResumeOptions, resolveResumeSource, ResumeSourceFields } from '../resume-source';
 import { resumeUploadLimit } from '../upload';
 import { t } from '../../i18n/t';
@@ -58,7 +59,7 @@ targetRoute.get('/target', async (c) => {
 
 /** Polled by the progress page; terminal states reload into the redirect below. */
 targetRoute.get('/target/runs/:id/state', (c) => {
-  const run = getRun(c.req.param('id'));
+  const run = getOwnRun(c.req.param('id'));
   if (!run) return c.json({ gone: true }, 404);
   return c.json({
     stage: run.stage,
@@ -76,7 +77,7 @@ targetRoute.get('/target/runs/:id/state', (c) => {
 
 /** The progress page: target-run.mjs polls the state route until the chain resolves. */
 targetRoute.get('/target/runs/:id', async (c) => {
-  const run = getRun(c.req.param('id'));
+  const run = getOwnRun(c.req.param('id'));
   if (!run) {
     return flashRedirect('/target', 'err', t('target.flash.runGone'));
   }
@@ -112,7 +113,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   if (f.jobMode === 'existing') {
     if (!f.jobId) return flashRedirect('/target', 'err', t('target.flash.pickJob'));
     const back = `/target?job=${f.jobId}`;
-    const job = await prisma.job.findUnique({ where: { id: f.jobId }, include: { company: { select: { name: true, atsType: true } } } });
+    const job = await prisma.job.findFirst({ where: { id: f.jobId, userJobs: { some: { userId: currentUser().id } } }, include: { company: { select: { name: true, atsType: true } } } });
     if (!job) return flashRedirect('/target', 'err', t('target.flash.jobGone'));
     const resume = await resolveResumeSource(form, f);
     if ('error' in resume) return flashRedirect(back, 'err', resume.error);
@@ -194,10 +195,11 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
         salaryMin,
         salaryMax,
       },
+      currentUser().id,
       { classify: false },
     );
     const job = result.job;
-    if (result.kind === 'created') classifyInBackground(result.job);
+    if (result.kind === 'created') classifyInBackground(result.job, currentUser().id);
     updateRun(run.id, { jobId: job.id });
 
     // 2. From here it is the comparison every other page runs: the memo (a

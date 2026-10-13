@@ -45,7 +45,7 @@ function rig(env: OidcEnv = ENV): Rig {
   const now = () => nowMs;
   const app = new Hono();
   app.use('*', signInGate(runtime, now));
-  app.route('/', signInRoutes(runtime, now));
+  app.route('/', signInRoutes(runtime, async () => 7, now));
   app.all('*', (c) => c.text('reached'));
   return { app, advance: (s) => void (nowMs += s * 1000), answer };
 }

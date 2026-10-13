@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx */
+import { flat } from '../../jobs/user-job';
 import { Hono } from 'hono';
 import { idParam } from '../params';
 import { onceGuard } from '../once-guard';
@@ -17,6 +18,7 @@ import {
   setSetupCompleted,
 } from '../../settings';
 import { getActiveProfile, updateProfile, type ProfileInput } from '../../profiles';
+import { currentUser } from '../current-user';
 import { resolveCountries } from '../../countries';
 import { searchPlaces } from '../../fetchers/fetch-context';
 import { isAggregator } from '../source-groups';
@@ -80,27 +82,29 @@ const SCORE_RUN_KEY = 'score';
 export const welcomeRoute = new Hono();
 
 welcomeRoute.get('/welcome', async (c) => {
-  const { facts, settings, statuses, profile, suggestions } = await loadWelcomeContext();
+  const { facts, settings, alertsOn, statuses, profile, suggestions } = await loadWelcomeContext();
   const requested = c.req.query('step');
   const current = isWelcomeStep(requested) ? requested : currentStep(facts);
 
   const [resumes, lastSearch, aggregators, packs, matchCount, top, waiting, localServers] = await Promise.all([
-    listResumes(),
+    listResumes(currentUser().id),
     findLastSearch(),
     countAggregators(),
     packOffers(),
     profile
-      ? prisma.job.count({
-          where: { fitScore: { gte: profile.minFitScore }, status: { not: JobStatus.DISMISSED } },
+      ? prisma.userJob.count({
+          where: { userId: currentUser().id, fitScore: { gte: profile.minFitScore }, status: { not: JobStatus.DISMISSED } },
         })
       : 0,
-    prisma.job.findMany({
-      where: { fitScore: { not: null }, status: { not: JobStatus.DISMISSED } },
-      orderBy: [{ fitScore: 'desc' }, { fetchedAt: 'desc' }],
-      take: TOP_MATCHES,
-      select: { id: true, title: true, employer: true, fitScore: true, company: { select: { name: true, atsType: true } } },
-    }),
-    profile && facts.profileReady ? countWaitingUnscored(profile) : 0,
+    prisma.userJob
+      .findMany({
+        where: { userId: currentUser().id, fitScore: { not: null }, status: { not: JobStatus.DISMISSED } },
+        orderBy: [{ fitScore: 'desc' }, { job: { fetchedAt: 'desc' } }],
+        take: TOP_MATCHES,
+        select: { fitScore: true, job: { select: { id: true, title: true, employer: true, company: { select: { name: true, atsType: true } } } } },
+      })
+      .then((rows) => rows.map(flat)),
+    profile && facts.profileReady ? countWaitingUnscored(currentUser().id, profile) : 0,
     // One local request per default address, on step 1 only — no other step asks.
     current === 'ai' ? findLocalServers() : [],
   ]);
@@ -110,7 +114,7 @@ welcomeRoute.get('/welcome', async (c) => {
 
   const resumeId = idParam(c.req.query('resume'));
   const asNew = c.req.query('mode') === 'new';
-  const draftResume = Number.isFinite(resumeId) && profile ? await getResume(resumeId) : null;
+  const draftResume = Number.isFinite(resumeId) && profile ? await getResume(currentUser().id, resumeId) : null;
   const draft = draftResume && profile ? draftCard(profile, draftResume, asNew) : null;
 
   return c.html(
@@ -119,7 +123,7 @@ welcomeRoute.get('/welcome', async (c) => {
       current={current}
       setupCompleted={settings.setupCompletedAt !== null}
       fetchingEnabled={settings.fetchingEnabled}
-      telegramEnabled={settings.telegramEnabled}
+      telegramEnabled={alertsOn}
       ai={{
         engines: AI_PROVIDER_IDS.map((id) => ({
           id,
@@ -167,14 +171,14 @@ welcomeRoute.get('/welcome', async (c) => {
 });
 
 welcomeRoute.post('/welcome/skip', async () => {
-  await setSetupCompleted(currentLocale());
+  await setSetupCompleted(currentLocale(), currentUser().id);
   return flashRedirect('/', 'ok', t('welcome.flash.skipped'));
 });
 
 /** Step 5's closing action: the hourly watch starts and the wizard stops greeting. */
 welcomeRoute.post('/welcome/finish', async () => {
   await setFetchingEnabled(true);
-  await setSetupCompleted(currentLocale());
+  await setSetupCompleted(currentLocale(), currentUser().id);
   return flashRedirect('/', 'ok', t('welcome.flash.finished'));
 });
 
@@ -250,10 +254,10 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), onceGuard(
   if (form.file instanceof File && form.file.size > 0) {
     const upload = await readResumeUpload(form);
     if ('error' in upload) return flashRedirect(PROFILE_STEP, 'err', upload.error);
-    resume = await createResume({ name: nameFromFilename(upload.sourceFilename), ...upload });
+    resume = await createResume(currentUser().id, { name: nameFromFilename(upload.sourceFilename), ...upload });
   } else {
     const id = idParam(form.resumeId);
-    if (Number.isFinite(id)) resume = await getResume(id);
+    if (Number.isFinite(id)) resume = await getResume(currentUser().id, id);
   }
   if (!resume || resume.hidden) return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.pickResume'));
   if (resume.scannedAt && resume.primarySkills.length > 0) {
@@ -272,7 +276,7 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), onceGuard(
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
-    const scan = await scanResume({ id, text });
+    const scan = await scanResume({ id, userId: currentUser().id, text });
     if (!scan) {
       updateRun(run.id, {
         stage: 'error',
@@ -293,13 +297,13 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), onceGuard(
 welcomeRoute.post('/welcome/profile/apply', async (c) => {
   const form = await c.req.parseBody();
   const { profile } = await loadWelcomeContext();
-  const resume = await getResume(idParam(form.resumeId));
+  const resume = await getResume(currentUser().id, idParam(form.resumeId));
   if (!profile) return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.noPrimary'));
   if (!resume || !resume.scannedAt) return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.notScanned'));
   const draft = buildProfileDraft(profile, scanFields(resume));
   // The search is built from this resume, so it hunts with it (#158) — the
   // same link the settings route proposes when it fills from a resume.
-  await updateProfile(profile.id, { ...profileInput(profile), ...draft.changes, resumeId: resume.id });
+  await updateProfile(currentUser().id, profile.id, { ...profileInput(profile), ...draft.changes, resumeId: resume.id });
   const changed = profile.resumeId === resume.id ? draft.changed : [...draft.changed, t('welcome.flash.changedResume')];
   // No step named: the wizard lands on the first undone one — the sources
   // step when the new countries call for boards, the matches otherwise.
@@ -319,7 +323,7 @@ welcomeRoute.post('/welcome/profile/apply', async (c) => {
  */
 welcomeRoute.post('/welcome/profile/create', async (c) => {
   const form = await c.req.parseBody();
-  const resume = await getResume(idParam(form.resumeId));
+  const resume = await getResume(currentUser().id, idParam(form.resumeId));
   if (!resume || resume.hidden || !resume.scannedAt) {
     return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.notScanned'));
   }
@@ -340,7 +344,7 @@ welcomeRoute.post('/welcome/profile', async (c) => {
   if (stackRequired.length === 0 && roleTypes.length === 0) {
     return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.profileEmpty'));
   }
-  await updateProfile(profile.id, { ...profileInput(profile), stackRequired, roleTypes, seniority });
+  await updateProfile(currentUser().id, profile.id, { ...profileInput(profile), stackRequired, roleTypes, seniority });
   return flashRedirect('/welcome', 'ok', t('welcome.flash.profileSaved'));
 });
 
@@ -359,9 +363,9 @@ welcomeRoute.post('/welcome/search', async (c) => {
   if (typed.unknown.length > 0) {
     return flashRedirect(SEARCH_STEP, 'err', t('welcome.flash.countryUnknown', { names: typed.unknown.join(', ') }));
   }
-  let profile = await getActiveProfile();
+  let profile = await getActiveProfile(currentUser().id);
   if (profile && typed.codes.length > 0) {
-    profile = await updateProfile(profile.id, { ...profileInput(profile), countries: typed.codes });
+    profile = await updateProfile(currentUser().id, profile.id, { ...profileInput(profile), countries: typed.codes });
   }
   const run = await beginFetchNow({
     backUrl: '/welcome',
@@ -392,11 +396,13 @@ welcomeRoute.post('/welcome/score', async (c) => {
     backLabel: t('fetch.backToSetup'),
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
+  const userId = currentUser().id;
   startRun(run.id, async () => {
     let stats: CronStats = {};
     await recordCronRun('score-unscored', async () => {
       const out = await runScoreUnscored({
         limit: SCORE_BATCH,
+        userId,
         onProgress: (done, total) => updateRun(run.id, { progress: { done, total } }),
       });
       stats = out.stats;
@@ -434,9 +440,9 @@ async function findLastSearch(): Promise<LastSearch | null> {
 }
 
 /** Stored-unscored jobs that pass the profile's words — what one "Score" press would read. */
-async function countWaitingUnscored(profile: Profile): Promise<number> {
+async function countWaitingUnscored(userId: number, profile: Profile): Promise<number> {
   const rows = await prisma.job.findMany({
-    where: { fitScore: null, status: JobStatus.NEW },
+    where: { userJobs: { some: { userId, fitScore: null, status: JobStatus.NEW } } },
     select: { title: true, location: true, workplace: true, countries: true, regions: true },
   });
   return rows.filter((j) => passesBaseFilter(j, profile)).length;

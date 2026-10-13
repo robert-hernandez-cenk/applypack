@@ -24,7 +24,7 @@ async function main(): Promise<void> {
   });
   const resume = await prisma.resume.findUniqueOrThrow({
     where: { id: resumeId },
-    select: { id: true, name: true, version: true, text: true },
+    select: { id: true, userId: true, name: true, version: true, text: true },
   });
   const jobInput = { ...job, companyName: job.company.name };
 

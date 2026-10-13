@@ -1,12 +1,14 @@
-import type { AtsType, Job, JobStatus } from '@prisma/client';
+import { JobStatus, type AtsType, type Job } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { classifyJob } from '../classifier';
 import { companyForPrompt } from '../employer';
-import { listActiveProfiles } from '../profiles';
+import { listAllActiveProfiles } from '../profiles';
 import { isBlankProfile } from '../profile-guards';
 import { getSettings } from '../settings';
-import { buildVerdicts, mergeVerdicts } from './verdict-merge';
+import { buildVerdicts, mergeVerdicts, mergeVerdictsByUser } from './verdict-merge';
+import { givesRowToOthers, type UserOutcome } from './user-job';
+import { statusesOf } from './user-job-store';
 import { saveJobScores } from './score-store';
 import { mergeAiLocation, type StoredPlace } from './location-merge';
 import { handPickedSource, statusAfterRescore } from './rescore-status';
@@ -27,24 +29,26 @@ export type Rescored =
 
 /**
  * Classifies one stored job against every active search and writes the scores
- * back (ADR 0028). Used by the per-job "Re-classify" button and by manual job
- * entry. With `keepStatus` the row's status is left alone; otherwise
- * `statusAfterRescore` decides: a job is dismissed only when EVERY search
- * rejects it, and never when it is Applied, Saved, or a posting the user
- * pasted or saved as a file — a dismissed row is deleted a month on. A
- * posting the two-stage prefilter turns away is no search's, as in
- * "Save & re-classify" (reclassify-job.ts): its status follows the same rule
- * and its stored verdict stays as the last reading.
+ * back (ADR 0028, 0067). Used by the per-job "Re-classify" button and by manual
+ * job entry. Every person with a verdict gets their own row updated; with
+ * `keepStatus` the rows' statuses are left alone (and nobody new gets one);
+ * otherwise `statusAfterRescore` decides per person: a job is dismissed for
+ * someone only when EVERY search of theirs rejects it, and never when it is
+ * Applied, Saved, or a posting they pasted or saved as a file — a dismissed
+ * row is deleted a month on. A posting the two-stage prefilter turns away is
+ * no search's, as in "Save & re-classify" (reclassify-job.ts): the statuses
+ * follow the same rule and the stored verdicts stay as the last reading.
+ * `userId` is the person asking: the status in the answer is theirs.
  */
 export async function classifyExistingJob(
   job: ClassifiableJob,
-  opts: { keepStatus: boolean },
+  opts: { keepStatus: boolean; userId: number },
 ): Promise<Rescored> {
   const started = Date.now();
   // Blank searches are dropped here exactly as in the tick and in
   // "Re-classify all" (issue #50) — otherwise this path, and only this path,
   // would store a vibes-based verdict next to the real ones.
-  const profiles = (await listActiveProfiles()).filter((p) => !isBlankProfile(p));
+  const profiles = (await listAllActiveProfiles()).filter((p) => !isBlankProfile(p));
   if (profiles.length === 0) {
     logger.warn({ jobId: job.id }, 'classify-existing: no usable active search');
     return { kind: 'no-search' };
@@ -66,9 +70,15 @@ export async function classifyExistingJob(
       reason = why;
     },
   );
+  const states = (await statusesOf([job.id])).get(job.id) ?? new Map<number, JobStatus>();
+  const handPicked = handPickedSource(job.company);
+  const statusOf = (userId: number): JobStatus => states.get(userId) ?? JobStatus.NEW;
   if (outcome.preFiltered) {
-    const status = opts.keepStatus ? job.status : statusAfterRescore(job.status, false, handPickedSource(job.company));
-    if (status !== job.status) await prisma.job.update({ where: { id: job.id }, data: { status } });
+    for (const [userId, current] of states) {
+      const status = opts.keepStatus ? current : statusAfterRescore(current, false, handPicked);
+      if (status !== current) await prisma.userJob.updateMany({ where: { userId, jobId: job.id }, data: { status } });
+    }
+    const status = opts.keepStatus ? statusOf(opts.userId) : statusAfterRescore(statusOf(opts.userId), false, handPicked);
     logger.info({ jobId: job.id, status }, 'classify-existing: the prefilter turned it away');
     return { kind: 'prefiltered', status };
   }
@@ -78,9 +88,13 @@ export async function classifyExistingJob(
   const merged = mergeVerdicts(verdicts);
   if (!merged) return { kind: 'failed', reason };
 
-  const status = opts.keepStatus ? job.status : statusAfterRescore(job.status, merged.kept, handPickedSource(job.company));
-
-  await saveJobScores(job, merged, verdicts, status, mergeAiLocation(storedPlace(job), outcome.location));
+  const outcomes: UserOutcome[] = [...mergeVerdictsByUser(verdicts)].map(([userId, m]) => ({
+    userId,
+    merged: m,
+    status: opts.keepStatus ? statusOf(userId) : statusAfterRescore(statusOf(userId), m.kept, handPicked),
+  }));
+  await saveJobScores(job, merged, verdicts, outcomes, givesRowToOthers(handPicked, opts.keepStatus), mergeAiLocation(storedPlace(job), outcome.location));
+  const status = outcomes.find((o) => o.userId === opts.userId)?.status ?? statusOf(opts.userId);
   logger.info(
     { jobId: job.id, searches: profiles.length, kept: merged.kept, ms: Date.now() - started },
     'classify-existing: scored',
@@ -103,8 +117,8 @@ export function storedPlace(job: Pick<Job, 'workplace' | 'countries' | 'regions'
  * reader wants the comparison, not the fit score. The score lands on the job
  * page whenever the classifier answers; a failure is logged, never surfaced.
  */
-export function classifyInBackground(job: ClassifiableJob): void {
-  void classifyExistingJob(job, { keepStatus: true }).catch((err) => {
+export function classifyInBackground(job: ClassifiableJob, userId: number): void {
+  void classifyExistingJob(job, { keepStatus: true, userId }).catch((err) => {
     logger.error({ err, jobId: job.id }, 'classify-existing: background run failed');
   });
 }

@@ -13,6 +13,8 @@ import { ThemeSwitch } from './theme-switch';
 import { currentTheme, themeAttr } from './theme';
 import { browserMessagesJson } from './browser-messages';
 import { signInEnabled } from './oidc/enabled';
+import { currentUser } from './current-user';
+import { isAdmin } from '../users/admin-policy';
 
 export type NavKey =
   | 'overview'
@@ -26,6 +28,7 @@ export type NavKey =
   | 'runs'
   | 'ai'
   | 'screen'
+  | 'users'
   | 'settings';
 
 interface LayoutProps {
@@ -48,13 +51,15 @@ interface LayoutProps {
 interface NavItem {
   key: NavKey;
   href: string;
+  /** In the menu for administrators only (ADR 0070): the route behind it refuses a member anyway. */
+  admin?: true;
 }
 
 /** Overview stands alone above the groups; Settings is pinned below them. */
 const OVERVIEW_ITEM: NavItem = { key: 'overview', href: '/' };
 const SETTINGS_ITEM: NavItem = { key: 'settings', href: '/settings' };
 /** Employer mode (ADR 0049): in the menu only while the switch is on. */
-const SCREEN_ITEM: NavItem = { key: 'screen', href: '/screen' };
+const SCREEN_ITEM: NavItem = { key: 'screen', href: '/screen', admin: true };
 
 /** The menu by what a visit is for — sentence-case labels (`nav.group.<key>`), never uppercase (DESIGN.md). */
 const NAV_GROUPS: { key: 'work' | 'tools' | 'research' | 'system'; items: NavItem[] }[] = [
@@ -77,14 +82,15 @@ const NAV_GROUPS: { key: 'work' | 'tools' | 'research' | 'system'; items: NavIte
     key: 'research',
     items: [
       { key: 'companies', href: '/companies' },
-      { key: 'discovery', href: '/discovery' },
+      { key: 'discovery', href: '/discovery', admin: true },
     ],
   },
   {
     key: 'system',
     items: [
       { key: 'runs', href: '/runs' },
-      { key: 'ai', href: '/ai' },
+      { key: 'ai', href: '/ai', admin: true },
+      { key: 'users', href: '/users', admin: true },
     ],
   },
 ];
@@ -292,6 +298,7 @@ const NAV_ICON: Record<NavKey, IconName> = {
   runs: 'activity',
   ai: 'chart-column',
   screen: 'users',
+  users: 'shield',
   settings: 'settings',
 };
 
@@ -342,7 +349,9 @@ const SignOut: FC = () => {
   );
 };
 
-const Sidebar: FC<{ active?: NavKey }> = ({ active }) => (
+const Sidebar: FC<{ active?: NavKey }> = ({ active }) => {
+  const admin = isAdmin(currentUser());
+  return (
   <aside class="app-sidebar flex h-full shrink-0 flex-col border-r border-line bg-surface-raised md:w-16 lg:w-60">
     <div class="flex h-16 shrink-0 items-center px-5 md:justify-center md:px-0 lg:justify-start lg:px-5">
       <a href="/" class="flex items-center gap-2.5" title="ApplyPack" translate="no">
@@ -354,7 +363,8 @@ const Sidebar: FC<{ active?: NavKey }> = ({ active }) => (
       <NavLink item={OVERVIEW_ITEM} active={active} />
       {NAV_GROUPS.map((group) => {
         const id = `nav-${group.key}`;
-        const items = group.key === 'system' && isEmployerMode() ? [...group.items, SCREEN_ITEM] : group.items;
+        const all = group.key === 'system' && isEmployerMode() ? [...group.items, SCREEN_ITEM] : group.items;
+        const items = all.filter((n) => !n.admin || admin);
         return (
           <div role="group" aria-labelledby={id} class="mt-5 md:mt-3 lg:mt-5">
             {/* The label where there is room for words; a hairline in its place on the icon rail. */}
@@ -373,6 +383,11 @@ const Sidebar: FC<{ active?: NavKey }> = ({ active }) => (
     </nav>
     <div class="shrink-0 space-y-2 border-t border-line px-3 py-3 md:px-2.5 lg:px-3">
       <NavLink item={SETTINGS_ITEM} active={active} />
+      {signInEnabled() && (
+        <p class="truncate px-3 text-meta leading-4 text-ink-faint md:hidden lg:block" translate="no" data-ui="hint">
+          {currentUser().name}
+        </p>
+      )}
       {signInEnabled() && <SignOut />}
       <LanguageMenu variant="sidebar" />
       <ThemeSwitch variant="sidebar" />
@@ -383,7 +398,8 @@ const Sidebar: FC<{ active?: NavKey }> = ({ active }) => (
       <VersionLine />
     </div>
   </aside>
-);
+  );
+};
 
 /** Which release this is, and — when the optional check has seen one — that a newer one is out (TASKS N9). */
 const VersionLine: FC = () => {

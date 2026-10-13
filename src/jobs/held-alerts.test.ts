@@ -3,9 +3,21 @@ import assert from 'node:assert/strict';
 import { groupHeldByTarget, heldReason, HELD_LIST_MAX, type HeldRow } from './held-alerts';
 import type { AlertJob } from '../types';
 
-function row(id: number, targetId: number | null): HeldRow {
-  return { id, targetId, alert: { title: `job ${id}` } as AlertJob };
+function row(id: number, targetId: number | null, userId = 1): HeldRow {
+  return { id, userId, targetId, alert: { title: `job ${id}` } as AlertJob };
 }
+
+describe('groupHeldByTarget across people', () => {
+  it('never puts two people in one message, even for the same broadcast', () => {
+    const groups = groupHeldByTarget([row(1, null, 1), row(2, null, 2), row(3, null, 1)]);
+    assert.deepEqual(groups.map((g) => [g.userId, g.targetId, g.ids]), [[1, null, [1, 3]], [2, null, [2]]]);
+  });
+
+  it('counts the limit per person', () => {
+    const groups = groupHeldByTarget([row(1, null, 1), row(2, null, 1), row(3, null, 2)], 1);
+    assert.deepEqual(groups.map((g) => [g.userId, g.ids, g.unlisted]), [[1, [1], [2]], [2, [3], []]]);
+  });
+});
 
 describe('groupHeldByTarget', () => {
   it('sends one message per chat and keeps the order the rows came in', () => {

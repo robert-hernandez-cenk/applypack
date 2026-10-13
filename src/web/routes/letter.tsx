@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx */
+import { currentUser } from '../current-user';
 import { Hono } from 'hono';
 import { companyForPrompt } from '../../employer';
 import { z } from 'zod';
@@ -12,7 +13,7 @@ import { matchResumeToJob } from '../../resume/match';
 import { countWords, COVER_TONES, readCoverAngles, type CoverTone } from '../../resume/prompts';
 import { getLatestCompanySnapshot } from '../../resume/store';
 import { verifyJob } from '../../verification/verify';
-import { getSettings, setCoverAngles } from '../../settings';
+import { getUserSettings, setCoverAngles } from '../../settings';
 import { LetterStartPage } from '../pages/letter-start';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { claimRun, LETTER_FAILED, startRun, updateRun, type RunStep } from '../target-runs';
@@ -45,7 +46,7 @@ const LetterFormSchema = z.object({
 export const letterRoute = new Hono();
 
 letterRoute.get('/letter', async (c) => {
-  const [settings, jobs, resumes] = await Promise.all([getSettings(), listPickableJobs(), listResumeOptions()]);
+  const [settings, jobs, resumes] = await Promise.all([getUserSettings(currentUser().id), listPickableJobs(), listResumeOptions()]);
   return c.html(
     <LetterStartPage
       presetUrl={(c.req.query('url') ?? '').slice(0, 2000)}
@@ -82,8 +83,8 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
         approach: angle(form.approach),
         notes: angle(form.notes, 500),
       }
-    : readCoverAngles((await getSettings()).coverAngles);
-  if (fromForm) await setCoverAngles(angles);
+    : readCoverAngles((await getUserSettings(currentUser().id)).coverAngles);
+  if (fromForm) await setCoverAngles(currentUser().id, angles);
 
   // Resolve the resume inline — bad input fails before anything runs.
   const resume = await resolveResumeSource(form, f);
@@ -97,7 +98,7 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
   let { companyName, title } = f;
   if (f.jobMode === 'existing') {
     if (!f.jobId) return flashRedirect('/letter', 'err', t('letter.flash.pickJob'));
-    const row = await prisma.job.findUnique({ where: { id: f.jobId }, select: { id: true, title: true } });
+    const row = await prisma.job.findFirst({ where: { id: f.jobId, userJobs: { some: { userId: currentUser().id } } }, select: { id: true, title: true } });
     if (!row) return flashRedirect('/letter', 'err', t('letter.flash.jobGone'));
     existingJob = row;
   } else {
@@ -195,6 +196,7 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
           salaryMin,
           salaryMax,
         },
+        currentUser().id,
         { classify: false },
       );
       job = {
@@ -213,7 +215,7 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
       updateRun(run.id, { stage: 'match' });
       // The letter leads with strengths, which only the full report writes.
       const row = await matchResumeToJob(
-        { id: resume.id, name: resume.name, version: resume.version, text: resume.text },
+        { id: resume.id, userId: resume.userId, name: resume.name, version: resume.version, text: resume.text },
         { id: job.id, title: job.title, companyName: job.companyName, location: job.location, description: job.description },
         { mode: 'full', evidence: resume.evidence },
       );
@@ -240,7 +242,7 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
 
     updateRun(run.id, { stage: 'letter' });
     const outcome = await generateCoverLetter(
-      { id: resume.id, text: resume.text, version: resume.version },
+      { id: resume.id, userId: resume.userId, text: resume.text, version: resume.version },
       { id: job.id, title: job.title, companyName: job.companyName, location: job.location, description: job.description },
       { tone, angles, evidence: resume.evidence },
     );

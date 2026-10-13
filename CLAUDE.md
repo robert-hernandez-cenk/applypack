@@ -185,6 +185,53 @@
   only one that touches `application_pack`. The dashboard never prepares a
   pack: it queues a row, and `jobs/pack-job.ts` takes it. The limits are
   code, never a prompt rule (gotcha 11), and a pack never changes a resume.
+- `src/users/` is who uses the install (ADR 0065): `identity.ts` is pure (the
+  default user's id, `provisionStep`), `store.ts` is the only file that
+  touches `users`. The dashboard reads `currentUser()` (`web/current-user.ts`);
+  the worker has no request, so code that works on a person's data takes
+  `userId: number` and its caller says whose. The job catalog is shared; a
+  table becomes per-user only in its own slice of issue #5. Searches are
+  (ADR 0066): `profiles.ts` takes the `userId` first (a foreign id reads as
+  "search gone"), `User.primaryProfileId` is the primary, the cap is per
+  person, and the worker scores against `listAllActiveProfiles()` — every
+  running search of every person in ONE call. What a person does with a
+  posting is `UserJob(userId, jobId)` (ADR 0067): status, their best-of
+  verdict, alert stamps, application fields, notes; `Job` keeps the shared
+  posting. A reader of "my postings" starts from `user_job` with
+  `currentUser().id` (`jobs/user-job.ts:flat` lays the row over the posting
+  for pages); `web/job-guard.ts` makes `/jobs/<id>/…` "not found" for a
+  posting the person holds no row for. `mergeVerdictsByUser` merges per owner;
+  `process-jobs.ts` creates the rows with the posting, `score-store.ts` is the
+  one write for a re-score. Pasted / imported postings are their adder's only
+  (`ownerId`, `givesRowToOthers`). The old `Job.status`-style columns are gone.
+  Settings, destinations and mutes are a person's too (ADR 0069):
+  `settings-split.ts` (pure) classifies every `AppSettings` column — the
+  install's stay on `AppSettings`, a person's are `UserSettings`
+  (`getUserSettings(userId)`, setters take the `userId` first; the schedule
+  is cut into the install's fetch half and the person's zone + alerts).
+  `NotificationTarget.userId` and `CompanyMute (userId, key)`; the notifier
+  takes the `userId` first and a broadcast goes to THAT person's chats;
+  operator notices go to administrators; the recap and nudge run per person
+  (`jobs/for-each-user.ts`); the tick drops a posting before the AI only when
+  every person it could reach turns it away (`employerGates`).
+  A resume is its owner's (ADR 0068): `Resume.userId`, and `resume/store.ts`
+  takes the `userId` first on every list, getter, default flag, scratch row
+  and fact — never `currentUser()` inside a store, so the worker passes the
+  pack's owner; AI modules take it from the `ResumeSummary` they were given.
+  Comparisons, reviews and letters are owned THROUGH the resume (read them
+  `resume: { userId }`, no column of their own); `CandidateFact` and
+  `ApplicationPack` carry a `userId` ((userId, term) and (userId, jobId) are
+  unique). `PostingBrief` and `JobVerification` stay shared. The tick queues
+  a pack for every person who keeps a new posting, against their own day's
+  count, and `pack-job.ts` prepares each row as its owner. A new reader of
+  any of these starts from the person.
+  Roles (ADR 0070): `users/admin-policy.ts` (pure) lists every route as
+  administrators' (`ADMIN_ROUTES`) or personal (`PERSONAL_ROUTES`); `web/admin-guard.tsx`
+  refuses a member the first, and an unlisted route is administrators-only. A
+  new route goes in exactly one list — the route smoke fails otherwise — and a
+  page that shows an install-wide control draws it for `isAdmin(currentUser())`
+  only. `users/rules.ts` (pure) keeps the last administrator; nobody changes
+  their own account on the users page.
 - `src/starter-packs/` is the curated-pack module: `catalog.json` (data),
   `catalog.ts` and `resolve.ts` are pure (tested), `probe.ts` calls
   `probeAts`. Web-only — the worker never imports it. Every catalog entry

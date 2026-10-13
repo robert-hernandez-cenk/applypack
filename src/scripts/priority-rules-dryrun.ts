@@ -9,13 +9,14 @@
  */
 import { prisma } from '../db';
 import { getActiveProfile } from '../profiles';
+import { DEFAULT_USER_ID } from '../users/identity';
 import {
   evaluatePriorityRules,
   parsePriorityRules,
 } from '../priority-rules';
 
 async function main(): Promise<void> {
-  const profile = await getActiveProfile();
+  const profile = await getActiveProfile(DEFAULT_USER_ID);
   if (!profile) {
     console.error('no active profile');
     process.exit(1);
@@ -35,17 +36,17 @@ async function main(): Promise<void> {
   }
   console.log('');
 
-  const jobs = await prisma.job.findMany({
+  // The default user's rows: a dry run has no request (ADR 0067).
+  const held = await prisma.userJob.findMany({
+    where: { userId: DEFAULT_USER_ID },
     select: {
-      id: true,
-      title: true,
-      location: true,
-      description: true,
       fitScore: true,
       status: true,
       priorityRulesApplied: true,
+      job: { select: { id: true, title: true, location: true, description: true } },
     },
   });
+  const jobs = held.map(({ job, ...mine }) => ({ ...job, ...mine }));
 
   const matches: {
     id: number;

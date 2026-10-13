@@ -7,6 +7,7 @@ import { parseAiKeys, type AiKeyProviderId, type AiKeys } from './ai-keys';
 import { parseSourceKeys, type KeyedSource, type SourceKeyField, type SourceKeys } from './source-keys';
 import { parsePackSettings, type PackSettings } from './pack/settings';
 import { parseSchedule, type Schedule } from './user-schedule';
+import { personalSchedule } from './settings-split';
 import { config } from './config';
 import { isLocale, languageKeptAtSetup, type Locale } from './i18n/locale';
 import { t } from './i18n/t';
@@ -17,11 +18,12 @@ const TELEGRAM_TIMEOUT_MS = 10_000;
 
 export type ClassifierMode = 'single' | 'two_stage';
 
+/**
+ * The install's settings: what runs it (ADR 0069). What is a person's own is
+ * `UserSettingsView`; settings-split.ts is the classification.
+ */
 export interface AppSettingsView {
-  telegramEnabled: boolean;
   classifierMode: ClassifierMode;
-  applicationTrackingEnabled: boolean;
-  staleApplicationsDigestEnabled: boolean;
   hnParserEnabled: boolean;
   disabledSources: string[];
   discoveryEnabled: boolean;
@@ -42,17 +44,9 @@ export interface AppSettingsView {
   /** ADR 0057: the local engine's Ollama root (null = OLLAMA_URL) and its context window (null = the default). */
   localAiUrl: string | null;
   localContextTokens: number | null;
-  /** ADR 0056: turn postings away at a company applied to in the last N days; null = off. */
-  reapplyDays: number | null;
   /** When init.ts gave the older rows their employer keys; null = not yet. */
   employersFilledAt: Date | null;
-  /** Raw AppSettings.pack JSON — parse with parsePackSettings (ADR 0063). */
-  pack: unknown;
-  /** Raw AppSettings.coverAngles JSON — parse with readCoverAngles. */
-  coverAngles: unknown;
-  /** Raw AppSettings.pipelineStages JSON — parse with parseStageConfig (ADR 0025). */
-  pipelineStages: unknown;
-  /** Raw AppSettings.schedule JSON — parse with parseSchedule (TASKS §16). */
+  /** Raw AppSettings.schedule JSON, the install's half (zone + fetch) — parse with parseSchedule (TASKS §16). */
   schedule: unknown;
   /** NULL until the first-run wizard finishes or is skipped — `/` redirects to /welcome meanwhile. */
   setupCompletedAt: Date | null;
@@ -60,9 +54,27 @@ export interface AppSettingsView {
   employerMode: boolean;
   /** How long a screening and its applicant files are kept (ADR 0048). */
   screeningRetentionDays: number;
+  updatedAt: Date;
+}
+
+/** One person's own settings (ADR 0069). */
+export interface UserSettingsView {
+  /** The Alerts switch: off holds what is found. */
+  telegramEnabled: boolean;
+  applicationTrackingEnabled: boolean;
+  staleApplicationsDigestEnabled: boolean;
+  /** ADR 0056: turn postings away at a company this person applied to in the last N days; null = off. */
+  reapplyDays: number | null;
+  /** Raw coverAngles JSON — parse with readCoverAngles. */
+  coverAngles: unknown;
+  /** Raw pipelineStages JSON — parse with parseStageConfig (ADR 0025). */
+  pipelineStages: unknown;
+  /** Raw schedule JSON (zone + alerts) — read through getAlertSchedule. */
+  schedule: unknown;
+  /** Raw pack JSON — parse with parsePackSettings (ADR 0063). */
+  pack: unknown;
   /** ADR 0061: the interface's language; null = never chosen (English, the browser's offered once). */
   locale: Locale | null;
-  updatedAt: Date;
 }
 
 /**
@@ -122,10 +134,7 @@ export async function getSettings(): Promise<AppSettingsView> {
     create: { id: SETTINGS_ID },
   });
   return {
-    telegramEnabled: row.telegramEnabled,
     classifierMode: normaliseClassifierMode(row.classifierMode),
-    applicationTrackingEnabled: row.applicationTrackingEnabled,
-    staleApplicationsDigestEnabled: row.staleApplicationsDigestEnabled,
     hnParserEnabled: row.hnParserEnabled,
     disabledSources: row.disabledSources,
     discoveryEnabled: row.discoveryEnabled,
@@ -139,18 +148,42 @@ export async function getSettings(): Promise<AppSettingsView> {
     openAiBaseUrl: row.openAiBaseUrl,
     localAiUrl: row.localAiUrl,
     localContextTokens: row.localContextTokens,
-    reapplyDays: row.reapplyDays,
     employersFilledAt: row.employersFilledAt,
-    pack: row.pack,
-    coverAngles: row.coverAngles,
-    pipelineStages: row.pipelineStages,
     schedule: row.schedule,
     setupCompletedAt: row.setupCompletedAt,
     employerMode: row.employerMode,
     screeningRetentionDays: row.screeningRetentionDays,
-    locale: storedLocale(row.locale),
     updatedAt: row.updatedAt,
   };
+}
+
+/** The person's settings row, created with the defaults the first time anything asks. */
+async function ensureUserSettings(userId: number): Promise<void> {
+  await prisma.userSettings.upsert({ where: { userId }, update: {}, create: { userId } });
+}
+
+export async function getUserSettings(userId: number): Promise<UserSettingsView> {
+  const row = await prisma.userSettings.upsert({ where: { userId }, update: {}, create: { userId } });
+  return {
+    telegramEnabled: row.telegramEnabled,
+    applicationTrackingEnabled: row.applicationTrackingEnabled,
+    staleApplicationsDigestEnabled: row.staleApplicationsDigestEnabled,
+    reapplyDays: row.reapplyDays,
+    coverAngles: row.coverAngles,
+    pipelineStages: row.pipelineStages,
+    schedule: row.schedule,
+    pack: row.pack,
+    locale: storedLocale(row.locale),
+  };
+}
+
+/** A write to one person's row: creates it with the defaults and the one field if it is missing. */
+async function writeUserSettings(userId: number, data: Prisma.UserSettingsUncheckedUpdateInput): Promise<void> {
+  await prisma.userSettings.upsert({
+    where: { userId },
+    update: data,
+    create: { ...(data as Prisma.UserSettingsUncheckedCreateInput), userId },
+  });
 }
 
 /** A code this build knows, or null: a language a later release added reads as "never chosen" after a rollback. */
@@ -180,14 +213,17 @@ export async function getInstanceId(): Promise<string> {
  * ends (ADR 0061) — unless it was English, which chose nothing
  * (`locale.ts:languageKeptAtSetup`, #355). A language already chosen is left alone.
  */
-export async function setSetupCompleted(shownIn: Locale): Promise<void> {
+export async function setSetupCompleted(shownIn: Locale, userId: number): Promise<void> {
   await prisma.appSettings.upsert({
     where: { id: SETTINGS_ID },
     update: { setupCompletedAt: new Date() },
     create: { id: SETTINGS_ID, setupCompletedAt: new Date() },
   });
   const kept = languageKeptAtSetup(shownIn);
-  if (kept) await prisma.appSettings.updateMany({ where: { id: SETTINGS_ID, locale: null }, data: { locale: kept } });
+  if (kept) {
+    await ensureUserSettings(userId);
+    await prisma.userSettings.updateMany({ where: { userId, locale: null }, data: { locale: kept } });
+  }
   logger.info('settings: setup marked complete');
 }
 
@@ -196,57 +232,44 @@ export async function setSetupCompleted(shownIn: Locale): Promise<void> {
  * and whether setup is done (web/language.ts turns the last two into the
  * language of the request). One read per request.
  */
-export async function getDisplaySettings(): Promise<{ timezone: string; locale: Locale | null; setupCompleted: boolean }> {
-  const row = await prisma.appSettings.findUnique({
-    where: { id: SETTINGS_ID },
-    select: { schedule: true, locale: true, setupCompletedAt: true },
-  });
+export async function getDisplaySettings(userId: number): Promise<{ timezone: string; locale: Locale | null; setupCompleted: boolean }> {
+  const [app, own] = await Promise.all([
+    prisma.appSettings.findUnique({ where: { id: SETTINGS_ID }, select: { schedule: true, setupCompletedAt: true } }),
+    prisma.userSettings.findUnique({ where: { userId }, select: { schedule: true, locale: true } }),
+  ]);
   return {
-    timezone: parseSchedule(row?.schedule ?? null, config.TZ).timezone,
-    locale: storedLocale(row?.locale ?? null),
+    timezone: personalSchedule(own?.schedule ?? null, app?.schedule ?? null, config.TZ).timezone,
+    locale: storedLocale(own?.locale ?? null),
     // No row yet is a first run: init.ts has not seeded, and the wizard is what comes next.
-    setupCompleted: row ? row.setupCompletedAt !== null : false,
+    setupCompleted: app ? app.setupCompletedAt !== null : false,
   };
 }
 
 /** ADR 0061: the interface's language, chosen in the menu or on Settings → General. */
-export async function setLocale(locale: Locale): Promise<void> {
-  await prisma.appSettings.upsert({
-    where: { id: SETTINGS_ID },
-    update: { locale },
-    create: { id: SETTINGS_ID, locale },
-  });
-  logger.info({ locale }, 'settings: language set');
+export async function setLocale(userId: number, locale: Locale): Promise<void> {
+  await writeUserSettings(userId, { locale });
+  logger.info({ userId, locale }, 'settings: language set');
 }
 
 /**
  * Standing cover-letter angle inputs (F8.1) — written on every generation,
  * prefilled into the card on every job page, so the user types them once.
  */
-export async function setCoverAngles(angles: {
-  whyCompany?: string;
-  problem?: string;
-  approach?: string;
-  notes?: string;
-}): Promise<void> {
-  const value = JSON.parse(JSON.stringify(angles)) as Prisma.InputJsonValue;
-  await prisma.appSettings.upsert({
-    where: { id: SETTINGS_ID },
-    update: { coverAngles: value },
-    create: { id: SETTINGS_ID, coverAngles: value },
-  });
+export async function setCoverAngles(
+  userId: number,
+  angles: {
+    whyCompany?: string;
+    problem?: string;
+    approach?: string;
+    notes?: string;
+  },
+): Promise<void> {
+  await writeUserSettings(userId, { coverAngles: JSON.parse(JSON.stringify(angles)) as Prisma.InputJsonValue });
 }
 
 /** The board's work columns (ADR 0025) — always a full, validated list. */
-export async function setPipelineStages(
-  stages: { key: string; label: string }[],
-): Promise<void> {
-  const value = JSON.parse(JSON.stringify(stages)) as Prisma.InputJsonValue;
-  await prisma.appSettings.upsert({
-    where: { id: SETTINGS_ID },
-    update: { pipelineStages: value },
-    create: { id: SETTINGS_ID, pipelineStages: value },
-  });
+export async function setPipelineStages(userId: number, stages: { key: string; label: string }[]): Promise<void> {
+  await writeUserSettings(userId, { pipelineStages: JSON.parse(JSON.stringify(stages)) as Prisma.InputJsonValue });
 }
 
 export async function setAiEngineConfig(engine: AiEngineConfig): Promise<void> {
@@ -336,8 +359,8 @@ export async function setSourceKey(source: KeyedSource, field: SourceKeyField, v
 }
 
 /**
- * The schedule as the gate wants it: parsed, with `config.TZ` standing in for
- * a zone the user never chose. One read per heartbeat, so a change on
+ * The install's schedule as the fetch gate wants it: parsed, with `config.TZ`
+ * standing in for a zone never chosen. One read per heartbeat, so a change on
  * /settings takes effect on the next one (gotcha 9).
  */
 export async function getSchedule(): Promise<Schedule> {
@@ -345,7 +368,19 @@ export async function getSchedule(): Promise<Schedule> {
   return parseSchedule(row?.schedule ?? null, config.TZ);
 }
 
-/** Stores the whole object — a schedule is only ever edited as one form. */
+/**
+ * One person's zone and alert timing, as a whole `Schedule` (its fetch half is
+ * the install's, copied in): when may a match be sent to them (ADR 0069).
+ */
+export async function getAlertSchedule(userId: number): Promise<Schedule> {
+  const [app, own] = await Promise.all([
+    prisma.appSettings.findUnique({ where: { id: SETTINGS_ID }, select: { schedule: true } }),
+    prisma.userSettings.findUnique({ where: { userId }, select: { schedule: true } }),
+  ]);
+  return personalSchedule(own?.schedule ?? null, app?.schedule ?? null, config.TZ);
+}
+
+/** Stores the whole object — a schedule is only ever edited as one form. The install's half. */
 export async function setSchedule(schedule: Schedule): Promise<void> {
   await prisma.appSettings.upsert({
     where: { id: SETTINGS_ID },
@@ -355,12 +390,14 @@ export async function setSchedule(schedule: Schedule): Promise<void> {
   logger.info({ schedule }, 'settings: schedule updated');
 }
 
-export async function setTelegramEnabled(enabled: boolean): Promise<void> {
-  await prisma.appSettings.upsert({
-    where: { id: SETTINGS_ID },
-    update: { telegramEnabled: enabled },
-    create: { id: SETTINGS_ID, telegramEnabled: enabled },
-  });
+/** The person's zone and alert timing. */
+export async function setPersonalSchedule(userId: number, schedule: Schedule): Promise<void> {
+  await writeUserSettings(userId, { schedule });
+  logger.info({ userId, alerts: schedule.alerts, timezone: schedule.timezone }, 'settings: personal schedule updated');
+}
+
+export async function setTelegramEnabled(userId: number, enabled: boolean): Promise<void> {
+  await writeUserSettings(userId, { telegramEnabled: enabled });
 }
 
 /**
@@ -413,30 +450,21 @@ export async function setLocalContextTokens(tokens: number | null): Promise<void
   });
 }
 
-/** ADR 0056: the re-apply window in days, or null to switch it off. The route checks the choice. */
-export async function setReapplyDays(days: number | null): Promise<void> {
-  await prisma.appSettings.upsert({
-    where: { id: SETTINGS_ID },
-    update: { reapplyDays: days },
-    create: { id: SETTINGS_ID, reapplyDays: days },
-  });
-  logger.info({ days }, 'settings: re-apply window set');
+/** ADR 0056: the person's re-apply window in days, or null to switch it off. The route checks the choice. */
+export async function setReapplyDays(userId: number, days: number | null): Promise<void> {
+  await writeUserSettings(userId, { reapplyDays: days });
+  logger.info({ userId, days }, 'settings: re-apply window set');
 }
 
 /** ADR 0063: what the person decided about application packs; off until they say otherwise. */
-export async function getPackSettings(): Promise<PackSettings> {
-  const row = await prisma.appSettings.findUnique({ where: { id: SETTINGS_ID }, select: { pack: true } });
+export async function getPackSettings(userId: number): Promise<PackSettings> {
+  const row = await prisma.userSettings.findUnique({ where: { userId }, select: { pack: true } });
   return parsePackSettings(row?.pack);
 }
 
-export async function setPackSettings(pack: PackSettings): Promise<void> {
-  const value = pack as unknown as Prisma.InputJsonValue;
-  await prisma.appSettings.upsert({
-    where: { id: SETTINGS_ID },
-    update: { pack: value },
-    create: { id: SETTINGS_ID, pack: value },
-  });
-  logger.info({ enabled: pack.enabled, minFit: pack.minFit, dailyLimit: pack.dailyLimit }, 'settings: application packs set');
+export async function setPackSettings(userId: number, pack: PackSettings): Promise<void> {
+  await writeUserSettings(userId, { pack: pack as unknown as Prisma.InputJsonValue });
+  logger.info({ userId, enabled: pack.enabled, minFit: pack.minFit, dailyLimit: pack.dailyLimit }, 'settings: application packs set');
 }
 
 /** init.ts filled the older rows' employer keys; it never runs again. */
@@ -458,22 +486,12 @@ export async function setClassifierMode(mode: ClassifierMode): Promise<void> {
   logger.info({ mode }, 'settings: classifier mode set');
 }
 
-export async function setApplicationTrackingEnabled(enabled: boolean): Promise<void> {
-  await prisma.appSettings.upsert({
-    where: { id: SETTINGS_ID },
-    update: { applicationTrackingEnabled: enabled },
-    create: { id: SETTINGS_ID, applicationTrackingEnabled: enabled },
-  });
+export async function setApplicationTrackingEnabled(userId: number, enabled: boolean): Promise<void> {
+  await writeUserSettings(userId, { applicationTrackingEnabled: enabled });
 }
 
-export async function setStaleApplicationsDigestEnabled(
-  enabled: boolean,
-): Promise<void> {
-  await prisma.appSettings.upsert({
-    where: { id: SETTINGS_ID },
-    update: { staleApplicationsDigestEnabled: enabled },
-    create: { id: SETTINGS_ID, staleApplicationsDigestEnabled: enabled },
-  });
+export async function setStaleApplicationsDigestEnabled(userId: number, enabled: boolean): Promise<void> {
+  await writeUserSettings(userId, { staleApplicationsDigestEnabled: enabled });
 }
 
 export async function setHnParserEnabled(enabled: boolean): Promise<void> {
@@ -564,13 +582,14 @@ function normaliseClassifierMode(raw: string): ClassifierMode {
   return raw === 'two_stage' ? 'two_stage' : 'single';
 }
 
-export async function listNotificationTargets(): Promise<NotificationTarget[]> {
-  return prisma.notificationTarget.findMany({ orderBy: { id: 'asc' } });
+/** A person's destinations (ADR 0069): nobody else's are ever listed. */
+export async function listNotificationTargets(userId: number): Promise<NotificationTarget[]> {
+  return prisma.notificationTarget.findMany({ where: { userId }, orderBy: { id: 'asc' } });
 }
 
-export async function listActiveNotificationTargets(): Promise<NotificationTarget[]> {
+export async function listActiveNotificationTargets(userId: number): Promise<NotificationTarget[]> {
   return prisma.notificationTarget.findMany({
-    where: { active: true },
+    where: { userId, active: true },
     orderBy: { id: 'asc' },
   });
 }
@@ -587,13 +606,13 @@ export type NewTarget =
  * callers check it; a new one that forgets adds a target the user is never
  * told about, which is why it is worth checking.
  */
-export async function addNotificationTarget(input: NewTarget): Promise<NotificationTarget | null> {
+export async function addNotificationTarget(userId: number, input: NewTarget): Promise<NotificationTarget | null> {
   try {
     return await prisma.notificationTarget.create({
       data:
         input.kind === 'DISCORD'
-          ? { kind: 'DISCORD', name: input.name, webhookUrl: input.webhookUrl, active: true }
-          : { kind: 'TELEGRAM', name: input.name, botToken: input.botToken, chatId: input.chatId, active: true },
+          ? { userId, kind: 'DISCORD', name: input.name, webhookUrl: input.webhookUrl, active: true }
+          : { userId, kind: 'TELEGRAM', name: input.name, botToken: input.botToken, chatId: input.chatId, active: true },
     });
   } catch (err) {
     if (isUniqueViolation(err)) return null;
@@ -601,18 +620,23 @@ export async function addNotificationTarget(input: NewTarget): Promise<Notificat
   }
 }
 
-/** The row that already names this destination — the same bot and chat, or the same webhook — if any (ADR 0053). */
-export async function findSameDestination(input: NewTarget): Promise<NotificationTarget | null> {
+/** The person's row that already names this destination — the same bot and chat, or the same webhook — if any (ADR 0053). */
+export async function findSameDestination(userId: number, input: NewTarget): Promise<NotificationTarget | null> {
   return prisma.notificationTarget.findFirst({
     where:
       input.kind === 'DISCORD'
-        ? { kind: 'DISCORD', webhookUrl: input.webhookUrl }
-        : { kind: 'TELEGRAM', botToken: input.botToken, chatId: input.chatId },
+        ? { userId, kind: 'DISCORD', webhookUrl: input.webhookUrl }
+        : { userId, kind: 'TELEGRAM', botToken: input.botToken, chatId: input.chatId },
   });
 }
 
-export async function toggleNotificationTarget(id: number): Promise<void> {
-  const t = await prisma.notificationTarget.findUnique({ where: { id } });
+/** One of the person's own destinations; another person's id reads as missing (ADR 0069). */
+export async function getNotificationTarget(userId: number, id: number): Promise<NotificationTarget | null> {
+  return prisma.notificationTarget.findFirst({ where: { id, userId } });
+}
+
+export async function toggleNotificationTarget(userId: number, id: number): Promise<void> {
+  const t = await getNotificationTarget(userId, id);
   if (!t) return;
   await prisma.notificationTarget.update({
     where: { id },
@@ -620,10 +644,8 @@ export async function toggleNotificationTarget(id: number): Promise<void> {
   });
 }
 
-export async function deleteNotificationTarget(id: number): Promise<void> {
-  await prisma.notificationTarget.delete({ where: { id } }).catch((err) => {
-    logger.warn({ err, id }, 'settings: delete target failed (already gone?)');
-  });
+export async function deleteNotificationTarget(userId: number, id: number): Promise<void> {
+  await prisma.notificationTarget.deleteMany({ where: { id, userId } });
 }
 
 export async function markTargetUsed(id: number): Promise<void> {

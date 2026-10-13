@@ -27,7 +27,8 @@ import {
   allowedAttempt,
   keyOf,
 } from '../../starter-packs/resolve';
-import { CompaniesPage } from '../pages/companies';
+import { CompaniesMemberPage, CompaniesPage } from '../pages/companies';
+import { isAdmin } from '../../users/admin-policy';
 import type { WatchedRow } from '../pages/watchlist';
 import {
   StarterPackPreviewPage,
@@ -37,6 +38,7 @@ import {
 import { findMute, listMutes, muteEmployer, unmuteEmployer } from '../../jobs/employer-store';
 import { roleLines, titleWordsOf, type TitleWords } from '../../watchlist/paste';
 import { listActiveProfiles } from '../../profiles';
+import { currentUser } from '../current-user';
 import { packOffers } from '../pack-offers';
 import { isBlankProfile } from '../../profile-guards';
 import { t } from '../../i18n/t';
@@ -83,6 +85,12 @@ interface CompanyTally {
 }
 
 companiesRoute.get('/companies', async (c) => {
+  // The sources are an administrator's; a member keeps the list of companies they muted (ADR 0070).
+  if (!isAdmin(currentUser())) {
+    return c.html(<CompaniesMemberPage muted={await listMutes(currentUser().id)} flash={parseFlashCookie(c.req.header('cookie'))} />, 200, {
+      'Set-Cookie': clearFlashCookie(),
+    });
+  }
   const companies = await prisma.company.findMany({
     // A pasted job's row and an imported file's (managed on /jobs/import) are not sources the tick reads.
     where: { atsType: { notIn: [AtsType.MANUAL, AtsType.IMPORT] } },
@@ -90,16 +98,17 @@ companiesRoute.get('/companies', async (c) => {
     include: {
       _count: { select: { jobs: true } },
       jobs: {
-        select: { fetchedAt: true, status: true },
+        select: { fetchedAt: true },
         orderBy: { fetchedAt: 'desc' },
         take: 1,
       },
     },
   });
 
+  // Alerted or applied for this person (ADR 0067).
   const alertedCounts = await prisma.job.groupBy({
     by: ['companyId'],
-    where: { status: { in: [JobStatus.ALERTED, JobStatus.APPLIED] } },
+    where: { userJobs: { some: { userId: currentUser().id, status: { in: [JobStatus.ALERTED, JobStatus.APPLIED] } } } },
     _count: { _all: true },
   });
   const alertedMap = new Map<number, number>();
@@ -113,10 +122,12 @@ companiesRoute.get('/companies', async (c) => {
   // applications behind "and all its 73 jobs?" (audit, TASKS §14).
   const applicationCounts = await prisma.job.groupBy({
     by: ['companyId'],
-    where: { OR: [{ pipelineStage: { not: null } }, { status: JobStatus.APPLIED }] },
+    // Anybody's: a delete takes every person's application with the job.
+    where: { userJobs: { some: { OR: [{ pipelineStage: { not: null } }, { status: JobStatus.APPLIED }] } } },
     _count: { _all: true },
   });
   const applicationMap = new Map(applicationCounts.map((r) => [r.companyId, r._count._all]));
+  // Everybody's, like the applications above: deleting a source takes every person's comparisons and letters with it (ADR 0068).
   // Counted in SQL, one row per company: `groupBy` cannot group across a
   // relation, and loading every match and every letter to tally them in
   // memory would grow with the user's whole history for a confirm string.
@@ -202,7 +213,7 @@ companiesRoute.get('/companies', async (c) => {
       companies={rows}
       folders={folders}
       folderHost={{ launcher: localInstall(), roots: inboxRoots(config.APPLYPACK_INBOX_ROOTS) }}
-      watchlist={watchedRows(companies, freshMap, titleWordsOf((await listActiveProfiles()).filter((p) => !isBlankProfile(p))))}
+      watchlist={watchedRows(companies, freshMap, titleWordsOf((await listActiveProfiles(currentUser().id)).filter((p) => !isBlankProfile(p))))}
       watchlistRun={activeWatchlistRun()}
       packs={packs}
       suggestions={await currentSuggestions()}
@@ -210,7 +221,7 @@ companiesRoute.get('/companies', async (c) => {
       keyedUnlocked={unlockedSources(await getSourceKeys())}
       flash={flash}
       fetchingEnabled={settings.fetchingEnabled}
-      muted={await listMutes()}
+      muted={await listMutes(currentUser().id)}
     />,
     200,
     { 'Set-Cookie': clearFlashCookie() },
@@ -229,17 +240,17 @@ companiesRoute.post('/companies/mutes', async (c) => {
   const back = safeBack(body.back, '/companies#muted');
   const parsed = MuteFormSchema.safeParse(body);
   if (!parsed.success) return flashRedirect(back, 'err', t('mute.flash.invalid', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
-  const mute = await muteEmployer(parsed.data.name, parsed.data.reason);
+  const mute = await muteEmployer(currentUser().id, parsed.data.name, parsed.data.reason);
   if (!mute) return flashRedirect(back, 'err', t('mute.flash.noLetters'));
-  const hidden = await prisma.job.count({ where: { employerKey: mute.key } });
+  const hidden = await prisma.job.count({ where: { employerKey: mute.key, userJobs: { some: { userId: currentUser().id } } } });
   return flashRedirect(back, 'ok', t('mute.flash.muted', { name: mute.name, n: hidden }));
 });
 
 companiesRoute.post('/companies/mutes/delete', async (c) => {
   const body = await c.req.parseBody();
   const back = safeBack(body.back, '/companies#muted');
-  const mute = typeof body.key === 'string' ? await findMute(body.key) : null;
-  if (!mute || !(await unmuteEmployer(mute.key))) return flashRedirect(back, 'err', t('mute.flash.notMuted'));
+  const mute = typeof body.key === 'string' ? await findMute(currentUser().id, body.key) : null;
+  if (!mute || !(await unmuteEmployer(currentUser().id, mute.key))) return flashRedirect(back, 'err', t('mute.flash.notMuted'));
   // "The next search reads its postings again" is true of a feed and not of a file of rows, which was read once (#448).
   return flashRedirect(back, 'ok', [t('mute.flash.unmuted', { name: mute.name }), await foldersReadOnceHint()].filter(Boolean).join(' '));
 });

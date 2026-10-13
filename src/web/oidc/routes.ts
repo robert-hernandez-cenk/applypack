@@ -7,7 +7,8 @@ import { PENDING_COOKIE, PENDING_SECONDS, SESSION_COOKIE, clearOptions, cookieOp
 import { safeNext } from './next-path';
 import { signInFailedPage, signedOutPage } from './pages';
 import type { SignInRuntime } from './runtime';
-import { newSession } from './session';
+import { identityOf, newSession } from './session';
+import type { Identity } from '../../users/identity';
 
 /*
  * Signing in and out (ADR 0064). The round trip to the provider is carried in a signed
@@ -19,7 +20,10 @@ const LOGIN_PATH = '/auth/login';
 
 const PendingSchema = z.object({ state: z.string(), nonce: z.string(), verifier: z.string(), next: z.string() });
 
-export function signInRoutes(runtime: SignInRuntime, now: () => number = Date.now): Hono {
+/** Turns the provider's identity into a `users` id, creating the user on first sight (ADR 0065). */
+export type ProvideUser = (identity: Identity) => Promise<number>;
+
+export function signInRoutes(runtime: SignInRuntime, provideUser: ProvideUser, now: () => number = Date.now): Hono {
   const { settings } = runtime;
   const secret = settings.sessionSecret;
   const routes = new Hono();
@@ -62,10 +66,17 @@ export function signInRoutes(runtime: SignInRuntime, now: () => number = Date.no
     } catch (err) {
       return refuse(c, err instanceof Error ? err.message : 'the provider rejected the answer');
     }
-    const session = newSession(claims, Math.floor(now() / 1000), settings.sessionSeconds);
-    if (!session) return refuse(c, 'the identity has no id');
+    const identity = identityOf(claims);
+    if (!identity) return refuse(c, 'the identity has no id');
+    let uid: number;
+    try {
+      uid = await provideUser(identity);
+    } catch (err) {
+      return refuse(c, err instanceof Error ? err.message : 'the user could not be provisioned');
+    }
+    const session = newSession(identity, uid, Math.floor(now() / 1000), settings.sessionSeconds);
     await setSignedCookie(c, SESSION_COOKIE, JSON.stringify(session), secret, cookieOptions(settings, settings.sessionSeconds));
-    logger.info({ sub: session.sub, name: session.name }, 'web: signed in');
+    logger.info({ sub: session.sub, name: session.name, uid }, 'web: signed in');
     return c.redirect(pending.data.next);
   });
 

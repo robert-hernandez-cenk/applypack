@@ -16,18 +16,53 @@
  * 145 handlers had zero automated requests before this (audit 2026-09-10,
  * TEST-1); the unit tests cover the pure modules, this covers the wiring.
  */
+import { DEFAULT_USER_ID } from '../users/identity';
 import { SMOKE_INBOX } from './route-smoke-env';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { Hono } from 'hono';
 import { app } from '../web/app';
+import { withCurrentUser } from '../web/current-user';
+import { requireHeldJob } from '../web/job-guard';
+import { jobsRoute } from '../web/routes/jobs';
+import { applicationsRoute } from '../web/routes/applications';
+import { resumesRoute } from '../web/routes/resumes';
+import { factsRoute } from '../web/routes/facts';
+import { packRoute } from '../web/routes/pack';
+import { listProfilesForResume } from '../profiles';
+import { loadUser } from '../users/store';
 import { DEFAULT_BODY_BYTES } from '../web/body-limits';
 import { prisma } from '../db';
 import { createManualJob } from '../jobs/manual-job';
-import { createMatch, createResume } from '../resume/store';
+import { createMatch, createResume, getResume, listFacts, upsertFact } from '../resume/store';
 import { parseMatchResponse, PROMPT_VERSION } from '../resume/prompts';
 import { scoreMatch } from '../resume/score';
-import { getPackSettings, getSettings, setAiBudgetCents, setEmployerMode, setFetchingEnabled } from '../settings';
-import { blankProfileInput, listActiveProfiles } from '../profiles';
+import {
+  addNotificationTarget,
+  deleteNotificationTarget,
+  getAlertSchedule,
+  getDisplaySettings,
+  getNotificationTarget,
+  getPackSettings,
+  getSchedule,
+  getSettings,
+  getUserSettings,
+  listActiveNotificationTargets,
+  setAiBudgetCents,
+  setEmployerMode,
+  setFetchingEnabled,
+  setPersonalSchedule,
+  setTelegramEnabled,
+} from '../settings';
+import { settingsRoute } from '../web/routes/settings';
+import { companiesRoute } from '../web/routes/companies';
+import { deliverHeldAlerts } from '../jobs/alert-delivery';
+import { runDigestJob } from '../jobs/digest-job';
+import { lastSuccessfulRunAt } from '../jobs/cron-run';
+import { loadEmployerRulesFor, mutedKeys } from '../jobs/employer-store';
+import { employerGates } from '../employer';
+import { sendAlert, sendBudgetAlert } from '../notifier';
+import { blankProfileInput, createProfile, ensurePrimaryProfile, listAllActiveProfiles, updateProfile } from '../profiles';
 import { recordAiCall } from '../ai-ledger';
 import { NO_USAGE } from '../ai-usage';
 import { createApplicants, createScreening } from '../screening/store';
@@ -35,9 +70,11 @@ import { draftRubric } from '../screening/rubric';
 import { fingerprintText } from '../screening/intake';
 import { tryFetchLock } from '../jobs/fetch-lock';
 import { addToFunnel } from '../jobs/funnel-store';
-import { autoPacksToday, listUnnotifiedPacks } from '../pack/store';
+import { autoPacksToday, listUnnotifiedPacks, loadPackInputs } from '../pack/store';
 import { getFetchRun } from '../web/fetch-runs';
-import { getRun } from '../web/target-runs';
+import { claimRun, getRun } from '../web/target-runs';
+import { classesOf } from '../users/admin-policy';
+import { changeUser } from '../users/store';
 import { parseFlashCookie } from '../web/flash';
 import { writeFileSync } from 'node:fs';
 import { PSEUDO_LOCALE } from '../i18n/locale';
@@ -144,9 +181,10 @@ interface Fixtures {
 async function fixtures(): Promise<Fixtures> {
   const job = await createManualJob(
     { companyName: 'Smoke Co', title: 'Backend Engineer', url: '', location: 'Remote', description: POSTING },
+    DEFAULT_USER_ID,
     { classify: false },
   );
-  const resume = await createResume({
+  const resume = await createResume(DEFAULT_USER_ID, {
     name: 'Smoke resume',
     sourceFilename: 'smoke.txt',
     mimeType: 'text/plain',
@@ -601,7 +639,7 @@ async function main(): Promise<void> {
       init: { method: 'POST', headers: { ...ORIGIN, 'content-type': 'application/x-www-form-urlencoded' }, body: 'minFit=40&dailyLimit=3&maxAgeDays=14&coverLetter=asked&maxBullets=1' },
       expect: async (res) => {
         const flash = parseFlashCookie((res.headers.get('set-cookie') ?? '').split(';')[0]);
-        const stored = await getPackSettings();
+        const stored = await getPackSettings(DEFAULT_USER_ID);
         return (
           res.status === 303 &&
           res.headers.get('location') === '/settings?tab=automation#packs' &&
@@ -798,6 +836,10 @@ async function main(): Promise<void> {
   }
 
   rows.push(...(await importChecks()));
+  rows.push(...(await isolationChecks(f.jobId)));
+  rows.push(...(await resumeIsolationChecks(f.resumeId)));
+  rows.push(...(await notificationIsolationChecks()));
+  rows.push(...(await roleSweep(f)));
   rows.push(...(await folderChecks()));
   rows.push(await packAgainCheck(f.jobId));
   rows.push(await packCancelCheck(f.jobId));
@@ -821,10 +863,7 @@ async function main(): Promise<void> {
           location: 'Remote',
           description: POSTING,
           postedAt: new Date(),
-          status: 'ALERTED',
-          fitScore: 88,
-          alertedAt: new Date(),
-          techMatch: ['node.js', 'typescript'],
+          userJobs: { create: { userId: DEFAULT_USER_ID, status: 'ALERTED', fitScore: 88, alertedAt: new Date(), techMatch: ['node.js', 'typescript'] } },
         },
       },
     },
@@ -867,6 +906,376 @@ const IMPORT_MAPPING = { title: 'Position', employer: 'Organisation', url: 'Job 
 
 type Check = { route: string; url: string; status: number; ok: boolean };
 
+/**
+ * Two people on one install (ADR 0067): a posting is shared and what each
+ * does with it is their own. The second person goes through the same guard,
+ * routes and readers as a signed-in session would.
+ */
+async function isolationChecks(ownJobId: number): Promise<Check[]> {
+  const out: Check[] = [];
+  const add = (route: string, url: string, status: number, ok: boolean): void => {
+    out.push({ route, url, status, ok });
+  };
+  const teammate = await prisma.user.create({ data: { oidcSub: 'smoke-teammate', name: 'Smoke teammate', role: 'MEMBER' } });
+  await ensurePrimaryProfile(teammate.id);
+  const posting = (externalId: string, title: string) => ({ externalId, title, url: '', location: 'Remote', description: POSTING, postedAt: new Date() });
+  const company = await prisma.company.create({
+    data: {
+      name: 'Isolation Co',
+      atsType: 'MANUAL',
+      atsToken: 'isolation-co',
+      active: false,
+      jobs: { create: [posting('shared', 'Isolation Shared'), posting('theirs', 'Isolation Theirs')] },
+    },
+    include: { jobs: true },
+  });
+  const shared = company.jobs.find((j) => j.externalId === 'shared')!;
+  const theirs = company.jobs.find((j) => j.externalId === 'theirs')!;
+  await prisma.userJob.createMany({
+    data: [
+      { userId: DEFAULT_USER_ID, jobId: shared.id, status: 'NEW', fitScore: 90 },
+      { userId: teammate.id, jobId: shared.id, status: 'NEW', fitScore: 61 },
+      { userId: teammate.id, jobId: theirs.id, status: 'NEW', fitScore: 75 },
+    ],
+  });
+  const asTeammate = new Hono();
+  asTeammate.use('*', async (c, next) => {
+    c.set('session', { sub: 'smoke-teammate', name: teammate.name, uid: teammate.id, exp: 9_999_999_999 });
+    return next();
+  });
+  asTeammate.use('*', withCurrentUser(loadUser));
+  asTeammate.use('/jobs/*', requireHeldJob());
+  asTeammate.route('/', jobsRoute);
+  asTeammate.route('/', applicationsRoute);
+
+  const list = await asTeammate.request('/jobs', { headers: ORIGIN });
+  const html = await list.text();
+  add('GET /jobs for a second person (their postings only)', '/jobs', list.status, list.status === 200 && html.includes('Isolation Theirs') && html.includes('Isolation Shared') && !html.includes('Backend Engineer'));
+  const mine = await asTeammate.request(`/jobs/${ownJobId}`, { headers: ORIGIN });
+  add('GET /jobs/:id of a posting the second person does not hold (not found)', `/jobs/${ownJobId}`, mine.status, mine.status === 404);
+  const owner = await app.request(`/jobs/${theirs.id}`, { headers: ORIGIN });
+  add('GET /jobs/:id of a posting only the other person holds (not found for the owner)', `/jobs/${theirs.id}`, owner.status, owner.status === 404);
+  const applied = await asTeammate.request(`/jobs/${shared.id}/status`, form({ status: 'APPLIED' }));
+  const rows = await prisma.userJob.findMany({ where: { jobId: shared.id }, orderBy: { userId: 'asc' } });
+  add(
+    'POST /jobs/:id/status by one person leaves the other person\'s row alone',
+    `/jobs/${shared.id}/status`,
+    applied.status,
+    applied.status === 303 && rows.find((r) => r.userId === DEFAULT_USER_ID)?.status === 'NEW' && rows.find((r) => r.userId === teammate.id)?.status === 'APPLIED',
+  );
+  const board = await asTeammate.request('/applications', { headers: ORIGIN });
+  const boardHtml = await board.text();
+  add('GET /applications for a second person (their application only)', '/applications', board.status, board.status === 200 && boardHtml.includes('Isolation Shared'));
+  const ownerBoard = await app.request('/applications', { headers: ORIGIN });
+  add('GET /applications for the owner (not the other person\'s application)', '/applications', ownerBoard.status, ownerBoard.status === 200 && !(await ownerBoard.text()).includes('Isolation Shared'));
+  const foreign = await asTeammate.request(`/jobs/${ownJobId}/status`, form({ status: 'DISMISSED' }));
+  add('POST /jobs/:id/status on a posting the second person does not hold (not found)', `/jobs/${ownJobId}/status`, foreign.status, foreign.status === 404);
+  return out;
+}
+
+/**
+ * Notifications, mutes and personal settings (ADR 0069), for the second person
+ * made by isolationChecks: their own destinations, switches, mutes, schedule
+ * and language; a held alert, a recap and a notice reach only the owning
+ * person's chat (Telegram is a recording stub for the length of the check),
+ * and neither person reads or changes the other's.
+ */
+async function notificationIsolationChecks(): Promise<Check[]> {
+  const out: Check[] = [];
+  const add = (route: string, url: string, status: number, ok: boolean): void => {
+    out.push({ route, url, status, ok });
+  };
+  const teammate = await prisma.user.findUniqueOrThrow({ where: { oidcSub: 'smoke-teammate' } });
+  const ownerBefore = await getUserSettings(DEFAULT_USER_ID);
+  // The checks above leave the owner's alerts on a digest; delivery below is asked in the instant mode.
+  const ownerSchedule = await getAlertSchedule(DEFAULT_USER_ID);
+  await setPersonalSchedule(DEFAULT_USER_ID, { ...ownerSchedule, alerts: { ...ownerSchedule.alerts, mode: 'instant' } });
+  const ownerTarget = await addNotificationTarget(DEFAULT_USER_ID, { kind: 'TELEGRAM', name: 'Owner chat', botToken: 'owner-token', chatId: 'owner-chat' });
+  const mateTarget = await addNotificationTarget(teammate.id, { kind: 'TELEGRAM', name: 'Mate chat', botToken: 'mate-token', chatId: 'mate-chat' });
+  if (!ownerTarget || !mateTarget) throw new Error('smoke: notification targets were not created');
+  // Even the same bot and chat may be two people's.
+  const sameChat = await addNotificationTarget(teammate.id, { kind: 'TELEGRAM', name: 'Owner chat again', botToken: 'owner-token', chatId: 'owner-chat' });
+  add('the same bot and chat can be added by a second person (unique per person)', '(store)', 200, sameChat !== null);
+  if (sameChat) await deleteNotificationTarget(teammate.id, sameChat.id);
+
+  const person = (user: { id: number; name: string }, sub: string) => {
+    const a = new Hono();
+    a.use('*', async (c, next) => {
+      c.set('session', { sub, name: user.name, uid: user.id, exp: 9_999_999_999 });
+      return next();
+    });
+    a.use('*', withCurrentUser(loadUser));
+    a.route('/', settingsRoute);
+    a.route('/', companiesRoute);
+    return a;
+  };
+  const asMate = person(teammate, 'smoke-teammate');
+
+  // The destinations on the Notifications tab.
+  const mateTab = await asMate.request('/settings?tab=notifications', { headers: ORIGIN });
+  const mateHtml = await mateTab.text();
+  add('GET /settings?tab=notifications for a second person (their chats only)', '/settings?tab=notifications', mateTab.status, mateTab.status === 200 && mateHtml.includes('Mate chat') && !mateHtml.includes('Owner chat'));
+  const ownerTab = await app.request('/settings?tab=notifications', { headers: ORIGIN });
+  const ownerHtml = await ownerTab.text();
+  add('GET /settings?tab=notifications for the owner (not the other person\'s chats)', '/settings?tab=notifications', ownerTab.status, ownerTab.status === 200 && ownerHtml.includes('Owner chat') && !ownerHtml.includes('Mate chat'));
+  for (const action of ['toggle', 'delete', 'test']) {
+    const url = `/settings/targets/${ownerTarget.id}/${action}`;
+    const res = await asMate.request(url, form({}));
+    add(`POST /settings/targets/:id/${action} on the other person's chat (not theirs: nothing happens)`, url, res.status, res.status === 303);
+  }
+  const ownerStill = await prisma.notificationTarget.findUnique({ where: { id: ownerTarget.id } });
+  add('...and the owner\'s chat is still there and still active', '(store)', 200, ownerStill?.active === true);
+  add('a chat of another person is not a destination for a search', '(store)', 200, (await getNotificationTarget(DEFAULT_USER_ID, mateTarget.id)) === null && (await getNotificationTarget(teammate.id, ownerTarget.id)) === null);
+  add('each person lists only their own active chats', '(store)', 200,
+    (await listActiveNotificationTargets(DEFAULT_USER_ID)).every((t) => t.userId === DEFAULT_USER_ID) &&
+    (await listActiveNotificationTargets(teammate.id)).map((t) => t.chatId).join() === 'mate-chat');
+
+  // Switches, window, language, board columns, packs: the person's own.
+  const toggled = await asMate.request('/settings/telegram-toggle', form({}));
+  add('POST /settings/telegram-toggle by one person leaves the other\'s Alerts switch alone', '/settings/telegram-toggle', toggled.status,
+    toggled.status === 303 && (await getUserSettings(teammate.id)).telegramEnabled === false && (await getUserSettings(DEFAULT_USER_ID)).telegramEnabled === ownerBefore.telegramEnabled);
+  await asMate.request('/settings/telegram-toggle', form({}));
+  const reapply = await asMate.request('/settings/reapply', form({ days: '60' }));
+  add('POST /settings/reapply by one person leaves the other\'s window alone', '/settings/reapply', reapply.status,
+    reapply.status === 303 && (await getUserSettings(teammate.id)).reapplyDays === 60 && (await getUserSettings(DEFAULT_USER_ID)).reapplyDays === ownerBefore.reapplyDays);
+  const stage = await asMate.request('/settings/stages/add', form({ label: 'Mate only column' }));
+  const mateStages = JSON.stringify((await getUserSettings(teammate.id)).pipelineStages);
+  add('POST /settings/stages/add by one person leaves the other\'s board columns alone', '/settings/stages/add', stage.status,
+    stage.status === 303 && mateStages.includes('Mate only column') && !JSON.stringify((await getUserSettings(DEFAULT_USER_ID)).pipelineStages).includes('Mate only column'));
+  const lang = await asMate.request('/settings/locale', form({ locale: 'es' }));
+  add('POST /settings/locale by one person leaves the other\'s language alone', '/settings/locale', lang.status,
+    lang.status === 303 && (await getDisplaySettings(teammate.id)).locale === 'es' && (await getDisplaySettings(DEFAULT_USER_ID)).locale === ownerBefore.locale);
+  const ownerFit = (await getPackSettings(DEFAULT_USER_ID)).minFit;
+  const pack = await asMate.request('/settings/pack', { method: 'POST', headers: { ...ORIGIN, 'content-type': 'application/x-www-form-urlencoded' }, body: 'enabled=1&minFit=77&dailyLimit=2&maxAgeDays=14&coverLetter=asked&sections=title&maxBullets=1&keywords=1' });
+  add('POST /settings/pack by one person leaves the other\'s pack settings alone', '/settings/pack', pack.status,
+    pack.status === 303 && (await getPackSettings(teammate.id)).minFit === 77 && (await getPackSettings(DEFAULT_USER_ID)).minFit === ownerFit);
+  // Alert timing is the person's; when the search runs is the install's (an administrator's to change).
+  const globalBefore = JSON.stringify(await getSchedule());
+  const alertsSave = await asMate.request('/settings/schedule', form({ part: 'alerts', alertMode: 'digest', alertFrom: '8', alertTo: '22', alertDays: '1', digestAt: '7' }));
+  const mateSchedule = await getAlertSchedule(teammate.id);
+  add('POST /settings/schedule (alerts) by a member stores their own timing only', '/settings/schedule', alertsSave.status,
+    alertsSave.status === 303 && mateSchedule.alerts.mode === 'digest' && (await getAlertSchedule(DEFAULT_USER_ID)).alerts.mode !== 'digest' && JSON.stringify(await getSchedule()) === globalBefore);
+  const mateSaved = await getAlertSchedule(teammate.id);
+  await setPersonalSchedule(teammate.id, { ...mateSaved, alerts: { ...mateSaved.alerts, mode: 'instant' } });
+  const fetchSave = await asMate.request('/settings/schedule', form({ part: 'fetch', fetchEvery: 'day', fetchFrom: '1', fetchTo: '2', fetchDays: '1' }));
+  add('POST /settings/schedule (fetch) by a member is refused: when the search runs is the install\'s', '/settings/schedule', fetchSave.status,
+    fetchSave.status === 303 && JSON.stringify(await getSchedule()) === globalBefore);
+
+  // Mutes.
+  const muted = await asMate.request('/companies/mutes', form({ name: 'Smoke Muted Inc', reason: 'mine' }));
+  const mateMutes = await mutedKeys(teammate.id);
+  add('POST /companies/mutes by one person mutes for them alone', '/companies/mutes', muted.status,
+    muted.status === 303 && mateMutes.includes('smoke muted') && !(await mutedKeys(DEFAULT_USER_ID)).includes('smoke muted'));
+  const rules = await loadEmployerRulesFor([DEFAULT_USER_ID, teammate.id]);
+  const gates = employerGates('smoke muted', rules, [DEFAULT_USER_ID, teammate.id]);
+  add('a posting one person muted still reaches the other (the tick turns it away only when everyone does)', '(store)', 200, gates.all === null && gates.away.has(teammate.id) && !gates.away.has(DEFAULT_USER_ID));
+  const unmute = await app.request('/companies/mutes/delete', form({ key: 'smoke muted' }));
+  add('POST /companies/mutes/delete of a mute the person does not have changes nothing', '/companies/mutes/delete', unmute.status, unmute.status === 303 && (await mutedKeys(teammate.id)).includes('smoke muted'));
+  await asMate.request('/companies/mutes/delete', form({ key: 'smoke muted' }));
+
+  // Delivery: a recording stand-in for Telegram, for the length of this block.
+  const sent: { chat: string; text: string }[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (!url.startsWith('https://api.telegram.org/bot')) return realFetch(input, init);
+    const body = JSON.parse(String(init?.body ?? '{}')) as { chat_id?: string; text?: string };
+    sent.push({ chat: body.chat_id ?? '', text: body.text ?? '' });
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch;
+  try {
+    await setTelegramEnabled(DEFAULT_USER_ID, true);
+    await setTelegramEnabled(teammate.id, true);
+    const notify = await prisma.company.create({
+      data: {
+        name: 'Notify Co',
+        atsType: 'MANUAL',
+        atsToken: 'notify-co',
+        active: false,
+        jobs: {
+          create: ['n1', 'n2'].map((externalId, i) => ({
+            externalId,
+            title: i === 0 ? 'Notify One' : 'Notify Two',
+            url: '',
+            location: 'Remote',
+            description: POSTING,
+            postedAt: new Date(),
+          })),
+        },
+      },
+      include: { jobs: true },
+    });
+    const one = notify.jobs.find((j) => j.externalId === 'n1')!;
+    const two = notify.jobs.find((j) => j.externalId === 'n2')!;
+    const held = new Date();
+    await prisma.userJob.createMany({
+      data: [
+        { userId: DEFAULT_USER_ID, jobId: one.id, status: 'NEW', fitScore: 90, alertHeldAt: held },
+        { userId: teammate.id, jobId: one.id, status: 'NEW', fitScore: 80, alertHeldAt: held },
+        { userId: teammate.id, jobId: two.id, status: 'NEW', fitScore: 70, alertHeldAt: held },
+      ],
+    });
+    const delivered = await deliverHeldAlerts(new Date());
+    const ownerMessages = sent.filter((m) => m.chat === 'owner-chat');
+    const mateMessages = sent.filter((m) => m.chat === 'mate-chat');
+    add('held alerts: one grouped message per person, each only to their own chat', '(worker)', 200,
+      delivered.messages === 2 && ownerMessages.length === 1 && mateMessages.length === 1 &&
+      ownerMessages[0]!.text.includes('Notify One') && !ownerMessages[0]!.text.includes('Notify Two') &&
+      mateMessages[0]!.text.includes('Notify One') && mateMessages[0]!.text.includes('Notify Two'));
+    add('...and each person\'s rows are marked as told, nobody else\'s', '(store)', 200,
+      (await prisma.userJob.count({ where: { jobId: { in: [one.id, two.id] }, status: 'ALERTED', alertHeldAt: null } })) === 3);
+
+    // An alert for one person never reaches the other's chat; a search with no chosen chat broadcasts to its owner's chats.
+    sent.length = 0;
+    const alert = { title: 'Alert Only', companyName: 'Notify Co', location: 'Remote', url: '', fitScore: 88, salaryMin: null, salaryMax: null, techMatch: [], redFlags: [], summary: '' };
+    await sendAlert(teammate.id, alert, null);
+    add('an alert broadcast to a person goes to that person\'s chats only', '(worker)', 200, sent.length === 1 && sent[0]!.chat === 'mate-chat');
+    sent.length = 0;
+    await sendAlert(teammate.id, alert, ownerTarget.id);
+    add('a search naming another person\'s chat falls back to its owner\'s chats', '(worker)', 200, sent.length === 1 && sent[0]!.chat === 'mate-chat');
+
+    // The recap and the nudge are each person\'s own, with their own run row and mark.
+    sent.length = 0;
+    await prisma.cronRun.create({ data: { name: 'digest', status: 'OK', startedAt: new Date(Date.now() - 3 * 60 * 60 * 1000), userId: teammate.id } });
+    const sinceMate = await lastSuccessfulRunAt('digest', teammate.id);
+    const sinceOwner = await lastSuccessfulRunAt('digest', DEFAULT_USER_ID);
+    add('the recap\'s "since the last one" is read per person', '(store)', 200, sinceMate !== null && (sinceOwner === null || sinceOwner.getTime() !== sinceMate.getTime()));
+    await runDigestJob(DEFAULT_USER_ID);
+    await runDigestJob(teammate.id);
+    const ownerDigest = sent.filter((m) => m.chat === 'owner-chat').map((m) => m.text).join('\n');
+    const mateDigest = sent.filter((m) => m.chat === 'mate-chat').map((m) => m.text).join('\n');
+    add('the recap of each person lists only their postings, in their own chat', '(worker)', 200,
+      ownerDigest.includes('Notify One') && !ownerDigest.includes('Notify Two') && mateDigest.includes('Notify Two') && sent.every((m) => m.chat === 'owner-chat' || m.chat === 'mate-chat'));
+
+    // Operator notices go to administrators: the member's chat hears nothing.
+    sent.length = 0;
+    await sendBudgetAlert('Budget notice');
+    add('an operator notice reaches the administrators\' chats and not a member\'s', '(worker)', 200, sent.some((m) => m.chat === 'owner-chat') && !sent.some((m) => m.chat === 'mate-chat'));
+  } finally {
+    globalThis.fetch = realFetch;
+    await prisma.company.deleteMany({ where: { atsToken: 'notify-co' } });
+    await prisma.notificationTarget.deleteMany({ where: { id: { in: [ownerTarget.id, mateTarget.id] } } });
+    await prisma.cronRun.deleteMany({ where: { name: 'digest' } });
+    await setTelegramEnabled(DEFAULT_USER_ID, ownerBefore.telegramEnabled);
+    await setPersonalSchedule(DEFAULT_USER_ID, ownerSchedule);
+  }
+  return out;
+}
+
+/**
+ * Resumes and what hangs off them (ADR 0068), for the second person made by
+ * isolationChecks: their own resume, fact and pack; every id of the owner's is
+ * "not found", and neither person reads the other's comparison, letter or pack.
+ */
+async function resumeIsolationChecks(ownResumeId: number): Promise<Check[]> {
+  const out: Check[] = [];
+  const add = (route: string, url: string, status: number, ok: boolean): void => {
+    out.push({ route, url, status, ok });
+  };
+  const teammate = await prisma.user.findUniqueOrThrow({ where: { oidcSub: 'smoke-teammate' } });
+  const shared = await prisma.job.findFirstOrThrow({ where: { externalId: 'shared', company: { atsToken: 'isolation-co' } } });
+  const mate = await createResume(teammate.id, {
+    name: 'Teammate resume',
+    sourceFilename: 'mate.txt',
+    mimeType: 'text/plain',
+    original: Buffer.from(RESUME),
+    text: RESUME,
+  });
+  const ownerMatch = await prisma.resumeMatch.create({
+    data: { jobId: shared.id, resumeId: ownResumeId, model: 'smoke', matchScore: 77, summary: 'OWNER-ONLY-COMPARISON', keywords: [], actions: [] },
+  });
+  const ownerLetter = await prisma.coverLetter.create({
+    data: { jobId: shared.id, resumeId: ownResumeId, text: 'OWNER-ONLY-LETTER', model: 'smoke', promptVersion: 1, gateVerdict: 'pass' },
+  });
+  await prisma.candidateFact.create({ data: { userId: DEFAULT_USER_ID, term: 'isolationterm', status: 'confirmed' } });
+  const person = (user: { id: number; name: string }, sub: string) => {
+    const a = new Hono();
+    a.use('*', async (c, next) => {
+      c.set('session', { sub, name: user.name, uid: user.id, exp: 9_999_999_999 });
+      return next();
+    });
+    a.use('*', withCurrentUser(loadUser));
+    a.use('/jobs/*', requireHeldJob());
+    a.route('/', jobsRoute);
+    a.route('/', resumesRoute);
+    a.route('/', factsRoute);
+    a.route('/', packRoute);
+    return a;
+  };
+  const asMate = person(teammate, 'smoke-teammate');
+
+  const list = await asMate.request('/resumes', { headers: ORIGIN });
+  const listHtml = await list.text();
+  add('GET /resumes for a second person (their resumes only)', '/resumes', list.status, list.status === 200 && listHtml.includes('Teammate resume') && !listHtml.includes('Smoke resume'));
+  const ownerList = await app.request('/resumes', { headers: ORIGIN });
+  add('GET /resumes for the owner (not the other person\'s resume)', '/resumes', ownerList.status, ownerList.status === 200 && !(await ownerList.text()).includes('Teammate resume'));
+  for (const [what, method, path] of [
+    ['detail', 'GET', ''],
+    ['download', 'GET', '/download'],
+  ] as const) {
+    const url = `/resumes/${ownResumeId}${path}`;
+    const res = await asMate.request(url, { method, headers: ORIGIN });
+    add(`${method} /resumes/:id${path} of the other person's resume (${what}: not found)`, url, res.status, res.status === 404);
+  }
+  for (const action of ['rename', 'default', 'answers', 'rescan', 'review', 'profile']) {
+    const url = `/resumes/${ownResumeId}/${action}`;
+    const res = await asMate.request(url, form({ name: 'Hijacked', question: 'q', answer: 'a' }));
+    add(`POST /resumes/:id/${action} on the other person's resume (not found)`, url, res.status, res.status === 404);
+  }
+  const deleted = await asMate.request(`/resumes/${ownResumeId}/delete`, form({}));
+  const stillThere = await prisma.resume.findUnique({ where: { id: ownResumeId }, select: { name: true } });
+  add('POST /resumes/:id/delete on the other person\'s resume (nothing is deleted)', `/resumes/${ownResumeId}/delete`, deleted.status, deleted.status === 303 && stillThere?.name === 'Smoke resume');
+  add('A search of the other person cannot link a resume they do not own', '(store)', 200, (await getResume(teammate.id, ownResumeId)) === null && (await listProfilesForResume(teammate.id, ownResumeId)).length === 0);
+
+  // Comparisons and letters are read through the resume.
+  const ownerPage = await app.request(`/jobs/${shared.id}?match=${ownerMatch.id}`, { headers: ORIGIN });
+  const matePage = await asMate.request(`/jobs/${shared.id}?match=${ownerMatch.id}`, { headers: ORIGIN });
+  const matePageText = await matePage.text();
+  add('GET /jobs/:id shows the owner\'s comparison to the owner only', `/jobs/${shared.id}`, matePage.status, matePage.status === 200 && !matePageText.includes('OWNER-ONLY-COMPARISON') && (await ownerPage.text()).includes('OWNER-ONLY-COMPARISON'));
+  const mateLetter = await asMate.request(`/jobs/${shared.id}?letter=${ownerLetter.id}`, { headers: ORIGIN });
+  add('GET /jobs/:id?letter= of the owner\'s letter (not shown to the other person)', `/jobs/${shared.id}?letter=`, mateLetter.status, !(await mateLetter.text()).includes('OWNER-ONLY-LETTER'));
+  const letterEdit = await asMate.request(`/jobs/${shared.id}/cover/${ownerLetter.id}`, form({ text: 'x' }));
+  add('POST letter edit of the owner\'s letter (not found, unchanged)', `/jobs/${shared.id}/cover/${ownerLetter.id}`, letterEdit.status, letterEdit.status === 404 && (await prisma.coverLetter.findUniqueOrThrow({ where: { id: ownerLetter.id } })).editedText === null);
+
+  // Facts: one term, two people, two answers.
+  const mateFact = await asMate.request('/facts', form({ term: 'isolationterm', decision: 'denied' }));
+  const facts = await prisma.candidateFact.findMany({ where: { term: 'isolationterm' }, orderBy: { userId: 'asc' } });
+  add(
+    'POST /facts by one person leaves the other person\'s answer alone',
+    '/facts',
+    mateFact.status,
+    mateFact.status === 303 && facts.length === 2 && facts[0]?.status === 'confirmed' && facts[1]?.status === 'denied' && (await listFacts(teammate.id)).length === 1,
+  );
+  const crossFact = await asMate.request('/facts', form({ term: 'isolationterm', decision: 'confirmed', matchId: String(ownerMatch.id) }));
+  const untouched = await prisma.resumeMatch.findUniqueOrThrow({ where: { id: ownerMatch.id } });
+  add('POST /facts with the owner\'s comparison id (the comparison is not touched)', '/facts', crossFact.status, untouched.matchScore === 77);
+
+  // Packs: one row per person and posting, and a person reaches only their own.
+  const queued = await asMate.request(`/jobs/${shared.id}/pack`, form({}));
+  const packs = await prisma.applicationPack.findMany({ where: { jobId: shared.id } });
+  add('POST /jobs/:id/pack queues the pack for the person who asked', `/jobs/${shared.id}/pack`, queued.status, queued.status === 303 && packs.length === 1 && packs[0]?.userId === teammate.id);
+  const mateState = await asMate.request(`/jobs/${shared.id}/pack/state`, { headers: ORIGIN });
+  const ownerState = await app.request(`/jobs/${shared.id}/pack/state`, { headers: ORIGIN });
+  add('GET /jobs/:id/pack/state (a pack is its owner\'s: the other person sees none)', `/jobs/${shared.id}/pack/state`, ownerState.status, mateState.status === 200 && ownerState.status === 404);
+  const inputs = await loadPackInputs(teammate.id, shared.id, null);
+  add('The worker prepares a pack with its owner\'s resume', '(store)', 200, inputs?.resume?.id === mate.id && inputs.resume.userId === teammate.id);
+  const ownerInputs = await loadPackInputs(DEFAULT_USER_ID, shared.id, null);
+  add('...and the owner\'s pack with the owner\'s', '(store)', 200, ownerInputs?.resume?.userId === DEFAULT_USER_ID);
+
+  // A person who goes takes their resumes with them.
+  const leaver = await prisma.user.create({ data: { name: 'Smoke leaver', role: 'MEMBER' } });
+  const gone = await createResume(leaver.id, { name: 'Leaver resume', sourceFilename: 'l.txt', mimeType: 'text/plain', original: Buffer.from(RESUME), text: RESUME });
+  await upsertFact(leaver.id, 'leaverterm', 'confirmed', null);
+  await prisma.user.delete({ where: { id: leaver.id } });
+  add(
+    'Deleting a user deletes their resumes and facts',
+    '(store)',
+    200,
+    (await prisma.resume.findUnique({ where: { id: gone.id } })) === null && (await prisma.candidateFact.count({ where: { userId: leaver.id } })) === 0,
+  );
+  return out;
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -897,8 +1306,8 @@ async function packCancelCheck(jobId: number): Promise<Check> {
   const url = `/jobs/${jobId}/pack/cancel`;
   const res = await app.request(url, form({}));
   // Under `npm start` the worker may have taken the pack first: then it is no longer queued, which is all Cancel promises.
-  const left = await prisma.applicationPack.findUnique({ where: { jobId }, select: { status: true } });
-  if (!left) await prisma.applicationPack.create({ data: { jobId, trigger: 'manual' } });
+  const left = await prisma.applicationPack.findUnique({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, select: { status: true } });
+  if (!left) await prisma.applicationPack.create({ data: { userId: DEFAULT_USER_ID, jobId, trigger: 'manual' } });
   return { route: 'POST /jobs/:id/pack/cancel (a pack in the queue is taken out)', url, status: res.status, ok: res.status === 303 && left?.status !== 'queued' };
 }
 
@@ -911,14 +1320,14 @@ async function packAgainCheck(jobId: number): Promise<Check> {
   const url = `/jobs/${jobId}/pack`;
   const yesterday = new Date(Date.now() - DAY_MS);
   // As the worker leaves a pack it queued on its own: finished, and carried by a message.
-  await prisma.applicationPack.update({ where: { jobId }, data: { trigger: 'auto', status: 'stopped', queuedAt: yesterday, finishedAt: yesterday, notifiedAt: yesterday } });
+  await prisma.applicationPack.update({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, data: { trigger: 'auto', status: 'stopped', queuedAt: yesterday, finishedAt: yesterday, notifiedAt: yesterday } });
   const res = await app.request(url, form({}));
   // Only the trigger is asked: under `npm start` the worker may have taken the pack already.
-  const again = await prisma.applicationPack.findUnique({ where: { jobId }, select: { trigger: true } });
-  const counted = await autoPacksToday(new Date());
-  await prisma.applicationPack.update({ where: { jobId }, data: { status: 'stopped' } });
-  const owed = (await listUnnotifiedPacks()).length;
-  await prisma.applicationPack.update({ where: { jobId }, data: { status: 'queued' } });
+  const again = await prisma.applicationPack.findUnique({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, select: { trigger: true } });
+  const counted = await autoPacksToday(DEFAULT_USER_ID, new Date());
+  await prisma.applicationPack.update({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, data: { status: 'stopped' } });
+  const owed = (await listUnnotifiedPacks(DEFAULT_USER_ID)).length;
+  await prisma.applicationPack.update({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, data: { status: 'queued' } });
   return {
     route: "POST /jobs/:id/pack on a pack the tick queued (the person's now: no slot of today's limit, no message)",
     url,
@@ -942,7 +1351,7 @@ async function importChecks(): Promise<Check[]> {
   const wasFetching = (await getSettings()).fetchingEnabled;
   await setFetchingEnabled(false);
   // A migrated database with nothing seeded has no search, and an import with none running stores nothing.
-  if ((await listActiveProfiles()).length === 0) {
+  if ((await listAllActiveProfiles()).length === 0) {
     await prisma.profile.create({ data: { ...blankProfileInput(), name: 'Smoke search', active: true } });
   }
   const upload = (): Promise<Response> => {
@@ -1015,7 +1424,7 @@ async function importChecks(): Promise<Check[]> {
   }
 
   const { res: stored, run } = await pressImport(preview);
-  const source = await prisma.company.findFirst({ where: { atsType: 'IMPORT' }, include: { jobs: { select: { fitScore: true, employer: true } } } });
+  const source = await prisma.company.findFirst({ where: { atsType: 'IMPORT' }, include: { jobs: { select: { employer: true, userJobs: { select: { fitScore: true } } } } } });
   check(
     'POST /jobs/import/:token while paused (stored unscored under an inactive source)',
     preview,
@@ -1026,7 +1435,7 @@ async function importChecks(): Promise<Check[]> {
       source?.active === false &&
       source.sourceConfig !== null &&
       source.jobs.length === 3 &&
-      source.jobs.every((j) => j.fitScore === null && j.employer !== null),
+      source.jobs.every((j) => j.userJobs.length > 0 && j.userJobs.every((u) => u.fitScore === null) && j.employer !== null),
   );
 
   // The same file again holds nothing new: its preview offers no Import, and the form posted anyway is refused
@@ -1161,8 +1570,8 @@ async function folderChecks(): Promise<Check[]> {
  * `translate="no"`; that is the same work.
  */
 async function pseudoPass(urls: string[]): Promise<{ rows: { route: string; url: string; status: number; ok: boolean }[]; report: string }> {
-  const before = await prisma.appSettings.findUnique({ where: { id: SETTINGS_ID }, select: { locale: true } });
-  await setLocale(PSEUDO_LOCALE);
+  const before = await prisma.userSettings.findUnique({ where: { userId: DEFAULT_USER_ID }, select: { locale: true } });
+  await setLocale(DEFAULT_USER_ID, PSEUDO_LOCALE);
   const rows: { route: string; url: string; status: number; ok: boolean }[] = [];
   const perPage: { url: string; runs: string[] }[] = [];
   try {
@@ -1182,7 +1591,7 @@ async function pseudoPass(urls: string[]): Promise<{ rows: { route: string; url:
       }
     }
   } finally {
-    await prisma.appSettings.update({ where: { id: SETTINGS_ID }, data: { locale: before?.locale ?? null } });
+    await prisma.userSettings.upsert({ where: { userId: DEFAULT_USER_ID }, update: { locale: before?.locale ?? null }, create: { userId: DEFAULT_USER_ID, locale: before?.locale ?? null } });
   }
   const all = perPage.flatMap((p) => p.runs);
   const distinct = new Set(all);
@@ -1228,13 +1637,13 @@ async function savedPostingChecks(dir: string, checkNow: (id: number) => Promise
   if (!folder) return out;
   await app.request(`/companies/${folder.id}/toggle-active`, form({}));
   const looked = await checkNow(folder.id);
-  const job = await prisma.job.findFirst({ where: { companyId: folder.id } });
+  const job = await prisma.job.findFirst({ where: { companyId: folder.id }, include: { userJobs: true } });
   const note = await prisma.sourceFile.findFirst({ where: { companyId: folder.id, relPath: 'note.txt' } });
   check(
     'POST /companies/:id/check-now on saved postings while paused (the page stored unscored, the text waits for a model)',
     `/companies/${folder.id}/check-now`,
     looked,
-    (await stored()) === 1 && job?.sourceFile === 'page.html' && job.fitScore === null && job.employer === 'Smoke Saved Co' && job.url === 'https://saved.example/jobs/1' && note?.status === 'waiting',
+    (await stored()) === 1 && job?.sourceFile === 'page.html' && job.userJobs.every((u) => u.fitScore === null) && job.employer === 'Smoke Saved Co' && job.url === 'https://saved.example/jobs/1' && note?.status === 'waiting',
   );
   if (job) {
     const page = await app.request(`/jobs/${job.id}`, { headers: ORIGIN });
@@ -1260,3 +1669,286 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
+
+/**
+ * Roles and isolation across the whole dashboard (ADR 0070). The real app, signed in as a
+ * person: a session in front of it, as the sign-in would set. Every registered route is held
+ * to one list or the other (admin-policy.ts); a member is then sent to each of them.
+ */
+function asUser(user: { id: number; name: string }): Hono {
+  const w = new Hono();
+  w.use('*', async (c, next) => {
+    c.set('session', { sub: `smoke-user-${user.id}`, name: user.name, uid: user.id, exp: 9_999_999_999 });
+    return next();
+  });
+  w.route('/', app);
+  return w;
+}
+
+/** A pattern with every parameter filled: the fixtures where they name one, otherwise a stand-in. */
+function concrete(pattern: string, f: Fixtures, ids: Record<string, string> = {}): string {
+  const given = Object.entries(ids).find(([prefix]) => pattern.startsWith(prefix));
+  const filled = given ? pattern.replace(':id', given[1]) : fill(pattern, f);
+  return filled.replace(/:[A-Za-z]+/g, '1');
+}
+
+/** What the install runs on: a member's requests must leave all of it as it was. */
+async function installFingerprint(): Promise<string> {
+  const [settings, companies, users, screenings] = await Promise.all([
+    prisma.appSettings.findFirst({
+      select: {
+        fetchingEnabled: true,
+        disabledSources: true,
+        hnParserEnabled: true,
+        discoveryEnabled: true,
+        sourceKeys: true,
+        classifierMode: true,
+        aiEngine: true,
+        aiKeys: true,
+        openAiBaseUrl: true,
+        localAiUrl: true,
+        aiBudgetCents: true,
+        updateCheck: true,
+        employerMode: true,
+        screeningRetentionDays: true,
+        sourceHealthAlerts: true,
+        schedule: true,
+        setupCompletedAt: true,
+      },
+    }),
+    prisma.company.findMany({ select: { id: true, name: true, active: true, watched: true }, orderBy: { id: 'asc' } }),
+    prisma.user.findMany({ select: { id: true, role: true }, orderBy: { id: 'asc' } }),
+    prisma.screening.count(),
+  ]);
+  return JSON.stringify({ settings, companies, users, screenings });
+}
+
+/** What the owner holds: a member's requests with the owner's ids must leave all of it as it was. */
+async function ownerFingerprint(): Promise<string> {
+  const own = { userId: DEFAULT_USER_ID };
+  const [resumes, jobs, profiles, targets, mutes, facts, packs, settings] = await Promise.all([
+    prisma.resume.findMany({ where: own, select: { id: true, name: true, isDefault: true, version: true }, orderBy: { id: 'asc' } }),
+    prisma.userJob.findMany({ where: own, select: { id: true, status: true, pipelineStage: true, applicationNotes: true }, orderBy: { id: 'asc' } }),
+    prisma.profile.findMany({ where: own, select: { id: true, name: true, active: true, resumeId: true }, orderBy: { id: 'asc' } }),
+    prisma.notificationTarget.findMany({ where: own, select: { id: true, active: true }, orderBy: { id: 'asc' } }),
+    prisma.companyMute.count({ where: own }),
+    prisma.candidateFact.count({ where: own }),
+    prisma.applicationPack.count({ where: own }),
+    prisma.userSettings.findUnique({ where: { userId: DEFAULT_USER_ID } }),
+  ]);
+  const { updatedAt: _stamp, ...kept } = settings ?? { updatedAt: null };
+  return JSON.stringify({ resumes, jobs, profiles, targets, mutes, facts, packs, settings: kept });
+}
+
+/** Words that only the owner's rows carry. */
+const OWNER_WORDS = ['Smoke resume', 'Smoke upload', 'Smoke Co', 'Smoke Two', 'Backend Engineer', 'Platform Engineer', 'Smoke Stats'];
+
+/** Fields a hostile form could send to any route: none of them may change the owner's data. */
+function hostileForm(f: Fixtures, ownerProfileId: number): RequestInit {
+  return form({
+    status: 'DISMISSED',
+    name: 'Hacked',
+    title: 'Hacked',
+    text: 'Hacked',
+    stage: 'applied',
+    pipelineStage: 'applied',
+    key: 'applied',
+    on: '1',
+    role: 'ADMIN',
+    back: '/',
+    resumeId: String(f.resumeId),
+    jobId: String(f.jobId),
+    profileId: String(ownerProfileId),
+    id: String(f.resumeId),
+  });
+}
+
+async function roleSweep(f: Fixtures): Promise<Check[]> {
+  const out: Check[] = [];
+  const add = (route: string, url: string, status: number, ok: boolean): void => {
+    out.push({ route, url, status, ok });
+  };
+  const member = await prisma.user.create({ data: { oidcSub: 'smoke-member', name: 'Smoke member', role: 'MEMBER' } });
+  await ensurePrimaryProfile(member.id);
+  const asMember = asUser(member);
+
+  // 1. Every registered route is in exactly one list (admin-policy.ts).
+  const registered = [
+    ...new Map(
+      app.routes.filter((r) => r.method !== 'ALL' && !r.path.includes('*')).map((r) => [`${r.method} ${r.path}`, { method: r.method, path: r.path }]),
+    ).values(),
+  ];
+  const unclassified = registered.filter((r) => classesOf(r.method, r.path).length !== 1);
+  add(
+    `every route is classified administrators-only or personal (${registered.length} routes)`,
+    unclassified.map((r) => `${r.method} ${r.path}`).join(', ') || '(none missing)',
+    unclassified.length === 0 ? 200 : 500,
+    unclassified.length === 0,
+  );
+
+  // 2. A member is refused every administrators' route, and nothing the install runs on moves.
+  const installBefore = await installFingerprint();
+  const adminRoutes = registered.filter((r) => classesOf(r.method, r.path)[0] === 'admin');
+  for (const r of adminRoutes) {
+    const url = concrete(r.path, f);
+    const res = await asMember.request(url, r.method === 'GET' ? { headers: ORIGIN } : form({}));
+    const wizard = r.method === 'GET' && r.path === '/welcome';
+    const ok = wizard ? res.status === 303 && res.headers.get('location') === '/' : res.status === 403;
+    add(`member ${r.method} ${r.path} (administrators only)`, url, res.status, ok);
+  }
+  const forbidden = await (await asMember.request('/settings/ai/key', form({}))).text();
+  add('the refusal is a page in the member\'s language, not a bare error', '/settings/ai/key', 403, forbidden.includes('Administrators only') && forbidden.includes('Smoke member') === false);
+  add('administrators\' routes left the install as it was', '(database)', 200, (await installFingerprint()) === installBefore);
+
+  // 3. The pages a member does use hold none of the owner's rows and none of the install's controls.
+  const personalGets = registered.filter((r) => r.method === 'GET' && classesOf(r.method, r.path)[0] === 'personal' && !r.path.includes(':'));
+  for (const r of personalGets) {
+    const res = await asMember.request(r.path, { headers: ORIGIN });
+    const body = res.status === 200 ? await res.text() : '';
+    const leaked = OWNER_WORDS.filter((w) => body.includes(w));
+    add(`member GET ${r.path} (their own page, none of the owner's rows)`, r.path, res.status, ACCEPT.has(res.status) && leaked.length === 0);
+  }
+  const controls: [string, string][] = [
+    ['/', 'action="/runs/fetch-now"'],
+    ['/', 'action="/settings/fetching-toggle"'],
+    ['/settings', 'action="/settings/fetching-toggle"'],
+    ['/settings?tab=general', 'action="/settings/update-check-toggle"'],
+    ['/settings?tab=ai', 'action="/settings/ai/key"'],
+    ['/settings?tab=sources', 'action="/settings/sources"'],
+    ['/settings?tab=screening', 'action="/settings/employer-mode-toggle"'],
+    ['/runs', 'action="/runs/fetch-now"'],
+    ['/companies', 'action="/companies/new"'],
+  ];
+  for (const [url, control] of controls) {
+    const res = await asMember.request(url, { headers: ORIGIN });
+    const html = await res.text();
+    add(`member GET ${url} draws no ${control}`, url, res.status, res.status === 200 && !html.includes(control));
+  }
+  const menu = await (await asMember.request('/', { headers: ORIGIN })).text();
+  add(
+    "the member's menu has no Discovery, AI usage, Users or Screening",
+    '/',
+    200,
+    ['href="/discovery"', 'href="/ai"', 'href="/users"', 'href="/screen"', 'href="/welcome"'].every((h) => !menu.includes(h)) && menu.includes('href="/jobs"'),
+  );
+  const adminMenu = await (await app.request('/jobs', { headers: ORIGIN })).text();
+  add("the administrator's menu has Discovery, AI usage and Users", '/', 200, ['href="/discovery"', 'href="/ai"', 'href="/users"'].every((h) => adminMenu.includes(h)));
+
+  // 4. The owner's ids on every personal route that takes one: not found, and nothing of the owner's moves.
+  const ownerProfile = await prisma.profile.findFirstOrThrow({ where: { userId: DEFAULT_USER_ID }, select: { id: true } });
+  const ownerTarget = await addNotificationTarget(DEFAULT_USER_ID, { kind: 'TELEGRAM', name: 'Sweep chat', botToken: 'sweep-token', chatId: 'sweep-chat' });
+  const ownerRun = claimRun('smoke-sweep-owner-run', { steps: ['match'], jobTitle: 'Backend Engineer', resumeName: 'Smoke resume' }).run;
+  const ids = {
+    '/target/runs/:id': ownerRun.id,
+    '/settings/targets/:id': String(ownerTarget?.id ?? 0),
+    '/settings/profiles/:id': String(ownerProfile.id),
+  };
+  const ownerBefore = await ownerFingerprint();
+  const personalWithId = registered.filter(
+    (r) =>
+      classesOf(r.method, r.path)[0] === 'personal' &&
+      /^\/(jobs|resumes|target\/runs|settings\/targets|settings\/profiles)\/:id/.test(r.path),
+  );
+  for (const r of personalWithId) {
+    const url = concrete(r.path, f, ids);
+    const res = await asMember.request(url, r.method === 'GET' ? { headers: ORIGIN } : hostileForm(f, ownerProfile.id));
+    const body = res.status === 200 ? await res.text() : '';
+    const leaked = OWNER_WORDS.filter((w) => body.includes(w));
+    add(`member ${r.method} ${r.path} with the owner's id (not found)`, url, res.status, res.status !== 200 && res.status < 500 && leaked.length === 0);
+  }
+  add("the owner's rows are as they were after the member's requests", '(database)', 200, (await ownerFingerprint()) === ownerBefore);
+  // The store refuses it too, whatever the route checked (ADR 0070).
+  const refused = async (run: () => Promise<unknown>): Promise<boolean> => run().then(() => false, () => true);
+  const memberProfile = await prisma.profile.findFirstOrThrow({ where: { userId: member.id }, select: { id: true } });
+  add(
+    "a search cannot be linked to another person's resume (the store)",
+    '(store)',
+    200,
+    (await refused(() => createProfile(member.id, { ...blankProfileInput(), resumeId: f.resumeId }))) &&
+      (await refused(() => updateProfile(member.id, memberProfile.id, { ...blankProfileInput(), resumeId: f.resumeId }))),
+  );
+  const ownRun = await app.request(`/target/runs/${ownerRun.id}/state`, { headers: ORIGIN });
+  add('GET /target/runs/:id/state by the person who started the run (found)', `/target/runs/${ownerRun.id}/state`, ownRun.status, ownRun.status === 200);
+  const otherRun = await asMember.request(`/target/runs/${ownerRun.id}/state`, { headers: ORIGIN });
+  add('GET /target/runs/:id/state by someone else (gone)', `/target/runs/${ownerRun.id}/state`, otherRun.status, otherRun.status === 404);
+  if (ownerTarget) await deleteNotificationTarget(DEFAULT_USER_ID, ownerTarget.id);
+
+  out.push(...(await userPageChecks(f, member)));
+  return out;
+}
+
+/** The users page (ADR 0070): roles, the rules that keep an administrator, removal with everything of the person's. */
+async function userPageChecks(f: Fixtures, member: { id: number; name: string }): Promise<Check[]> {
+  const out: Check[] = [];
+  const add = (route: string, url: string, status: number, ok: boolean): void => {
+    out.push({ route, url, status, ok });
+  };
+  const roleOf = async (id: number) => (await prisma.user.findUnique({ where: { id }, select: { role: true } }))?.role ?? null;
+
+  const page = await app.request('/users', { headers: ORIGIN });
+  const html = await page.text();
+  add('GET /users (the administrator sees everyone)', '/users', page.status, page.status === 200 && html.includes('Smoke member') && html.includes('Default user'));
+
+  // Nobody changes their own account here, whoever else is around.
+  const self = await app.request(`/users/${DEFAULT_USER_ID}/role`, form({ role: 'MEMBER' }));
+  add('POST /users/:id/role on yourself (refused)', `/users/${DEFAULT_USER_ID}/role`, self.status, self.status === 303 && flashOf(self).includes('your own account') && (await roleOf(DEFAULT_USER_ID)) === 'ADMIN');
+  const selfRemove = await app.request(`/users/${DEFAULT_USER_ID}/delete`, form({}));
+  add('POST /users/:id/delete on yourself (refused)', `/users/${DEFAULT_USER_ID}/delete`, selfRemove.status, selfRemove.status === 303 && (await roleOf(DEFAULT_USER_ID)) === 'ADMIN');
+
+  const promoted = await app.request(`/users/${member.id}/role`, form({ role: 'ADMIN' }));
+  add('POST /users/:id/role promotes a member', `/users/${member.id}/role`, promoted.status, promoted.status === 303 && (await roleOf(member.id)) === 'ADMIN');
+  // Now an administrator, that person runs the page too: they demote the default user, who is then refused the page.
+  const asNewAdmin = asUser(member);
+  const demoted = await asNewAdmin.request(`/users/${DEFAULT_USER_ID}/role`, form({ role: 'MEMBER' }));
+  add('POST /users/:id/role by a second administrator demotes the first', `/users/${DEFAULT_USER_ID}/role`, demoted.status, demoted.status === 303 && (await roleOf(DEFAULT_USER_ID)) === 'MEMBER');
+  const lockedOut = await app.request(`/users/${member.id}/role`, form({ role: 'MEMBER' }));
+  add('a demoted administrator is refused the users page', `/users/${member.id}/role`, lockedOut.status, lockedOut.status === 403 && (await roleOf(member.id)) === 'ADMIN');
+  const back = await asNewAdmin.request(`/users/${DEFAULT_USER_ID}/role`, form({ role: 'ADMIN' }));
+  add('POST /users/:id/role promotes the default user again', `/users/${DEFAULT_USER_ID}/role`, back.status, back.status === 303 && (await roleOf(DEFAULT_USER_ID)) === 'ADMIN');
+  const noChange = await app.request(`/users/${member.id}/role`, form({ role: 'ADMIN' }));
+  add('POST /users/:id/role to the role a user already has (nothing changes)', `/users/${member.id}/role`, noChange.status, noChange.status === 303 && flashOf(noChange).includes('already has that role'));
+  const gone = await app.request('/users/999999/delete', form({}));
+  add('POST /users/:id/delete of nobody (not found)', '/users/999999/delete', gone.status, gone.status === 303 && flashOf(gone).includes('no longer exists'));
+  await prisma.user.update({ where: { id: member.id }, data: { role: 'MEMBER' } });
+
+  // The last administrator stays, and two administrators acting at once cannot take both.
+  const second = await prisma.user.create({ data: { oidcSub: 'smoke-second-admin', name: 'Second admin', role: 'MEMBER' } });
+  const last = await changeUser({ actorId: second.id, targetId: DEFAULT_USER_ID, change: 'demote' });
+  add('the store: the last administrator cannot be demoted', '(store)', 200, !last.ok && last.reason === 'last-admin' && (await roleOf(DEFAULT_USER_ID)) === 'ADMIN');
+  const lastRemove = await changeUser({ actorId: second.id, targetId: DEFAULT_USER_ID, change: 'remove' });
+  add('the store: the last administrator cannot be removed', '(store)', 200, !lastRemove.ok && lastRemove.reason === 'last-admin' && (await roleOf(DEFAULT_USER_ID)) === 'ADMIN');
+  await prisma.user.update({ where: { id: second.id }, data: { role: 'ADMIN' } });
+  const raced = await Promise.all([
+    changeUser({ actorId: DEFAULT_USER_ID, targetId: second.id, change: 'demote' }),
+    changeUser({ actorId: second.id, targetId: DEFAULT_USER_ID, change: 'demote' }),
+  ]);
+  const admins = await prisma.user.count({ where: { role: 'ADMIN' } });
+  add('the store: two administrators demoting each other at once leave one', '(store)', 200, raced.filter((r) => r.ok).length === 1 && admins === 1);
+  await prisma.user.update({ where: { id: DEFAULT_USER_ID }, data: { role: 'ADMIN' } });
+  await prisma.user.update({ where: { id: second.id }, data: { role: 'MEMBER' } });
+
+  // Removal takes the person and everything of theirs; the shared catalog stays.
+  const leaver = await prisma.user.create({ data: { oidcSub: 'smoke-leaver', name: 'Smoke leaver', role: 'MEMBER' } });
+  await ensurePrimaryProfile(leaver.id);
+  const leaverResume = await createResume(leaver.id, { name: 'Leaver resume', sourceFilename: 'l.txt', mimeType: 'text/plain', original: Buffer.from(RESUME), text: RESUME });
+  await prisma.userJob.create({ data: { userId: leaver.id, jobId: f.jobId, status: 'SAVED' } });
+  await prisma.cronRun.create({ data: { name: 'digest', userId: leaver.id, status: 'OK' } });
+  await addNotificationTarget(leaver.id, { kind: 'TELEGRAM', name: 'Leaver chat', botToken: 'leaver-token', chatId: 'leaver-chat' });
+  const withData = await (await app.request('/users', { headers: ORIGIN })).text();
+  add('GET /users names what removing a person would take (the confirm)', '/users', 200, withData.includes('Remove Smoke leaver?') && withData.includes('1 resume'));
+  const removed = await app.request(`/users/${leaver.id}/delete`, form({}));
+  const left = await Promise.all([
+    prisma.user.count({ where: { id: leaver.id } }),
+    prisma.resume.count({ where: { id: leaverResume.id } }),
+    prisma.userJob.count({ where: { userId: leaver.id } }),
+    prisma.profile.count({ where: { userId: leaver.id } }),
+    prisma.notificationTarget.count({ where: { userId: leaver.id } }),
+    prisma.userSettings.count({ where: { userId: leaver.id } }),
+    prisma.cronRun.count({ where: { userId: leaver.id } }),
+    prisma.job.count({ where: { id: f.jobId } }),
+  ]);
+  add('POST /users/:id/delete removes the person and all of theirs, not the shared catalog', `/users/${leaver.id}/delete`, removed.status, removed.status === 303 && left.slice(0, 7).every((n) => n === 0) && left[7] === 1);
+  const stale = await asUser(leaver).request('/', { headers: ORIGIN });
+  add("a removed person's next request is a sign-in again (401)", '/', stale.status, stale.status === 401);
+  return out;
+}

@@ -194,6 +194,41 @@ export function employerGate(key: string | null, rules: EmployerRules, everyPost
 }
 
 /**
+ * A posting nobody who holds it wants scored (ADR 0069): every holder muted
+ * its employer. A mute promises no AI on the postings of that company for
+ * the person; the pass over the whole catalog still scores a posting for
+ * anyone who has not muted it. A posting nobody holds, or with no known
+ * employer, is not set aside.
+ */
+export function heldOnlyByMuters(key: string | null, holderIds: readonly number[], mutesByUser: ReadonlyMap<number, ReadonlySet<string>>): boolean {
+  if (key === null || holderIds.length === 0) return false;
+  return holderIds.every((id) => mutesByUser.get(id)?.has(key) === true);
+}
+
+/**
+ * The gate for several people at once (ADR 0069): a posting is turned away
+ * before any AI only when EVERY person it could reach turns it away; `away`
+ * is who does, so the rest still get their rows and the others get none.
+ */
+export function employerGates(
+  key: string | null,
+  rulesByUser: ReadonlyMap<number, EmployerRules>,
+  userIds: readonly number[],
+  everyPosting = false,
+): { all: EmployerGate | null; away: ReadonlySet<number>; reason: EmployerGate | null } {
+  const away = new Set<number>();
+  let first: EmployerGate | null = null;
+  for (const userId of userIds) {
+    const rules = rulesByUser.get(userId);
+    const gate = rules ? employerGate(key, rules, everyPosting) : null;
+    if (gate === null) continue;
+    away.add(userId);
+    first ??= gate;
+  }
+  return { all: userIds.length > 0 && away.size === userIds.length ? first : null, away, reason: first };
+}
+
+/**
  * The rows of muted companies out of a query: `employerKey IS NULL OR NOT IN
  * (…)`, because NOT IN alone drops every NULL row with them. Null when
  * nothing is muted — no clause at all.

@@ -9,6 +9,8 @@ import {
   companyForPrompt,
   employerFromDescription,
   employerGate,
+  employerGates,
+  heldOnlyByMuters,
   employerKey,
   fetchedHiringName,
   hiringKey,
@@ -159,4 +161,40 @@ test('a page names who hires and where the row came through as two things (#444)
     assert.deepEqual(companyOnPage(null, { atsType, name: 'Acme' }), { name: 'Acme', via: null }, atsType);
     assert.equal(companyForPage(undefined, { atsType, name: 'Acme' }), 'Acme', atsType);
   }
+});
+
+test('a posting is turned away before the AI only when every person it could reach turns it away', () => {
+  const rules = new Map([
+    [1, { muted: new Set(['acme']), appliedRecently: new Set<string>() }],
+    [2, { muted: new Set<string>(), appliedRecently: new Set<string>() }],
+    [3, { muted: new Set(['acme']), appliedRecently: new Set<string>() }],
+  ]);
+  const mixed = employerGates('acme', rules, [1, 2, 3]);
+  assert.equal(mixed.all, null);
+  assert.deepEqual([...mixed.away], [1, 3]);
+  const all = employerGates('acme', rules, [1, 3]);
+  assert.equal(all.all, 'muted');
+  assert.deepEqual([...all.away], [1, 3]);
+  // Nobody to reach is nobody who turned it away.
+  assert.equal(employerGates('acme', rules, []).all, null);
+  assert.equal(employerGates(null, rules, [1, 3]).all, null);
+  // A person without rules (not loaded) turns nothing away.
+  assert.deepEqual([...employerGates('acme', rules, [1, 9]).away], [1]);
+});
+
+test('the re-apply window is each person\'s own', () => {
+  const rules = new Map([
+    [1, { muted: new Set<string>(), appliedRecently: new Set(['globex']) }],
+    [2, { muted: new Set<string>(), appliedRecently: new Set<string>() }],
+  ]);
+  assert.deepEqual([...employerGates('globex', rules, [1, 2]).away], [1]);
+  assert.equal(employerGates('globex', rules, [1, 2], true).away.size, 0);
+});
+
+test('a pass over the catalog sets a posting aside only when everyone who holds it muted the employer', () => {
+  const mutes = new Map([[1, new Set(['acme'])], [2, new Set(['acme'])], [3, new Set(['globex'])]]);
+  assert.equal(heldOnlyByMuters('acme', [1, 2], mutes), true);
+  assert.equal(heldOnlyByMuters('acme', [1, 3], mutes), false);
+  assert.equal(heldOnlyByMuters('acme', [], mutes), false);
+  assert.equal(heldOnlyByMuters(null, [1], mutes), false);
 });

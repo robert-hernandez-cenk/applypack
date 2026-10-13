@@ -9,7 +9,7 @@ import { APPLY_LINK_FLAGS, checkApplyLink } from '../apply-link';
  * fetched or re-classified from now on, and a full re-classify costs AI calls
  * this backfill does not.
  *
- * Additive and idempotent — a tag is appended to Job.redFlags only when it is
+ * Additive and idempotent — a tag is appended to UserJob.redFlags only when it is
  * absent, no other field is touched, and no row is hidden, merged or deleted.
  * Safe to re-run. --dry-run reads only.
  *
@@ -19,16 +19,16 @@ import { APPLY_LINK_FLAGS, checkApplyLink } from '../apply-link';
 const DRY_RUN = process.argv.includes('--dry-run');
 
 async function main(): Promise<void> {
-  const jobs = await prisma.job.findMany({
+  // Every person's row: the flag is a property of the posting, written where each person's flags live (ADR 0067).
+  const rows = await prisma.userJob.findMany({
     select: {
       id: true,
-      title: true,
-      url: true,
       redFlags: true,
-      company: { select: { name: true, atsType: true } },
+      job: { select: { id: true, title: true, url: true, company: { select: { name: true, atsType: true } } } },
     },
     orderBy: { id: 'asc' },
   });
+  const jobs = rows.map(({ job, ...mine }) => ({ ...job, ...mine, jobId: job.id }));
 
   const perFlag = new Map<string, number>(APPLY_LINK_FLAGS.map((f) => [f, 0]));
   let flagged = 0;
@@ -46,7 +46,7 @@ async function main(): Promise<void> {
     const missing = flags.filter((f) => !job.redFlags.includes(f));
     logger.info(
       {
-        jobId: job.id,
+        jobId: job.jobId,
         title: job.title,
         company: job.company.name,
         url: job.url,
@@ -59,7 +59,7 @@ async function main(): Promise<void> {
 
     updated++;
     if (!DRY_RUN) {
-      await prisma.job.update({
+      await prisma.userJob.update({
         where: { id: job.id },
         data: { redFlags: [...job.redFlags, ...missing] },
       });

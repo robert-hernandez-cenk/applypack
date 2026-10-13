@@ -51,7 +51,7 @@ sequenceDiagram
   participant cron as node-cron (hourly heartbeat)
   participant runFetchJob as runFetchJob<br/>jobs/fetch-job.ts
   participant deliverHeldAlerts as deliverHeldAlerts<br/>jobs/alert-delivery.ts
-  participant listActiveProfiles as listActiveProfiles<br/>profiles.ts
+  participant listAllActiveProfiles as listAllActiveProfiles<br/>profiles.ts
   participant runAllFetchers as runAllFetchers<br/>fetchers/index.ts
   participant processNormalizedJobs as processNormalizedJobs<br/>jobs/process-jobs.ts
   participant passesAnyBaseFilter as passesAnyBaseFilter<br/>filter.ts
@@ -65,8 +65,8 @@ sequenceDiagram
   runFetchJob->>deliverHeldAlerts: matches held by earlier ticks, when shouldDeliverHeld allows this beat and Alerts are on
   runFetchJob->>runFetchJob: deliverPageChanges (careers-page changes still pending, under the same rules)
   Note over runFetchJob: stops here when fetchingEnabled is off or isFetchDue says no<br/>(a manual "Fetch now" carries on)
-  runFetchJob->>listActiveProfiles: the running searches
-  listActiveProfiles-->>runFetchJob: profiles[]
+  runFetchJob->>listAllActiveProfiles: the running searches
+  listAllActiveProfiles-->>runFetchJob: profiles[]
   Note over runFetchJob: no search running: stops here with reason no-active-profile
   runFetchJob->>runAllFetchers: active Companies, minus disabledSources, minus rows not due (dueCutoff)
   loop per due Company, shuffled, politeDelayMs apart
@@ -95,14 +95,12 @@ sequenceDiagram
     else classified
       classifyJob-->>processNormalizedJobs: one verdict per search
       processNormalizedJobs->>processNormalizedJobs: buildVerdicts() + mergeVerdicts()
-      alt every search dismissed it
-        processNormalizedJobs->>prisma: create Job(status=DISMISSED) + JobScore rows
-      else kept, but canAlertNow says no
-        processNormalizedJobs->>prisma: create Job(status=NEW, alertHeldAt=now) + JobScore rows
-      else kept
-        processNormalizedJobs->>prisma: create Job(status=NEW) + JobScore rows
-        processNormalizedJobs->>sendAlert: sendAlert(job, winner.notificationTargetId)
-        processNormalizedJobs->>prisma: update Job(status=ALERTED)
+      alt every search of every person dismissed it
+        processNormalizedJobs->>prisma: create Job + JobScore rows + a UserJob(status=DISMISSED) per person
+      else some person keeps it
+        processNormalizedJobs->>prisma: create Job + JobScore rows + a UserJob per person (NEW, alertHeldAt=now when canAlertNow says no)
+        processNormalizedJobs->>sendAlert: sendAlert(job, that person's winner.notificationTargetId), once per person who keeps it
+        processNormalizedJobs->>prisma: update that person's UserJob(status=ALERTED)
       end
     end
   end
@@ -175,7 +173,7 @@ ADR: [0006-discovery-via-hn-parser.md](./docs/adr/0006-discovery-via-hn-parser.m
 ```mermaid
 flowchart LR
   subgraph settings["AppSettings (singleton)"]
-    primary["activeProfileId (the primary)"]
+    primary["the primary<br/>(User.primaryProfileId)"]
     mode[classifierMode]
     disabled[disabledSources]
   end
@@ -244,8 +242,8 @@ src/
   user-schedule.ts             ← pure: the user's own schedule — when the search runs,
                                  when alerts may leave, which hours are digest hours
   seed.ts                      ← SEED_COMPANIES list + OBSOLETE_TOKENS cleanup
-  settings.ts                  ← AppSettings + NotificationTarget CRUD, the key accessors, maskToken re-export
-  profiles.ts                  ← Profile CRUD, listActiveProfiles, getActiveProfile / setActiveProfile, setProfileActive
+  settings.ts                  ← AppSettings (the install's) + UserSettings (a person's, settings-split.ts) + NotificationTarget CRUD, the key accessors, maskToken re-export
+  profiles.ts                  ← Profile CRUD scoped to a user (ADR 0066), listAllActiveProfiles (the worker), getActiveProfile / setActiveProfile (the primary), setProfileActive, ensurePrimaryProfile
   profile-guards.ts            ← pure: the blank-profile guards (issue #50) and MAX_ACTIVE_PROFILES
   priority-rules.ts            ← pure: parsePriorityRules, the score floors a search sets
   eligibility.ts               ← pure: where the candidate lives, the relocation choices, residenceCovered (ADR 0033)
@@ -493,8 +491,10 @@ src/
     employer-store.ts           ← the mute list, the tick's employer rules, the one-time fill of older rows' keys (ADR 0056)
     fetch-pause.ts              ← makeFetchPauseProbe: a pause on /settings stops a running tick within seconds
     process-jobs.ts             ← processNormalizedJobs: the shared inner loop used by fetch + HN
-    verdict-merge.ts            ← pure: one verdict per search, the winner, the score line (ADR 0028)
-    score-store.ts              ← the one write path for a re-score of a stored job
+    verdict-merge.ts            ← pure: one verdict per search, the winner, the score line (ADR 0028), merged per owner (ADR 0067)
+    user-job.ts                 ← pure: a person's row from their merged verdict, the flat shape pages read, who gets a row on a re-score (ADR 0067)
+    user-job-store.ts           ← the worker's reads and alert stamps on user_job
+    score-store.ts              ← the one write path for a re-score of a stored job (its posting and every person's row, one transaction)
     location-merge.ts           ← pure: the classifier's place fills or narrows the parser's, never blanks it (ADR 0032)
     location-reason.ts          ← pure: "open to Poland; this search hunts in …" for the job page (ADR 0032)
     alert-delivery.ts           ← deliverHeldAlerts: sends the held matches on the first beat the schedule and the Alerts switch allow
@@ -508,7 +508,8 @@ src/
     cleanup-job.ts              ← runCleanupJob (Sunday 03:00)
     hn-hiring-job.ts            ← runHnHiringJob (the 1st of the month, 06:mm)
     discovery-job.ts            ← runDiscoveryJob (Sunday 04:mm, validation probe)
-    pack-job.ts                 ← runPackJob: the queued application packs, one at a time, then one message (every minute; ADR 0063)
+    for-each-user.ts            ← runs a per-person job (the recap, the stale nudge) once per person, a run row each (ADR 0069)
+    pack-job.ts                 ← runPackJob: the queued application packs, one at a time, each prepared as its owner, then one message (every minute; ADR 0063, 0068)
     reclassify-job.ts           ← runReclassifyAll + runScoreUnscored (web-triggered, async)
     score-pick.ts               ← pure ranking of unscored jobs by profile mentions (wizard step 5)
     classify-existing.ts        ← classify one stored job (Re-classify button, manual entry)
@@ -549,7 +550,13 @@ src/
     priority-rules-dryrun.ts    ← npm run priority:dryrun: which stored jobs a profile's priorityRules match
     dead-exports.ts             ← npm run exports:audit: exported symbols nobody imports; a CI gate
 
+  users/                        ← who uses the install (ADR 0065, 0070)
+    identity.ts                 ← pure: the default user, CurrentUser, the first-sign-in decision
+    admin-policy.ts             ← pure: every route as administrators' or personal; routeAccess, classesOf
+    rules.ts                    ← pure: what an administrator may do to a user (the last administrator stays)
+    store.ts                    ← the only file that touches users: sign-in provisioning, summaries, changeUser
   web/                          ← the dashboard: its own process (Hono), read-mostly
+    admin-guard.tsx             ← 403 for a member on an administrators' route, before any handler (ADR 0070)
     server.ts                   ← listens on WEB_HOST:WEB_PORT and stops on a signal; the app is app.ts
     app.ts                      ← the Hono app: secure headers, basicAuth, originGuard, body limits,
                                   /static files, every route, the error handler
@@ -581,6 +588,7 @@ src/
     job-facets.ts               ← /jobs place / workplace / posted facets: params, where, chip counts; the list's URLs (jobsHref), the filters in force (pure)
     job-tabs.ts                 ← the job page's tabs: resolveJobTab (explicit, else inferred from match= / letter=), jobHref, the labels with what exists (pure)
     job-pick.ts                 ← the jobs a candidate launcher offers (fit threshold, newest, ?job= kept)
+    job-guard.ts                ← middleware: /jobs/<id>/… is not found for a posting the person holds no row for (ADR 0067)
     runs-summary.ts             ← a run's stats as facts in a fixed order, a reason as a sentence (pure) — what /runs shows instead of JSON
     usage-hints.ts              ← what the AI ledger suggests changing (pure): the billed task, fallbacks, failures, a pricey scoring model, the budget's pace
     ai-plan.ts                  ← who answers each task, with which model and whose money (pure, ADR 0060)
@@ -800,15 +808,21 @@ one row on each side.
 
 ```mermaid
 erDiagram
-  Profile |o--o{ AppSettings : "activeProfileId, the primary (SetNull)"
+  User ||--o{ Profile : "userId (Cascade), whose search it is"
+  Profile |o--o| User : "primaryProfileId, the primary (SetNull)"
   NotificationTarget |o--o{ Profile : "notificationTargetId (SetNull)"
+  User ||--o{ NotificationTarget : "userId (Cascade), whose destination it is"
+  User ||--o| UserSettings : "userId (Cascade), the person's own settings"
+  User ||--o{ CompanyMute : "userId (Cascade), whose mute it is"
   Resume |o--o{ Profile : "resumeId (SetNull)"
   Profile ||--o{ JobScore : "profileId (Cascade)"
   Job ||--o{ JobScore : "jobId (Cascade)"
   Company ||--o{ Job : "companyId (Cascade)"
   Company ||--o{ SourceFile : "companyId (Cascade)"
   Job |o--o{ Job : "crossListedOfJobId (SetNull)"
-  Resume |o--o{ Job : "appliedResumeId (SetNull)"
+  User ||--o{ UserJob : "userId (Cascade), whose row it is"
+  Job ||--o{ UserJob : "jobId (Cascade), the shared posting"
+  Resume |o--o{ UserJob : "appliedResumeId (SetNull)"
   CompanyCandidate |o..o| Company : "the same atsType + atsToken, no foreign key"
   Job ||--o{ JobStageEvent : "jobId (Cascade)"
   Resume ||--o{ ResumeReview : "resumeId (Cascade)"
@@ -825,11 +839,7 @@ erDiagram
 
   AppSettings {
     Int id PK "always 1"
-    Boolean telegramEnabled "the Alerts switch, every channel"
-    Int activeProfileId FK "the primary search"
     String classifierMode "single or two_stage"
-    Boolean applicationTrackingEnabled
-    Boolean staleApplicationsDigestEnabled
     Boolean hnParserEnabled
     String[] disabledSources
     Boolean discoveryEnabled
@@ -845,16 +855,26 @@ erDiagram
     String latestVersion "the last release the check saw"
     Int aiBudgetCents "monthly ceiling on billed AI money, NULL = none (ADR 0055)"
     String aiBudgetAlerted "the last budget warning sent, YYYY-MM:080 / :100"
-    Int reapplyDays "the re-apply window, NULL = off (ADR 0056)"
     DateTime employersFilledAt "the one-time fill of older rows' employer keys"
     Boolean sourceHealthAlerts
-    Json coverAngles
-    Json pipelineStages "user-named funnel columns (ADR 0025)"
-    Json schedule "when the search runs and alerts arrive, NULL = hourly"
+    Json schedule "the install's half: zone + when the search runs, NULL = hourly (ADR 0069)"
     DateTime setupCompletedAt "NULL = / redirects to /welcome"
     String instanceId "seeds this install's cron minute"
     Boolean employerMode "the Screening section exists while on (ADR 0049)"
     Int screeningRetentionDays "90 by default (ADR 0048)"
+  }
+
+  UserSettings {
+    Int userId PK "one row per person (ADR 0069)"
+    Boolean telegramEnabled "the Alerts switch, every channel"
+    Boolean applicationTrackingEnabled
+    Boolean staleApplicationsDigestEnabled
+    Int reapplyDays "the re-apply window, NULL = off (ADR 0056)"
+    Json coverAngles
+    Json pipelineStages "user-named funnel columns (ADR 0025)"
+    Json schedule "the person's zone and alert timing, NULL = defaults"
+    Json pack "application packs (ADR 0063)"
+    String locale "the interface language, NULL = never chosen"
   }
 
   Profile {
@@ -882,6 +902,7 @@ erDiagram
 
   NotificationTarget {
     Int id PK
+    Int userId FK "whose destination it is (ADR 0069)"
     NotificationKind kind "TELEGRAM or DISCORD"
     String name
     String botToken "Telegram"
@@ -962,7 +983,6 @@ erDiagram
     String[] countries "ISO-2: where to live (remote) or the office"
     String[] regions "named markers only: EU, EUROPE, WORLDWIDE …"
     String locationSource "structured, parsed, ai or NULL"
-    Int fitScore "the best search's score"
     Int salaryMin
     Int salaryMax
     String salaryCurrency
@@ -970,9 +990,22 @@ erDiagram
     Json sourcePayload "France Travail's offer as received"
     DateTime sourceUpdatedAt
     DateTime sourceCheckedAt
+    String liveness "active, expired or uncertain (ADR 0016)"
+    String livenessCode
+    DateTime livenessCheckedAt
+    BigInt descriptionSimhash "ADR 0018"
+    Int crossListedOfJobId FK
+  }
+
+  UserJob {
+    Int id PK
+    Int userId FK "whose row (ADR 0067)"
+    Int jobId FK
+    Int fitScore "the best of THIS person's searches"
     String[] techMatch
     String[] redFlags
     String summary
+    String[] priorityRulesApplied
     JobStatus status
     DateTime alertedAt
     DateTime alertHeldAt "held outside the alert window"
@@ -983,12 +1016,6 @@ erDiagram
     Int appliedResumeId FK
     Int appliedResumeVersion
     String appliedResumeText "snapshot — resume bytes are replaced in place"
-    String[] priorityRulesApplied
-    String liveness "active, expired or uncertain (ADR 0016)"
-    String livenessCode
-    DateTime livenessCheckedAt
-    BigInt descriptionSimhash "ADR 0018"
-    Int crossListedOfJobId FK
   }
 
   JobStageEvent {
@@ -1033,6 +1060,7 @@ erDiagram
   }
 
   CompanyMute {
+    Int userId PK "whose mute it is (ADR 0069)"
     String key PK "employer.ts:employerKey of the name"
     String name "as the user saw it"
     String reason

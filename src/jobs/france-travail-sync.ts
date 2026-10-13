@@ -62,6 +62,25 @@ export interface StoredOffer {
   pipelineStage: string | null;
 }
 
+/**
+ * A stored offer as the plan reads it, from the rows people hold for it
+ * (ADR 0067): what anybody holds on to is kept — the strongest status wins
+ * (Applied, then Saved), and any person's pipeline stage counts.
+ */
+export function storedOffer(job: {
+  id: number;
+  externalId: string;
+  userJobs: readonly { status: JobStatus; pipelineStage: string | null }[];
+}): StoredOffer {
+  const held = job.userJobs;
+  const status =
+    held.find((u) => u.status === JobStatus.APPLIED)?.status ??
+    held.find((u) => u.status === JobStatus.SAVED)?.status ??
+    held[0]?.status ??
+    JobStatus.DISMISSED;
+  return { id: job.id, externalId: job.externalId, status, pipelineStage: held.find((u) => u.pipelineStage !== null)?.pipelineStage ?? null };
+}
+
 export type SyncPlan = { action: 'delete' | 'anonymise' | 'keep'; id: number }[];
 
 /** What one tick did. `expired` counts the rows in `deleted`/`anonymised` that phase 2 withdrew. */
@@ -125,7 +144,7 @@ export function unverifiedSince(before: Date): Prisma.JobWhereInput {
   return { OR: [{ sourceCheckedAt: { lt: before } }, { sourceCheckedAt: null, fetchedAt: { lt: before } }] };
 }
 
-const OFFER_COLUMNS = { id: true, externalId: true, status: true, pipelineStage: true } as const;
+const OFFER_COLUMNS = { id: true, externalId: true, userJobs: { select: { status: true, pipelineStage: true } } } as const;
 
 /**
  * The daily mirror. Runs on every tick and does the work that is due, so a
@@ -174,7 +193,7 @@ export async function syncFranceTravail(context: FetchContext): Promise<MirrorSt
       }
       await sleep(CALL_GAP_MS);
     }
-    await apply(planSync(due, gone), now, result);
+    await apply(planSync(due.map(storedOffer), gone), now, result);
   }
 
   // Phase 2 — what phase 1 could not vouch for in time leaves anyway. Runs
@@ -190,7 +209,7 @@ export async function syncFranceTravail(context: FetchContext): Promise<MirrorSt
     take: MAX_EXPIRIES_PER_TICK,
   });
   const before = result.deleted + result.anonymised;
-  await apply(planExpiry(stale), now, result);
+  await apply(planExpiry(stale.map(storedOffer)), now, result);
   result.expired = result.deleted + result.anonymised - before;
   if (result.expired > 0) {
     logger.warn(

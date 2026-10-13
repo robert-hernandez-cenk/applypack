@@ -5,7 +5,8 @@
 
 ## Goal
 
-Single-user, locally hosted job-search assistant. Pulls listings from
+Locally hosted job-search assistant for one person, or for several who sign in to one server
+(ADR 0065-0070). Pulls listings from
 33 kinds of public source (twelve ATS vendors, twenty aggregators, any
 RSS/Atom feed), classifies each through the AI engine chain (five
 backends, ADR 0013/0014) against every running **search profile** the
@@ -117,7 +118,8 @@ classifyJob(input, profiles[], mode)   ONE call for every running search, on the
  scores: [{profile_id, fit_score, location_match, tech_match, …}]}
    ↓
 buildVerdicts()          per-search decideDismissReason() against that search's thresholds;
-mergeVerdicts()          the winner's numbers become Job.fitScore, every verdict a JobScore row
+mergeVerdicts()          the best verdict of any search supplies the posting's salary; every verdict a JobScore row
+mergeVerdictsByUser()    each person's winner becomes their UserJob.fitScore (ADR 0067)
    ↓ dismissed only when every search dismissed it
 Job(status=NEW) → one sendAlert(), named for the winner, routed to its notificationTargetId;
                   when canAlertNow says no (outside the window, or any time in digest mode), while
@@ -174,7 +176,7 @@ AI call (`web/overview-stats.ts`):
   which outlives the jobs. Under it, the funnel's four stages for the same
   range.
 - **What do the matches ask for?** *Jobs by stack*: the technologies of the
-  running searches that the last 30 days' matches name (`Job.techMatch`), and
+  running searches that the last 30 days' matches name (`UserJob.techMatch`), and
   the same list as the chart's **All stack** filter. Anything by technology
   reads the jobs, and a dismissed job is deleted after 30 days — so the
   filter covers 7D and 30D and is off beyond. A match here is a job that was
@@ -204,7 +206,7 @@ General → Schedule is read by a pure gate (`src/user-schedule.ts`) at the
 start of each beat, in the schedule's own time zone: `isFetchDue` decides
 whether the fetch tick searches (a "no" is `outside-schedule` on /runs),
 `canAlertNow` decides whether a fresh match is sent or held on
-`Job.alertHeldAt` (held too while Alerts are off, or after every chat
+`UserJob.alertHeldAt` (held too while Alerts are off, or after every chat
 refused it), `isDigestHour` decides whether the hourly recap beat does
 anything, and `isFirstDigestHour` whether the stale-application beat does.
 A beat that is not its digest hour writes no run row. An empty
@@ -228,7 +230,7 @@ Several run at once, up to 8 (ADR 0028): `Profile.active` is the switch, and
 `AppSettings.activeProfileId` names the **primary**, the one that supplies
 defaults everywhere and always runs. One classifier call scores each posting
 against every running search and returns a verdict each; those land in
-`JobScore` (jobId × profileId) while `Job.fitScore` keeps the best-of for
+`JobScore` (jobId × profileId) while each person's `UserJob.fitScore` keeps the best-of of their own searches for
 sorting. A posting is admitted when any search's base filter admits it, and
 dismissed only when every search rejects it. Alerts are one per posting,
 named for the winner and routed to that search's `notificationTargetId`.
@@ -312,7 +314,7 @@ clause at the start of the affected job/handler. The toggles live on
 
 ## Application tracking
 
-`Job.pipelineStage` is the funnel state, orthogonal to `Job.status`
+`UserJob.pipelineStage` is the funnel state, orthogonal to `UserJob.status`
 (`status=APPLIED` + `pipelineStage='ghosted'` is a valid pair). Columns are
 configured on `/settings` → Applications: **Applied** and **Rejected/Ghosted** are
 fixed, everything between them is user-named and reorderable, and keys never
@@ -321,7 +323,7 @@ ledger row in the same transaction (ADR 0024).
 
 **Which resume it went out with.** "Mark applied" on `/jobs/:id` carries a
 resume select — preselected from the comparison on screen, else from the
-search that scored the posting best — and writes `Job.appliedResumeId`,
+search that scored the posting best — and writes `UserJob.appliedResumeId`,
 `appliedResumeVersion` and `appliedResumeText`. The text snapshot is not
 redundant: "Upload a new version" replaces the bytes of the same `Resume`
 row, so an id alone would name v3 and hand back v5's words (the pattern
@@ -484,7 +486,40 @@ refusal. The sitemap + JSON-LD rung the plan called stage B was measured and
   company reads `employer ?? company.name`: the list ("Acme · via
   Remotive"), the alerts, the classifier, the verifier, the letter.
 
+## Settings, chats and mutes (ADR 0069)
+
+What runs the install (fetching and its schedule, sources, the AI engine and its keys, employer mode) is one set for everybody. What a person is told and how their own dashboard behaves is theirs: the Alerts switch and the timing of alerts, the recap and stale-nudge hours, their Telegram and Discord destinations, the mute list and the re-apply window, cover angles, board columns, application-pack settings, language and time zone. A search with no chosen destination sends to its owner's destinations; the AI budget warning, a changed careers page and the failing-source line go to administrators. An install without sign-in is one person and behaves as before.
+
+## Users and roles (ADR 0065, 0070)
+
+An install has users. One without sign-in is a single implicit user, the default user, who is an
+administrator: nothing is refused. With OpenID Connect sign-in (ADR 0064) every person the provider
+authenticates becomes a user on first sight; the first takes over the default user (and so everything
+the install held) as its administrator, everyone after is a **member**. The job catalog (companies,
+postings, their company checks) is shared; searches, job state, resumes, comparisons, letters, facts,
+packs, alert settings, destinations and mutes are each person's, and another person's id reads as
+"not found".
+
+**Administrators run the install; members work in their own space.** Sources and companies, discovery,
+the watchlist, folders, imports, starter packs, the fetch schedule, pause and "Fetch now", the AI engine,
+keys, budget and usage, source keys, classifier mode, update check, employer mode with its screenings and
+the setup wizard are administrators' only: a member gets a 403 page, the menu hides them, and the
+settings page shows a member only the personal sections. `/companies` shows a member their muted
+companies; `/runs` shows them the install's runs, funnel and their own recaps, read-only. The route
+table that decides this is `src/users/admin-policy.ts`; the route smoke refuses an unclassified route.
+
+**The users page** (`/users`, administrators): who is on the install, their role, when they joined and
+were last active, what they hold. Promote a member, demote another administrator, remove a user (the
+confirm names what goes with them; the catalog stays). Nobody demotes or removes themselves, and the
+last administrator is never demoted or removed.
+
 ## Resumes (Phase 8.1)
+
+Each person has their own resumes (ADR 0068): a resume, its scan, reviews,
+comparisons, confirmed facts, cover letters and application packs belong to
+the person who made them; another person's id reads as "not found". The
+posting brief and the company check are properties of the posting and are
+shared.
 
 `Resume` rows hold an uploaded file (`original` bytes, `.pdf` / `.docx` /
 `.md` / `.txt`) and its plain-text extraction (`text`). On upload the web
@@ -1021,7 +1056,7 @@ A pack prepared again there is the person's from then on, whoever queued the
 first one: it takes no slot of the day's number, no message announces it, and
 switching packs off or dismissing the job does not take it out of the queue.
 
-The dashboard only queues a row in `application_pack` (one per posting:
+The dashboard only queues a row in `application_pack` (one per person and posting:
 queued → running → ready | stopped | failed). The worker's `pack` beat
 (`jobs/pack-job.ts`, every minute, one runner under an advisory lock)
 prepares them one at a time through `pack/prepare.ts:preparePosting`:
@@ -1053,9 +1088,29 @@ postings not worth the evening — when the schedule lets a held message out;
 the Overview lists the ones ready and not yet sent. Nothing is ever submitted
 for the person.
 
+## Users (ADR 0065)
+
+An install has a `users` table. Row 1, "Default user", is an admin created by
+the migration and owns everything stored before users existed. With OIDC
+sign-in (ADR 0064) a person is provisioned from the provider's `sub` on first
+sign-in: the first person takes over the default user and is the admin, later
+ones are members. Without OIDC (open or Basic Auth) the dashboard runs as the
+default user. The session carries the user id; `web/current-user.ts` makes it
+available as `currentUser()`. Searches (`Profile`) belong to a user (ADR 0066): the
+primary search is `User.primaryProfileId`, the running-search limit is per
+person, and the dashboard lists and changes only the signed-in person's
+searches. Scoring is shared: one classifier call per posting covers every
+running search of every person and stores a verdict per search; /jobs and a
+job page show only your own searches' verdicts. A new member starts with a
+blank primary search. What a person does with a posting is their own
+`UserJob` row (ADR 0067): status, best-of verdict among their searches, alert
+stamps, application fields and stage history; the posting itself is shared and a
+person sees only the postings they hold. Resumes, notifications and mutes are
+not scoped yet (issue #5, later slices).
+
 ## Hard out-of-scope (Phase 7+)
 
-- Multi-user / per-user views (auth, sessions). Single-deployment-per-friend stays the answer — employer mode included: one HR person or hiring manager per install.
+- Per-user AI keys and employer mode (screenings) for several people. An install now has users (ADR 0065, issue #5): the job catalog is shared and the workspace becomes private slice by slice; employer mode stays one HR person or hiring manager per install.
 - Jooble / The Muse aggregators (free tiers exist, not added; Adzuna is a
   source since stage 3e, ADR 0034)
 - Built In, Wellfound, YC WAAS — fragile or behind anti-bot

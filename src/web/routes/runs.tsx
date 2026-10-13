@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx */
+import { currentUser } from '../current-user';
 import { Hono } from 'hono';
 import { prisma } from '../../db';
 import { RunsPage } from '../pages/runs';
@@ -19,11 +20,13 @@ runsRoute.get('/runs', async (c) => {
   const now = new Date();
   const [runs, funnel, sources] = await Promise.all([
     prisma.cronRun.findMany({
+      // The install's runs, and the recaps and nudges that were this person's (ADR 0069).
+      where: { OR: [{ userId: null }, { userId: currentUser().id }] },
       orderBy: { startedAt: 'desc' },
       take: RUNS_LIMIT,
     }),
     loadFunnel(now),
-    loadSourceYield(now),
+    loadSourceYield(currentUser().id, now),
   ]);
   return c.html(
     <RunsPage

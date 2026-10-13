@@ -49,6 +49,7 @@ import { localInstall } from '../../local/install';
 import { logger } from '../../logger';
 import { isBlankProfile } from '../../profile-guards';
 import { listActiveProfiles } from '../../profiles';
+import { currentUser } from '../current-user';
 import type { Profile } from '@prisma/client';
 import { getSettings } from '../../settings';
 import { t } from '../../i18n/t';
@@ -121,7 +122,7 @@ const isAlerts = (value: unknown): value is FolderAlerts => FOLDER_ALERTS.some((
 
 /** Running searches, how many can score, and whether scoring runs at all: what both previews say. */
 async function searchesNow(): Promise<{ scoring: boolean; active: Profile[]; roster: Profile[] }> {
-  const [settings, active] = await Promise.all([getSettings(), listActiveProfiles()]);
+  const [settings, active] = await Promise.all([getSettings(), listActiveProfiles(currentUser().id)]);
   const scoring = settings.fetchingEnabled;
   return { scoring, active, roster: scoring ? active.filter((p) => !isBlankProfile(p)) : active };
 }
@@ -214,7 +215,7 @@ async function previewRows(
 
   const [{ scoring, active, roster }, employers, stored] = await Promise.all([
     searchesNow(),
-    loadEmployerRules(now),
+    loadEmployerRules(currentUser().id, now),
     existingId !== null && jobs.length > 0
       ? prisma.job.findMany({ where: { companyId: existingId, externalId: { in: [...new Set(jobs.map((j) => j.externalId))] } }, select: { externalId: true } })
       : [],
@@ -380,11 +381,14 @@ foldersRoute.get('/companies/:id/files', async (c) => {
   if (!company) return c.text(t('http.notFound'), 404);
   const [files, summaries] = await Promise.all([listSourceFiles(id), folderSummaries()]);
   // The job each file became, by the file the job names (Job.sourceFile): one query, the files shown.
-  const jobs = await prisma.job.findMany({
-    where: { companyId: id, sourceFile: { in: files.map((f) => f.relPath) } },
-    select: { id: true, title: true, fitScore: true, status: true, sourceFile: true },
+  // Only the postings the signed-in person holds (ADR 0067), with their own score and status.
+  const userId = currentUser().id;
+  const held = await prisma.job.findMany({
+    where: { companyId: id, sourceFile: { in: files.map((f) => f.relPath) }, userJobs: { some: { userId } } },
+    select: { id: true, title: true, sourceFile: true, userJobs: { where: { userId }, select: { fitScore: true, status: true } } },
     orderBy: { id: 'asc' },
   });
+  const jobs = held.flatMap(({ userJobs, ...job }) => (userJobs[0] ? [{ ...job, ...userJobs[0] }] : []));
   const kept = readSourceConfig(company.sourceConfig);
   return c.html(
     <FolderFilesPage

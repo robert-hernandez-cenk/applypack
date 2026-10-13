@@ -12,7 +12,9 @@ import { runDiscoveryJob } from './jobs/discovery-job';
 import { packWorkWaiting, runPackJob, stopPackJob } from './jobs/pack-job';
 import { recordCronRun, type CronStats } from './jobs/cron-run';
 import { spreadMinute } from './schedule';
-import { getInstanceId, getSchedule } from './settings';
+import { getAlertSchedule, getInstanceId } from './settings';
+import { listUserIds } from './users/store';
+import { runForUsers } from './jobs/for-each-user';
 import { isDigestHour, isFirstDigestHour, type Schedule } from './user-schedule';
 import { announceReady, onLauncherStop, underLauncher } from './local/child';
 import { startFolderWatch, type FolderWatch } from './jobs/folder-watch';
@@ -49,8 +51,9 @@ async function main(): Promise<void> {
 
   // A tick that meets another fetch waits for it (jobs/fetch-tick.ts), and stops waiting when the worker stops.
   registerCron('5 * * * *', 'fetch', () => fetchTick({ stopping: () => shuttingDown }));
-  // Both daily summaries follow the one "digest time" the user picks
-  // (TASKS §16.4), so the heartbeat is hourly and the hour decides. They read
+  // Both daily summaries follow the "digest time" each person picks
+  // (TASKS §16.4, ADR 0069), so the heartbeat is hourly and the hour decides,
+  // person by person, each in their own zone. They read
   // that hour differently: the recap is a window and goes out at every digest
   // time, the nudge is a standing state and goes out at the first one.
   registerCron('0 * * * *', 'digest', () => onSchedule('digest', isDigestHour, runDigestJob));
@@ -130,19 +133,24 @@ function startHeartbeat(file: string): void {
 }
 
 /**
- * The daily summaries beat hourly and do their work on the hours `due` picks.
- * Unlike the fetch tick, a beat that is not one writes no run row: twenty-three
- * "skipped" lines a day on /runs would be noise, not evidence, and would sit
- * there for the 90 days `cleanup-job.ts` keeps runs.
+ * The daily summaries beat hourly and do their work, for each person, on the
+ * hours `due` picks in that person's own schedule. Unlike the fetch tick, a
+ * beat that is not one writes no run row: twenty-three "skipped" lines a day
+ * on /runs would be noise, not evidence, and would sit there for the 90 days
+ * `cleanup-job.ts` keeps runs.
  */
 async function onSchedule(
   name: string,
   due: (now: Date, schedule: Schedule) => boolean,
-  fn: () => Promise<{ stats: CronStats }>,
+  fn: (userId: number) => Promise<{ stats: CronStats }>,
 ): Promise<void> {
-  const schedule = await getSchedule();
-  if (!due(new Date(), schedule)) return;
-  await recordCronRun(name, fn);
+  const now = new Date();
+  const dueFor: number[] = [];
+  for (const userId of await listUserIds()) {
+    if (due(now, await getAlertSchedule(userId))) dueFor.push(userId);
+  }
+  // A run row per person; a person's failure is logged there and does not stop the next one.
+  await runForUsers(name, dueFor, fn);
 }
 
 function registerCron(

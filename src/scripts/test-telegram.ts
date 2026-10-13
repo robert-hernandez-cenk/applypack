@@ -2,6 +2,7 @@ import { config } from '../config';
 import { logger } from '../logger';
 import { sendDigest, sendAlert } from '../notifier';
 import { listNotificationTargets } from '../settings';
+import { DEFAULT_USER_ID } from '../users/identity';
 import type { AlertJob } from '../types';
 
 const TELEGRAM_API = 'https://api.telegram.org';
@@ -70,26 +71,27 @@ async function main(): Promise<void> {
 
   logger.info('test-telegram: step 2/5 — plain text');
   // Plain text via the notifier — this exercises the "no jobs" digest path.
-  await sendDigest([]);
+  await sendDigest(DEFAULT_USER_ID, []);
 
   logger.info('test-telegram: step 3/5 — single job alert');
-  await sendAlert(fakeAlert);
+  await sendAlert(DEFAULT_USER_ID, fakeAlert);
 
   logger.info('test-telegram: step 4/5 — digest with 2 jobs');
-  await sendDigest([fakeAlert, fakeAlert2]);
+  await sendDigest(DEFAULT_USER_ID, [fakeAlert, fakeAlert2]);
 
   // ADR 0028: an alert carries the winning search's target id, so a search
   // with its own chat is delivered only there. Broadcasting instead would be
   // silent breakage — every chat still gets a message — so it is exercised
   // against a real target rather than left to a unit test.
   logger.info('test-telegram: step 5/5 — alert routed to one target');
-  const targets = (await listNotificationTargets()).filter((t) => t.active);
+  const targets = (await listNotificationTargets(DEFAULT_USER_ID)).filter((t) => t.active);
   if (targets.length === 0) {
     logger.warn('test-telegram: no active targets; routing step skipped');
   } else {
     const target = targets[0]!;
     logger.info({ target: target.name, id: target.id }, 'test-telegram: routing to');
     await sendAlert(
+      DEFAULT_USER_ID,
       { ...fakeAlert, title: `Routed to "${target.name}" only (Test)` },
       target.id,
     );

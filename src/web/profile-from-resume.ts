@@ -9,6 +9,7 @@
  */
 import type { Profile } from '@prisma/client';
 import { blankProfileInput, createProfile } from '../profiles';
+import { currentUser } from './current-user';
 import { buildProfileDraft, type ProfileDraft, type ScanForDraft } from '../resume/profile-draft';
 import type { ResumeSummary } from '../resume/store';
 
@@ -37,7 +38,7 @@ export function newProfileDraft(resume: ResumeSummary): ProfileDraft {
  * user activates it on /settings → Searches when they want to hunt with it.
  */
 export async function createProfileFromResume(resume: ResumeSummary): Promise<Profile> {
-  return createProfile({
+  return createProfile(currentUser().id, {
     ...blankProfileInput(),
     ...newProfileDraft(resume).changes,
     resumeId: resume.id,

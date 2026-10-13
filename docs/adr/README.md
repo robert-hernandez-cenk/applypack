@@ -78,6 +78,12 @@ gets a dated addendum at the end of the ADR.
 - [0062 — Rows the user brings are read from what they hand over, and nothing is fetched](./0062-rows-the-user-brings-are-read-never-fetched.md)
 - [0063 — The worker prepares an application pack for a strong new match](./0063-the-worker-prepares-an-application-pack.md) *(amends 0008)*
 - [0064 — The dashboard can sign in through an OpenID Connect provider](./0064-oidc-login-for-the-dashboard.md)
+- [0065 — An install has users; the catalog is shared, the workspace is private](./0065-users-and-identity.md) *(supersedes 0004's single-user stance for the workspace)*
+- [0066 — Searches belong to a person; scoring still covers everyone's](./0066-searches-belong-to-a-person.md) *(amends 0028: the primary lives on the user)*
+- [0067 — What a person does with a posting is their own row; the posting is shared](./0067-a-person-holds-their-own-rows.md) *(amends 0028: the best-of lives on `UserJob`)*
+- [0068 — A resume, and everything written with it, is its owner's](./0068-a-resume-and-what-hangs-off-it-is-its-owners.md) *(amends 0063: a pack is per person)*
+- [0069 — What a person is told, where, and what they muted is their own; what runs the install is the install's](./0069-settings-chats-and-mutes-belong-to-a-person.md) *(amends 0041, 0056, 0061, 0063: destinations, mutes, language and pack settings are per person)*
+- [0070 — Administrators run the install; members work in their own space](./0070-administrators-run-the-install-members-work-in-their-own-space.md) *(completes 0065 and 0069: roles, the users page; employer mode is administrators' only)*
 
 ## When to write a new one
 

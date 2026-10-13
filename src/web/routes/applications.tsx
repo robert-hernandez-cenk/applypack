@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { idParam } from '../params';
 import { z } from 'zod';
 import { prisma } from '../../db';
-import { getSettings } from '../../settings';
+import { getUserSettings } from '../../settings';
 import { getPack, markPackSent } from '../../pack/store';
 import { getResume } from '../../resume/store';
 import { appliedResumeColumns, packAsShown, readAppliedResumeChoice } from '../applied-resume';
@@ -19,6 +19,8 @@ import { displayZone } from '../display-zone';
 import { withLocale } from '../../i18n/locale';
 import { t } from '../../i18n/t';
 import { companyForPage, companyOnPage } from '../../employer';
+import { flat } from '../../jobs/user-job';
+import { currentUser } from '../current-user';
 
 // Stage keys are validated at runtime against the configured list
 // (ADR 0025) — an enum would freeze what is now user data.
@@ -41,15 +43,13 @@ export const applicationsRoute = new Hono();
  * exports read the board from here.
  */
 async function loadBoard() {
-  const settings = await getSettings();
+  const settings = await getUserSettings(currentUser().id);
   const work = parseStageConfig(settings.pipelineStages);
-  const rows = await prisma.job.findMany({
-    where: { pipelineStage: { not: null } },
+  // The person's own board (ADR 0067): their rows, their stages, their history.
+  const userId = currentUser().id;
+  const held = await prisma.userJob.findMany({
+    where: { userId, pipelineStage: { not: null } },
     select: {
-      id: true,
-      title: true,
-      url: true,
-      employer: true,
       fitScore: true,
       recruiterContact: true,
       applicationNotes: true,
@@ -57,10 +57,19 @@ async function loadBoard() {
       appliedAt: true,
       appliedResumeVersion: true,
       appliedResume: { select: { name: true } },
-      company: { select: { name: true, atsType: true } },
+      job: {
+        select: {
+          id: true,
+          title: true,
+          url: true,
+          employer: true,
+          company: { select: { name: true, atsType: true } },
+        },
+      },
     },
-    orderBy: [{ appliedAt: 'desc' }, { id: 'desc' }],
+    orderBy: [{ appliedAt: { sort: 'desc', nulls: 'first' } }, { jobId: 'desc' }],
   });
+  const rows = held.map(flat);
 
   // The ledger dates each card's time-in-stage (ADR 0024 keeps recording
   // even though the funnel cards are gone — ADR 0025). Scoped to the cards
@@ -70,7 +79,7 @@ async function loadBoard() {
   const events =
     settings.applicationTrackingEnabled && boardIds.length > 0
       ? await prisma.jobStageEvent.findMany({
-          where: { jobId: { in: boardIds } },
+          where: { userId, jobId: { in: boardIds } },
           orderBy: { recordedAt: 'asc' },
         })
       : [];
@@ -178,7 +187,7 @@ const StageMoveSchema = z.object({ toStage: z.string().min(1).max(40) });
 applicationsRoute.post('/jobs/:id/stage', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const settings = await getSettings();
+  const settings = await getUserSettings(currentUser().id);
   if (!settings.applicationTrackingEnabled) {
     return c.redirect('/applications', 303);
   }
@@ -192,8 +201,10 @@ applicationsRoute.post('/jobs/:id/stage', async (c) => {
     return c.text(t('http.unknownStage'), 400);
   }
 
-  const current = await prisma.job.findUnique({
-    where: { id },
+  const userId = currentUser().id;
+  const key = { userId_jobId: { userId, jobId: id } };
+  const current = await prisma.userJob.findUnique({
+    where: key,
     select: { pipelineStage: true, appliedAt: true },
   });
   if (!current) return c.text(t('http.notFound'), 404);
@@ -207,8 +218,8 @@ applicationsRoute.post('/jobs/:id/stage', async (c) => {
   );
   if (event) {
     await prisma.$transaction([
-      prisma.job.update({ where: { id }, data: { pipelineStage: toStage } }),
-      prisma.jobStageEvent.create({ data: event }),
+      prisma.userJob.update({ where: key, data: { pipelineStage: toStage } }),
+      prisma.jobStageEvent.create({ data: { ...event, userId } }),
     ]);
   }
   return flashRedirect('/applications', 'ok', t('applications.movedTo', { stage: labelFor(work, toStage) }));
@@ -217,7 +228,7 @@ applicationsRoute.post('/jobs/:id/stage', async (c) => {
 applicationsRoute.post('/jobs/:id/application', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const settings = await getSettings();
+  const settings = await getUserSettings(currentUser().id);
   if (!settings.applicationTrackingEnabled) {
     return c.redirect(`/jobs/${id}`, 303);
   }
@@ -239,20 +250,22 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
   // "Which resume did I send?" is part of the application, so the form that
   // records the application records it too (#75). Until now only "Mark
   // applied" ever wrote these columns, and this form silently left them NULL.
-  const current = await prisma.job.findUnique({
-    where: { id },
+  const userId = currentUser().id;
+  const key = { userId_jobId: { userId, jobId: id } };
+  const current = await prisma.userJob.findUnique({
+    where: key,
     select: { pipelineStage: true, appliedAt: true, appliedResumeId: true },
   });
   if (!current) return c.text(t('http.notFound'), 404);
 
   const choice = readAppliedResumeChoice(parsed.data.appliedResumeId);
   // "The application pack's file" (ADR 0063): its text is what went out, and the pack is frozen once this is written.
-  const sentPack = choice.kind === 'pack' ? packAsShown(await getPack(id), choice.at) : null;
+  const sentPack = choice.kind === 'pack' ? packAsShown(await getPack(currentUser().id, id), choice.at) : null;
   if (choice.kind === 'pack' && !sentPack) return flashRedirect(jobHref(id, 'pack'), 'err', t('pack.flash.changed'));
   // The resume already recorded, sent back by a form that changed something else, is not recorded again:
   // the text kept is the one that went out, and the resume may have a newer version by now.
   const unchanged = choice.kind === 'keep' || (choice.kind === 'set' && choice.id === current.appliedResumeId);
-  const picked = sentPack ? await getResume(sentPack.resumeId) : choice.kind === 'set' && !unchanged ? await getResume(choice.id) : null;
+  const picked = sentPack ? await getResume(currentUser().id, sentPack.resumeId) : choice.kind === 'set' && !unchanged ? await getResume(currentUser().id, choice.id) : null;
   const appliedResume = unchanged ? null : appliedResumeColumns(picked && sentPack ? { ...picked, text: sentPack.text } : picked);
 
   const stageValue =
@@ -278,8 +291,8 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
     stageChangeEvent(id, current.pipelineStage, stageValue, appliedAtValue, new Date()) ??
     appliedDateCorrection(id, stageValue, current.appliedAt, appliedAtValue);
 
-  const update = prisma.job.update({
-    where: { id },
+  const update = prisma.userJob.update({
+    where: key,
     data: {
       pipelineStage: stageValue,
       appliedAt: appliedAtValue,
@@ -295,11 +308,11 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
     },
   });
   if (event) {
-    await prisma.$transaction([update, prisma.jobStageEvent.create({ data: event })]);
+    await prisma.$transaction([update, prisma.jobStageEvent.create({ data: { ...event, userId } })]);
   } else {
     await update;
   }
-  if (sentPack) await markPackSent(id, new Date());
+  if (sentPack) await markPackSent(currentUser().id, id, new Date());
 
   // Back to the tab the rail was used on; read through the resolver, so only a known tab reaches the redirect.
   return c.redirect(jobHref(id, resolveJobTab({ tab: typeof form.tab === 'string' ? form.tab : null })), 303);

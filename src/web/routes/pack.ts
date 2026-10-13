@@ -14,6 +14,7 @@ import { flashRedirect } from '../flash';
 import { jobHref } from '../job-tabs';
 import type { ApplicationPackProps } from '../pages/application-pack-card';
 import { idParam } from '../params';
+import { currentUser } from '../current-user';
 
 /*
  * The application pack in the dashboard (ADR 0063): asking for one, and the
@@ -28,7 +29,7 @@ packRoute.post('/jobs/:id/pack', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   if (!(await prisma.job.findUnique({ where: { id }, select: { id: true } }))) return c.text(t('http.notFound'), 404);
-  const outcome = await queuePack(id, 'manual');
+  const outcome = await queuePack(currentUser().id, id, 'manual');
   const tab = jobHref(id, 'pack');
   if (outcome === 'sent' || outcome === 'kept') {
     return flashRedirect(tab, 'warn', t(outcome === 'sent' ? 'pack.flash.sent' : 'pack.flash.kept'));
@@ -40,7 +41,7 @@ packRoute.post('/jobs/:id/pack', async (c) => {
 packRoute.post('/jobs/:id/pack/cancel', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const cancelled = await cancelQueuedPack(id);
+  const cancelled = await cancelQueuedPack(currentUser().id, id);
   return flashRedirect(jobHref(id, 'pack'), cancelled ? 'ok' : 'warn', t(cancelled ? 'pack.flash.cancelled' : 'pack.flash.tooLateToCancel'));
 });
 
@@ -53,7 +54,7 @@ packRoute.post('/jobs/:id/pack/cancel', async (c) => {
 packRoute.get('/jobs/:id/pack/state', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.json({ gone: true }, 400);
-  const pack = await getPack(id);
+  const pack = await getPack(currentUser().id, id);
   if (!pack) return c.json({ gone: true }, 404);
   const busy = packBusy(pack);
   return c.json({ busy, line: busy ? preparingLine(pack) : '', wait: t('pack.card.finishedUnsaved') }, 200, { 'Cache-Control': 'no-store' });
@@ -63,7 +64,7 @@ packRoute.get('/jobs/:id/pack/state', async (c) => {
 async function sendPackFile(c: Context, kind: 'docx' | 'pdf'): Promise<Response> {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const file = await getPackFile(id, kind);
+  const file = await getPackFile(currentUser().id, id, kind);
   if (!file) return c.text(t('http.notFound'), 404);
   return new Response(new Uint8Array(file.bytes), {
     headers: {
@@ -79,7 +80,7 @@ packRoute.get('/jobs/:id/pack/resume.pdf', (c) => sendPackFile(c, 'pdf'));
 
 /** Everything the job page's pack tab shows, read from what the pack stored. */
 export async function loadPackView(jobId: number, url: string): Promise<ApplicationPackProps> {
-  const [pack, files, settings, kept] = await Promise.all([getPack(jobId), packFiles(jobId), getPackSettings(), packIsKept(jobId)]);
+  const [pack, files, settings, kept] = await Promise.all([getPack(currentUser().id, jobId), packFiles(currentUser().id, jobId), getPackSettings(currentUser().id), packIsKept(currentUser().id, jobId)]);
   const [verification, match] = await Promise.all([
     pack?.verificationId
       ? prisma.jobVerification.findUnique({
@@ -87,7 +88,7 @@ export async function loadPackView(jobId: number, url: string): Promise<Applicat
           select: { verdict: true, recommendation: true, summary: true, companySnapshot: true },
         })
       : null,
-    pack?.matchId ? prisma.resumeMatch.findUnique({ where: { id: pack.matchId }, select: { keywords: true } }) : null,
+    pack?.matchId ? prisma.resumeMatch.findFirst({ where: { id: pack.matchId, resume: { userId: currentUser().id } }, select: { keywords: true } }) : null,
   ]);
   const keywords = match ? readKeywords(match.keywords) : [];
   const changes =
@@ -112,7 +113,7 @@ export async function loadPackView(jobId: number, url: string): Promise<Applicat
     unbacked: keywords.filter((k) => k.status === 'cannot_claim').map((k) => k.term),
     letter: pack?.coverLetterId !== null && pack?.coverLetterId !== undefined,
     automatic: settings.enabled,
-    sameRoleJobId: pack ? null : await packOfSameRole(jobId),
+    sameRoleJobId: pack ? null : await packOfSameRole(currentUser().id, jobId),
     // No figure: a pack's calls are several features' calls (web/cost-hint.ts:kindHint).
     cost: `${t('settings.pack.cost')} ${await kindHint('resume-match')}`.trim(),
   };

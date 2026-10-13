@@ -5,6 +5,7 @@ import { readKeywords } from '../../resume/prompts';
 import { deleteFact, rescoreMatchKeywords, upsertFact } from '../../resume/store';
 import { flashRedirect, safeBack } from '../flash';
 import { t } from '../../i18n/t';
+import { currentUser } from '../current-user';
 
 /*
  * "ask_user" answers. Confirming or denying a term stores a CandidateFact and
@@ -26,9 +27,10 @@ factsRoute.post('/facts', async (c) => {
   const parsed = FactFormSchema.safeParse(await c.req.parseBody());
   if (!parsed.success) return c.text(t('http.badFact'), 400);
   const f = parsed.data;
+  const userId = currentUser().id;
   const back = safeBack(f.back, '/resumes');
   const note = f.note.trim().slice(0, 300) || null;
-  const fact = await upsertFact(f.term, f.decision, note);
+  const fact = await upsertFact(userId, f.term, f.decision, note);
   // "Not sure" moves no score and needs no number: it only stops the question.
   const unsure = f.decision === 'unknown';
 
@@ -38,7 +40,7 @@ factsRoute.post('/facts', async (c) => {
     // round. The re-score also runs through `effectiveKeywords` there, so a
     // confirmed fact can no longer quietly drop the user's own keyword edits
     // out of the number.
-    const outcome = await rescoreMatchKeywords(f.matchId, (match) => {
+    const outcome = await rescoreMatchKeywords(userId, f.matchId, (match) => {
       const { keywords, changed } = applyFacts(readKeywords(match.keywords), [fact]);
       return { keywords: changed > 0 ? keywords : null, detail: { changed } };
     });
@@ -62,6 +64,6 @@ factsRoute.post('/facts/delete', async (c) => {
   const term = typeof form.term === 'string' ? form.term : '';
   const back = safeBack(form.back, '/resumes');
   if (term.trim().length === 0) return c.text(t('http.badFact'), 400);
-  await deleteFact(term);
+  await deleteFact(currentUser().id, term);
   return flashRedirect(back, 'ok', t('facts.flash.forgot', { term: term.trim().toLowerCase() }));
 });

@@ -123,6 +123,12 @@ of truth when the two disagree.
 - 0062 Rows the user brings are read from what they hand over, and nothing is fetched
 - 0063 The worker prepares an application pack for a strong new match *(amends 0008)*
 - 0064 The dashboard can sign in through an OpenID Connect provider
+- 0065 An install has users; the catalog is shared, the workspace is private *(supersedes 0004's single-user stance for the workspace)*
+- 0066 Searches belong to a person; scoring still covers everyone's *(amends 0028: the primary lives on the user)*
+- 0067 What a person does with a posting is their own row; the posting is shared *(amends 0028: the best-of lives on `UserJob`)*
+- 0068 A resume, and everything written with it, is its owner's *(amends 0063: a pack is per person)*
+- 0069 What a person is told, where, and what they muted is their own; what runs the install is the install's *(amends 0041, 0056, 0061, 0063: destinations, mutes, language and pack settings are per person)*
+- 0070 Administrators run the install; members work in their own space *(completes 0065 and 0069: roles, the users page; employer mode is administrators' only)*
 
 Check a proposal against these before touching process layout, sources,
 scheduling, profiles, how the AI is called, the resume score or employer

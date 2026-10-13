@@ -16,6 +16,8 @@ export function suggestionsKey(matchId: number): string {
  * quick check is already stored. Returns the run URL to redirect to.
  */
 export function startSuggestionsRun(input: {
+  /** Whose comparison it is (ADR 0068): the run reads their facts and their earlier comparisons. */
+  userId: number;
   match: ResumeMatch;
   job: MatchJobInput & { id: number };
   resumeName: string;
@@ -33,7 +35,7 @@ export function startSuggestionsRun(input: {
     backLabel: t('target.run.backToComparison'),
   });
   if (joined) return `/target/runs/${run.id}`;
-  startRun(run.id, () => finishSuggestions(run.id, { match, job, resultUrl: input.resultUrl }));
+  startRun(run.id, () => finishSuggestions(run.id, { userId: input.userId, match, job, resultUrl: input.resultUrl }));
   return `/target/runs/${run.id}`;
 }
 
@@ -44,10 +46,10 @@ export function startSuggestionsRun(input: {
  */
 export async function finishSuggestions(
   runId: string,
-  input: { match: ResumeMatch; job: MatchJobInput & { id: number }; resultUrl: string; when?: string },
+  input: { userId: number; match: ResumeMatch; job: MatchJobInput & { id: number }; resultUrl: string; when?: string },
 ): Promise<void> {
   let reason = '';
-  const row = await suggestForMatch(input.match, input.job, (r) => {
+  const row = await suggestForMatch(input.userId, input.match, input.job, (r) => {
     reason = r;
   });
   updateRun(

@@ -14,7 +14,10 @@ import {
   deleteNotificationTarget,
   getAiKeys,
   getPackSettings,
-  getSchedule,
+  getAlertSchedule,
+  getNotificationTarget,
+  getUserSettings,
+  setPersonalSchedule,
   getSettings,
   listNotificationTargets,
   maskToken,
@@ -50,7 +53,8 @@ import {
 import { setEmployerModeCache } from '../employer-mode';
 import { applicantNotice, LEGAL_NOTE } from '../../screening/notice';
 import { config } from '../../config';
-import { ALL_DAYS, MAX_DIGEST_HOURS, ScheduleSchema, describeSchedule, parseSchedule } from '../../user-schedule';
+import { ALL_DAYS, MAX_DIGEST_HOURS, ScheduleSchema, describeSchedule } from '../../user-schedule';
+import { formForRole, planScheduleSave } from '../../settings-split';
 import { loadHeldLine, loadNextCheck } from '../schedule-view';
 import {
   addStage,
@@ -128,6 +132,8 @@ import {
   setProfileActive,
   updateProfile,
 } from '../../profiles';
+import { currentUser } from '../current-user';
+import { isAdmin } from '../../users/admin-policy';
 import { runReclassifyAll } from '../../jobs/reclassify-job';
 import { recordCronRun } from '../../jobs/cron-run';
 import { parseTagList, toStringArray } from '../../text-utils';
@@ -145,7 +151,7 @@ import { isBlankProfile } from '../../profile-guards';
 import { filterChanged } from '../../filter';
 import { foldersReadOnceHint } from '../folder-words-io';
 import type { Profile } from '@prisma/client';
-import { isSettingsTab, SettingsPage, type EngineServer, type SourceKeyRow } from '../pages/settings';
+import { SettingsPage, tabFor, type EngineServer, type SourceKeyRow } from '../pages/settings';
 import { packSettingsFromForm, parsePackSettings, switchedOn } from '../../pack/settings';
 import { cancelQueuedAutoPacks } from '../../pack/store';
 import { sourceLabel } from '../source-names';
@@ -259,31 +265,35 @@ function cardRank(e: { enabled: boolean; position: number; lastResort: boolean }
 async function loadSettingsProps() {
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const aiKeys = await getAiKeys();
-  const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth, recentAttempts] =
+  const [settings, own, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth, recentAttempts] =
     await Promise.all([
       getSettings(),
-      listNotificationTargets(),
-      listProfiles(),
-      getActiveProfile(),
-      listResumes(),
+      getUserSettings(currentUser().id),
+      listNotificationTargets(currentUser().id),
+      listProfiles(currentUser().id),
+      getActiveProfile(currentUser().id),
+      listResumes(currentUser().id),
       probeAiProviders(aiKeys),
-      prisma.job.groupBy({
+      // The stage list is the person's own (ADR 0069): the jobs they hold in a stage count.
+      prisma.userJob.groupBy({
         by: ['pipelineStage'],
         _count: { _all: true },
-        where: { pipelineStage: { not: null } },
+        where: { userId: currentUser().id, pipelineStage: { not: null } },
       }),
       billedThisMonth(),
       loadRecentAttempts(),
     ]);
   // "available" is what the probe found on disk; whether calls get through is what the ledger's last rows say (#413).
   const troubles = new Map(engineTroubles(recentAttempts).map((trouble) => [trouble.engine, troubleLine(trouble)]));
-  const check = await loadNextCheck(settings.schedule);
+  const check = await loadNextCheck();
   const scheduleView = {
     schedule: check.schedule,
     zones: supportedTimezones(check.schedule.timezone),
     nextFetch: check.next,
     held: await loadHeldLine(check.schedule),
-    unsaved: settings.schedule === null,
+    unsaved: own.schedule === null,
+    // Only an administrator changes when the search runs (ADR 0069).
+    fetchEditable: currentUser().role === 'ADMIN',
   };
   const countByStage = new Map(
     stageCounts.map((row) => [row.pipelineStage, row._count._all]),
@@ -376,17 +386,18 @@ async function loadSettingsProps() {
   };
   const aiBudget = { cents: settings.aiBudgetCents, billedThisMonthMicro: billedMonth };
   return {
-    telegramEnabled: settings.telegramEnabled,
+    admin: isAdmin(currentUser()),
+    telegramEnabled: own.telegramEnabled,
     classifierMode: settings.classifierMode,
-    applicationTrackingEnabled: settings.applicationTrackingEnabled,
-    pipelineStages: allStages(parseStageConfig(settings.pipelineStages)).map((s) => ({
+    applicationTrackingEnabled: own.applicationTrackingEnabled,
+    pipelineStages: allStages(parseStageConfig(own.pipelineStages)).map((s) => ({
       ...s,
       count: countByStage.get(s.key) ?? 0,
       fixed: s.key === 'applied' || TERMINAL_KEYS.includes(s.key),
     })),
-    staleApplicationsDigestEnabled: settings.staleApplicationsDigestEnabled,
-    reapplyDays: settings.reapplyDays,
-    pack: parsePackSettings(settings.pack),
+    staleApplicationsDigestEnabled: own.staleApplicationsDigestEnabled,
+    reapplyDays: own.reapplyDays,
+    pack: parsePackSettings(own.pack),
     loginItem: loginItemState(),
     updates: {
       enabled: settings.updateCheck,
@@ -456,13 +467,13 @@ async function loadSettingsProps() {
 settingsRoute.get('/settings', async (c) => {
   const props = await loadSettingsProps();
   const tabParam = c.req.query('tab');
-  const activeTab = isSettingsTab(tabParam) ? tabParam : 'profile';
+  const activeTab = tabFor(tabParam, props.admin);
   // ?profile= points the editor at a specific (possibly inactive) profile.
   // "+ New profile" lands here: new profiles are born inactive (issue #50)
   // and must be editable before activation.
   const profileParam = idParam(c.req.query('profile'));
   if (Number.isFinite(profileParam)) {
-    const editorProfile = await getProfile(profileParam);
+    const editorProfile = await getProfile(currentUser().id, profileParam);
     if (editorProfile) props.activeProfile = editorProfile;
   }
   const fill = idParam(c.req.query('fill'));
@@ -484,7 +495,7 @@ settingsRoute.post('/settings/fetching-toggle', async (c) => {
   if (!enabling) {
     return flashRedirect(back, 'warn', t('settingsRoute.fetching.paused'));
   }
-  const profile = await getActiveProfile();
+  const profile = await getActiveProfile(currentUser().id);
   const gateEmpty =
     !profile || (profile.stackRequired.length === 0 && profile.roleTypes.length === 0);
   if (gateEmpty) {
@@ -503,7 +514,9 @@ settingsRoute.post('/settings/fetching-toggle', async (c) => {
  */
 settingsRoute.post('/settings/schedule', async (c) => {
   const form = await c.req.parseBody({ all: true });
-  const current = parseSchedule((await getSettings()).schedule, config.TZ);
+  // The person's schedule: their zone and alerts, with the install's fetch half (ADR 0069).
+  const current = await getAlertSchedule(currentUser().id);
+  const isAdmin = currentUser().role === 'ADMIN';
   // Three forms on three tabs save one part each and keep the stored rest; a body with no part saves all of it.
   const part = schedulePart(form.part);
   const takes = (p: SchedulePart): boolean => part === null || part === p;
@@ -529,11 +542,15 @@ settingsRoute.post('/settings/schedule', async (c) => {
       : current.alerts,
   };
   const back = SCHEDULE_BACK[part ?? 'fetch'];
+  // When the search runs is the install's: a member's form saves the rest and keeps it.
+  if (part === 'fetch' && !isAdmin) return flashRedirect(back, 'err', t('settingsRoute.schedule.adminOnly'));
   const parsed = ScheduleSchema.safeParse(candidate);
   if (!parsed.success) {
     return flashRedirect(back, 'err', t('settingsRoute.schedule.notSaved', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
   }
-  await setSchedule(parsed.data);
+  const plan = planScheduleSave(formForRole(parsed.data, current, isAdmin), isAdmin);
+  await setPersonalSchedule(currentUser().id, plan.personal);
+  if (plan.global) await setSchedule(plan.global);
   if (part === 'zone') return flashRedirect(back, 'ok', t('settingsRoute.schedule.zoneSaved', { zone: parsed.data.timezone }));
   const held = await loadHeldLine(parsed.data);
   const saved = part === 'alerts' ? t('settingsRoute.schedule.alertsSaved') : t('settingsRoute.schedule.saved', { schedule: describeSchedule(parsed.data) });
@@ -575,12 +592,12 @@ function pills(value: unknown, fallback: readonly number[]): number[] {
 // --- Telegram toggle / targets ---------------------------------------------
 
 settingsRoute.post('/settings/telegram-toggle', async (c) => {
-  const settings = await getSettings();
+  const settings = await getUserSettings(currentUser().id);
   const enabled = !settings.telegramEnabled;
-  await setTelegramEnabled(enabled);
+  await setTelegramEnabled(currentUser().id, enabled);
   // Every channel, Discord included (ADR 0041) — the column is just old.
   if (!enabled) return flashRedirect('/settings?tab=notifications', 'ok', t('settingsRoute.alerts.disabled'));
-  const held = await loadHeldLine(await getSchedule());
+  const held = await loadHeldLine(await getAlertSchedule(currentUser().id));
   return flashRedirect('/settings?tab=notifications', 'ok', sentences(t('settingsRoute.alerts.enabled'), held ? `${held.text}.` : ''));
 });
 
@@ -901,8 +918,8 @@ settingsRoute.post('/settings/classifier-mode', async (c) => {
 });
 
 settingsRoute.post('/settings/application-tracking-toggle', async (c) => {
-  const settings = await getSettings();
-  await setApplicationTrackingEnabled(!settings.applicationTrackingEnabled);
+  const settings = await getUserSettings(currentUser().id);
+  await setApplicationTrackingEnabled(currentUser().id, !settings.applicationTrackingEnabled);
   return flashRedirect(
     '/settings?tab=applications',
     'ok',
@@ -928,13 +945,13 @@ async function applyStageEdit(
     | StageEditError,
   okText: string,
 ): Promise<Response> {
-  const settings = await getSettings();
+  const settings = await getUserSettings(currentUser().id);
   const work = parseStageConfig(settings.pipelineStages);
   const next = edit(work);
   if (typeof next === 'string') {
     return flashRedirect(STAGES_BACK, 'err', t(STAGE_ERROR_TEXT[next]));
   }
-  await setPipelineStages(next);
+  await setPipelineStages(currentUser().id, next);
   return flashRedirect(STAGES_BACK, 'ok', okText);
 }
 
@@ -955,19 +972,18 @@ settingsRoute.post('/settings/stages/:key/remove', async (c) => {
   // instant is still possible — the drag itself takes no lock, and making
   // every card move queue on one row would be a poor trade — so a stranded
   // job is caught by the "Unfiled" column on the board rather than lost.
+  const userId = currentUser().id;
   const outcome = await withGlobalWriteLock(async (tx) => {
-    const held = await tx.job.count({ where: { pipelineStage: key } });
+    const held = await tx.userJob.count({ where: { userId, pipelineStage: key } });
     if (held > 0) return { kind: 'in-use' as const, held };
-    const row = await tx.appSettings.findUnique({
-      where: { id: SETTINGS_ID },
+    const row = await tx.userSettings.findUnique({
+      where: { userId },
       select: { pipelineStages: true },
     });
     const next = removeStage(parseStageConfig(row?.pipelineStages), key);
     if (typeof next === 'string') return { kind: 'refused' as const, error: next };
-    await tx.appSettings.update({
-      where: { id: SETTINGS_ID },
-      data: { pipelineStages: JSON.parse(JSON.stringify(next)) as Prisma.InputJsonValue },
-    });
+    const stages = JSON.parse(JSON.stringify(next)) as Prisma.InputJsonValue;
+    await tx.userSettings.upsert({ where: { userId }, update: { pipelineStages: stages }, create: { userId, pipelineStages: stages } });
     return { kind: 'ok' as const };
   });
   if (outcome.kind === 'in-use') {
@@ -1045,7 +1061,7 @@ settingsRoute.post('/settings/locale', async (c) => {
   const back = safeBack(form.back, LANGUAGE_SECTION);
   const locale = form.locale;
   if (!isSelectableLocale(locale)) return flashRedirect(back, 'err', t('language.unknown'));
-  await setLocale(locale);
+  await setLocale(currentUser().id, locale);
   return flashRedirect(back, 'ok', withLocale(locale, () => t('language.saved')));
 });
 
@@ -1057,10 +1073,10 @@ settingsRoute.post('/settings/pack', async (c) => {
   if (!form.ok) {
     return flashRedirect(back, 'err', t('settingsRoute.pack.notSaved', { issue: firstIssue(form.issues) }), refusedField(c.req.path, form.issues));
   }
-  const pack = switchedOn(form.settings, await getPackSettings(), new Date());
-  await setPackSettings(pack);
+  const pack = switchedOn(form.settings, await getPackSettings(currentUser().id), new Date());
+  await setPackSettings(currentUser().id, pack);
   // Off means off for what already waits: the flash says none is prepared on its own, and the queue may hold a day of them.
-  const cancelled = pack.enabled ? 0 : await cancelQueuedAutoPacks();
+  const cancelled = pack.enabled ? 0 : await cancelQueuedAutoPacks(currentUser().id);
   return flashRedirect(
     back,
     'ok',
@@ -1084,7 +1100,7 @@ settingsRoute.post('/settings/reapply', async (c) => {
   if (days !== null && !isReapplyChoice(days)) {
     return flashRedirect('/settings?tab=applications#reapply', 'err', t('settingsRoute.reapply.invalid'));
   }
-  await setReapplyDays(days);
+  await setReapplyDays(currentUser().id, days);
   return flashRedirect(
     '/settings?tab=applications#reapply',
     'ok',
@@ -1093,8 +1109,9 @@ settingsRoute.post('/settings/reapply', async (c) => {
 });
 
 settingsRoute.post('/settings/stale-digest-toggle', async (c) => {
-  const settings = await getSettings();
+  const settings = await getUserSettings(currentUser().id);
   await setStaleApplicationsDigestEnabled(
+    currentUser().id,
     !settings.staleApplicationsDigestEnabled,
   );
   return flashRedirect(
@@ -1168,13 +1185,13 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
       return flashRedirect(back, 'err', t('settingsRoute.targets.invalidDiscord'));
     }
     // Before the test message, so a repeat does not post twice to the channel.
-    const same = await findSameDestination({ kind: 'DISCORD', ...parsed.data });
+    const same = await findSameDestination(currentUser().id, { kind: 'DISCORD', ...parsed.data });
     if (same) return flashRedirect(back, 'err', t('settingsRoute.targets.webhookExists', { name: same.name }));
     const test = await testDiscordWebhook(parsed.data.webhookUrl);
     if (!test.ok) {
       return flashRedirect(back, 'err', t('settingsRoute.targets.discordTestFailed', { reason: test.error ?? noReason() }));
     }
-    const added = await addNotificationTarget({ kind: 'DISCORD', ...parsed.data });
+    const added = await addNotificationTarget(currentUser().id, { kind: 'DISCORD', ...parsed.data });
     if (!added) {
       return flashRedirect(back, 'err', t('settingsRoute.targets.webhookRace'));
     }
@@ -1188,13 +1205,13 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
   if (!parsed.success) {
     return flashRedirect(back, 'err', t('settingsRoute.targets.invalidTelegram'));
   }
-  const same = await findSameDestination({ kind: 'TELEGRAM', ...parsed.data });
+  const same = await findSameDestination(currentUser().id, { kind: 'TELEGRAM', ...parsed.data });
   if (same) return flashRedirect(back, 'err', t('settingsRoute.targets.telegramExists', { name: same.name }));
   const test = await testTelegramTarget(parsed.data.botToken, parsed.data.chatId);
   if (!test.ok) {
     return flashRedirect(back, 'err', t('settingsRoute.targets.telegramTestFailed', { reason: test.error ?? noReason() }));
   }
-  const added = await addNotificationTarget({ kind: 'TELEGRAM', ...parsed.data });
+  const added = await addNotificationTarget(currentUser().id, { kind: 'TELEGRAM', ...parsed.data });
   if (!added) {
     return flashRedirect(back, 'err', t('settingsRoute.targets.telegramRace'));
   }
@@ -1204,21 +1221,22 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
 settingsRoute.post('/settings/targets/:id/toggle', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  await toggleNotificationTarget(id);
+  await toggleNotificationTarget(currentUser().id, id);
   return flashRedirect('/settings?tab=notifications', 'ok', t('settingsRoute.targets.toggled'));
 });
 
 settingsRoute.post('/settings/targets/:id/delete', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  await deleteNotificationTarget(id);
+  await deleteNotificationTarget(currentUser().id, id);
   return flashRedirect('/settings?tab=notifications', 'ok', t('settingsRoute.targets.deleted'));
 });
 
 settingsRoute.post('/settings/targets/:id/test', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const target = await prisma.notificationTarget.findUnique({ where: { id } });
+  // Only the person's own destinations exist for them (ADR 0069).
+  const target = await getNotificationTarget(currentUser().id, id);
   if (!target) return flashRedirect('/settings?tab=notifications', 'err', t('settingsRoute.targets.gone'));
   if (target.kind === 'DISCORD') {
     const result = await testDiscordWebhook(target.webhookUrl ?? '');
@@ -1240,7 +1258,7 @@ settingsRoute.post('/settings/targets/:id/test', async (c) => {
 // --- Profiles ---------------------------------------------------------------
 
 settingsRoute.post('/settings/profiles/new', async (c) => {
-  const profile = await createProfile(blankProfileInput());
+  const profile = await createProfile(currentUser().id, blankProfileInput());
   // Born inactive (issue #50): a blank profile must never become the
   // scoring profile. The first save with real content activates it.
   return flashRedirect(
@@ -1259,7 +1277,7 @@ settingsRoute.post('/settings/profiles/active', async (c) => {
   if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', t(UNKNOWN_SEARCH));
   // Server-side half of the gate (issue #50): a search with nothing to match
   // on would admit every posting and score it on vibes.
-  const target = await getProfile(id);
+  const target = await getProfile(currentUser().id, id);
   if (want && target && isBlankProfile(target)) {
     return flashRedirect(
       `/settings?tab=profile&profile=${id}`,
@@ -1268,7 +1286,7 @@ settingsRoute.post('/settings/profiles/active', async (c) => {
     );
   }
   try {
-    await setProfileActive(id, want);
+    await setProfileActive(currentUser().id, id, want);
   } catch (err) {
     return flashRedirect(
       '/settings?tab=profile',
@@ -1289,7 +1307,7 @@ settingsRoute.post('/settings/profiles/activate', async (c) => {
   if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', t(UNKNOWN_SEARCH));
   // Server-side half of the activation gate (issue #50) — the disabled
   // Activate button is advisory only.
-  const target = await getProfile(id);
+  const target = await getProfile(currentUser().id, id);
   if (target && isBlankProfile(target)) {
     return flashRedirect(
       `/settings?tab=profile&profile=${id}`,
@@ -1298,7 +1316,7 @@ settingsRoute.post('/settings/profiles/activate', async (c) => {
     );
   }
   try {
-    await setActiveProfile(id);
+    await setActiveProfile(currentUser().id, id);
   } catch (err) {
     return flashRedirect(
       '/settings?tab=profile',
@@ -1318,7 +1336,7 @@ settingsRoute.post('/settings/profiles/delete', async (c) => {
   const id = idParam(form.id);
   if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', t(UNKNOWN_SEARCH));
   try {
-    await deleteProfile(id);
+    await deleteProfile(currentUser().id, id);
   } catch (err) {
     return flashRedirect(
       '/settings?tab=profile',
@@ -1332,7 +1350,7 @@ settingsRoute.post('/settings/profiles/delete', async (c) => {
 settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const before = await getProfile(id);
+  const before = await getProfile(currentUser().id, id);
   if (!before) {
     return flashRedirect('/settings?tab=profile', 'err', t(SEARCH_GONE));
   }
@@ -1368,10 +1386,10 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   // can be gone by the time the form arrives (issue #73). Prisma's answer to
   // a dead id is a raw foreign-key error — a 500 with the whole edit lost.
   const [resumeRow, targetRow] = await Promise.all([
-    resumeId === null ? null : getResume(resumeId),
+    resumeId === null ? null : getResume(currentUser().id, resumeId),
     notificationTargetId === null
       ? null
-      : prisma.notificationTarget.findUnique({ where: { id: notificationTargetId }, select: { id: true } }),
+      : getNotificationTarget(currentUser().id, notificationTargetId),
   ]);
   const missing = missingLinkMessage({
     resumeGone: resumeId !== null && resumeRow === null,
@@ -1410,7 +1428,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     resumeId,
     priorityRules,
   };
-  const saved = await updateProfile(id, input);
+  const saved = await updateProfile(currentUser().id, id, input);
 
   // The second half of "born inactive" (issue #50): the first save that gives
   // a blank search real content starts it running. Since ADR 0028 that no
@@ -1419,11 +1437,11 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   let isActive = before.active;
   let activated = false;
   if (!isActive && isBlankProfile(before) && !isBlankProfile(input)) {
-    await setProfileActive(id, true);
+    await setProfileActive(currentUser().id, id, true);
     isActive = true;
     activated = true;
   }
-  const active = await getActiveProfile();
+  const active = await getActiveProfile(currentUser().id);
   const editorUrl =
     active?.id === id ? '/settings?tab=profile' : `/settings?tab=profile&profile=${id}`;
   // Plan §4.3: a running search that names Ukraine, Germany or the UK has
@@ -1484,20 +1502,20 @@ settingsRoute.post(
   async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const profile = await getProfile(id);
+  const profile = await getProfile(currentUser().id, id);
   if (!profile) return flashRedirect('/settings?tab=profile', 'err', t(SEARCH_GONE));
   const form = await c.req.parseBody();
   let resume;
   if (form.file instanceof File && form.file.size > 0) {
     const upload = await readResumeUpload(form);
     if ('error' in upload) return flashRedirect('/settings?tab=profile', 'err', upload.error);
-    resume = await createResume({ name: nameFromFilename(upload.sourceFilename), ...upload });
+    resume = await createResume(currentUser().id, { name: nameFromFilename(upload.sourceFilename), ...upload });
   } else {
     const resumeId = idParam(form.resumeId);
     if (!Number.isFinite(resumeId)) {
       return flashRedirect('/settings?tab=profile', 'err', t('settingsRoute.fill.pickResume'));
     }
-    resume = await getResume(resumeId);
+    resume = await getResume(currentUser().id, resumeId);
   }
   if (!resume || resume.hidden) {
     return flashRedirect('/settings?tab=profile', 'err', t('settingsRoute.fill.resumeGone'));
@@ -1505,7 +1523,7 @@ settingsRoute.post(
 
   // Scans from before the primary-stack field (or failed ones) re-scan here.
   if (!resume.scannedAt || resume.primarySkills.length === 0) {
-    const scan = await scanResume({ id: resume.id, text: resume.text });
+    const scan = await scanResume({ id: resume.id, userId: resume.userId, text: resume.text });
     if (!scan) {
       return flashRedirect(
         '/settings?tab=profile',
@@ -1513,7 +1531,7 @@ settingsRoute.post(
         t('settingsRoute.fill.scanFailed', { name: resume.name }),
       );
     }
-    resume = (await getResume(resume.id)) ?? resume;
+    resume = (await getResume(currentUser().id, resume.id)) ?? resume;
   }
 
   const draft = buildProfileDraft(profile, {

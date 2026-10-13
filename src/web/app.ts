@@ -16,6 +16,12 @@ import { originGuard } from './origin-guard';
 import { authLock, planAuth, signInRuntime } from './oidc/mount';
 import { markSignInEnabled } from './oidc/enabled';
 import { signInRoutes } from './oidc/routes';
+import { currentUser, isUserless, withCurrentUser } from './current-user';
+import { requireHeldJob } from './job-guard';
+import { requireAdmin } from './admin-guard';
+import { isAdmin } from '../users/admin-policy';
+import { loadUser, provisionOidcUser } from '../users/store';
+import { ensurePrimaryProfile } from '../profiles';
 import { overviewRoute } from './routes/overview';
 import { jobsRoute } from './routes/jobs';
 import { packRoute } from './routes/pack';
@@ -39,6 +45,7 @@ import { healthRoute } from './routes/health';
 import { welcomeRoute } from './routes/welcome';
 import { countriesRoute } from './routes/countries';
 import { screenRoute } from './routes/screen';
+import { usersRoute } from './routes/users';
 import { ensureEmployerMode } from './employer-mode';
 import { ensureUpdateNotice } from './update-notice';
 import { withDisplayZone } from './display-zone';
@@ -125,6 +132,11 @@ app.use('/static/*', async (c, next) => {
 // cannot turn a stylesheet into a 500.
 app.use('/static/*', serveStatic({ root: './src/web/public', rewriteRequestPath: (p) => p.replace(/^\/static/, '') }));
 
+// Who the request acts as (ADR 0065): after the lock has read the session, before
+// any route — and before the display settings below, whose zone and language
+// are the person's own (ADR 0069).
+app.use('*', withCurrentUser(loadUser));
+
 // Tiny request log; also loads the employer-mode switch once, for the sidebar
 // (ADR 0049), the zone every date on the page is written in, and the language
 // the page is worded in (ADR 0061).
@@ -137,7 +149,11 @@ app.use('*', async (c, next) => {
   try {
     await ensureEmployerMode();
     await ensureUpdateNotice();
-    display = await getDisplaySettings();
+    display = await getDisplaySettings(currentUser().id);
+    // The wizard sets up the install: a member is not walked through it, nor held to its language rules (ADR 0070).
+    if (!isAdmin(currentUser())) display = { ...display, setupCompleted: true };
+    // A page nobody is signed in to (the sign-in pages) is not worded in a user's language.
+    if (isUserless(c.req.path)) display = { ...display, locale: null };
   } catch (err) {
     logger.warn({ err, path: c.req.path }, 'web: employer mode unknown — database unreachable');
   }
@@ -163,6 +179,10 @@ app.use('*', async (c, next) => {
   );
 });
 
+// What runs the install is an administrator's (ADR 0070). After the language middleware, so the refusal reads in
+// the person's language, and before any body is read.
+app.use('*', requireAdmin());
+
 // Every POST carries a body ceiling; the upload routes bring their own,
 // larger one and are stepped around here (body-limits.ts). It sits inside the
 // language middleware above, so a 413 reads in the request's language.
@@ -172,8 +192,18 @@ app.use('*', async (c, next) =>
     : bodyLimit({ maxSize: DEFAULT_BODY_BYTES, onError: (ctx) => ctx.text(t('http.tooLarge'), 413) })(c, next),
 );
 
+// A posting the person does not hold is not found, on every /jobs/<id> route (ADR 0067).
+app.use('/jobs/*', requireHeldJob());
+
 // After the language middleware, so the pages it draws read in the person's language.
-if (signIn) app.route('/', signInRoutes(signIn));
+// A new member starts with a blank primary search of their own (ADR 0066); a known user keeps theirs.
+if (signIn) {
+  app.route('/', signInRoutes(signIn, async (identity) => {
+    const id = await provisionOidcUser(identity);
+    await ensurePrimaryProfile(id);
+    return id;
+  }));
+}
 
 app.route('/', overviewRoute);
 app.route('/', welcomeRoute);
@@ -199,6 +229,7 @@ app.route('/', runsRoute);
 app.route('/', aiUsageRoute);
 app.route('/', screenRoute);
 app.route('/', settingsRoute);
+app.route('/', usersRoute);
 app.route('/', healthRoute);
 
 app.notFound((c) => c.text(t('http.notFound'), 404));

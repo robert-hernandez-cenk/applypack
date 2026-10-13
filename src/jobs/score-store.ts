@@ -1,21 +1,19 @@
-import { AtsType, JobStatus, Prisma, type Job } from '@prisma/client';
+import { AtsType, Prisma, type Job } from '@prisma/client';
 import { prisma } from '../db';
 import { withApplyLinkFlags } from '../apply-link';
+import { outcomeData, type PostingLink, type UserOutcome } from './user-job';
 import type { MergedVerdict, ProfileVerdict } from './verdict-merge';
 import type { StoredPlace } from './location-merge';
 
 /*
- * The one place a re-score is written (ADR 0028). New postings take the nested
- * create in process-jobs; everything that re-scores a row that already exists —
- * "Re-classify all", the per-job button, a pasted job — comes through here, so
- * the best-of on Job and the per-search rows can never drift apart.
+ * The one place a re-score is written (ADR 0028, 0067). New postings take the
+ * nested create in process-jobs; everything that re-scores a row that already
+ * exists — "Re-classify all", the per-job button, a pasted job — comes through
+ * here, so each person's best-of and the per-search rows can never drift apart.
  */
 
-/** Where the posting can be applied — the same context `Job.redFlags` gets. */
-export interface ApplyLinkContext {
-  url: string;
-  pasted: boolean;
-}
+/** Where the posting can be applied — the same context `UserJob.redFlags` gets. */
+export type ApplyLinkContext = PostingLink;
 
 /**
  * One search's verdict, as the row that keeps it. The apply-link flags are a
@@ -39,8 +37,11 @@ export function toScoreData(
 }
 
 /**
- * Write the winning search's numbers onto the Job row and replace that job's
- * per-search rows in one transaction.
+ * Replace the job's per-search rows and write each person's row in one
+ * transaction. `merged` is the best of every search: only the posting's own
+ * facts (salary) come from it. `outcomes` are the people with a verdict;
+ * `createMissing` says whether a person without a row gets one (a posting
+ * someone pasted does not reach the others, user-job.ts:givesRowToOthers).
  *
  * The rows are deleted and re-created rather than upserted: a search that has
  * since been switched off must lose its verdict, or the job page would show a
@@ -51,7 +52,8 @@ export async function saveJobScores(
   job: Pick<Job, 'id' | 'url'> & { company: { atsType: AtsType } },
   merged: MergedVerdict,
   verdicts: ProfileVerdict[],
-  status: JobStatus,
+  outcomes: UserOutcome[],
+  createMissing: boolean,
   /** The posting's place after the model's block was merged in (ADR 0032); omitted = untouched. */
   place?: StoredPlace,
 ): Promise<void> {
@@ -68,18 +70,22 @@ export async function saveJobScores(
           regions: place.regions,
           locationSource: place.source,
         }),
-        fitScore: c.fit_score,
         salaryMin: c.salary_min,
         salaryMax: c.salary_max,
         salaryCurrency: c.salary_currency,
         salaryPeriod: c.salary_period,
-        techMatch: c.tech_match,
-        redFlags: withApplyLinkFlags(c.red_flags, link),
-        summary: c.summary,
-        status,
-        priorityRulesApplied: merged.winner.priorityRulesApplied,
         scores: { create: verdicts.map((v) => toScoreData(v, link)) },
       },
+    }),
+    ...outcomes.map((o) => {
+      const data = outcomeData(o, link);
+      return createMissing
+        ? prisma.userJob.upsert({
+            where: { userId_jobId: { userId: o.userId, jobId: job.id } },
+            create: { userId: o.userId, jobId: job.id, ...data },
+            update: data,
+          })
+        : prisma.userJob.updateMany({ where: { userId: o.userId, jobId: job.id }, data });
     }),
   ]);
 }

@@ -29,6 +29,7 @@ import { employerGate, hiringKey } from '../../employer';
 import { loadEmployerRules } from '../../jobs/employer-store';
 import { isBlankProfile } from '../../profile-guards';
 import { listActiveProfiles } from '../../profiles';
+import { currentUser } from '../current-user';
 import { getPackSettings, getSettings } from '../../settings';
 import { alertChannel } from '../../notifier';
 import { autoPacksToday } from '../../pack/store';
@@ -80,8 +81,9 @@ async function importSources(): Promise<ImportSourceRow[]> {
   });
   return Promise.all(
     sources.map(async (s) => {
+      // Everybody's: deleting a source takes every person's comparisons and letters with its postings (ADR 0068).
       const [applications, comparisons, letters] = await Promise.all([
-        prisma.job.count({ where: { companyId: s.id, OR: [{ pipelineStage: { not: null } }, { status: JobStatus.APPLIED }] } }),
+        prisma.job.count({ where: { companyId: s.id, userJobs: { some: { OR: [{ pipelineStage: { not: null } }, { status: JobStatus.APPLIED }] } } } }),
         prisma.resumeMatch.count({ where: { job: { companyId: s.id } } }),
         prisma.coverLetter.count({ where: { job: { companyId: s.id } } }),
       ]);
@@ -167,8 +169,8 @@ async function previewFacts(stash: ImportStash) {
   const mapped = mapRows(stash.rows, stash.mapping, stash.source.id ?? 0, now);
   const [settings, active, employers, stored] = await Promise.all([
     getSettings(),
-    listActiveProfiles(),
-    loadEmployerRules(now),
+    listActiveProfiles(currentUser().id),
+    loadEmployerRules(currentUser().id, now),
     stash.source.id === null || mapped.jobs.length === 0
       ? []
       : prisma.job.findMany({
@@ -185,7 +187,7 @@ async function previewFacts(stash: ImportStash) {
   const counts = previewCounts(mapped.jobs, roster, storedIds, turnsAway);
   // What the Alerts choice is about, read only when there is something to choose: who would hear, and how many packs.
   const choosing = scoring && counts.passing > 0;
-  const [channel, packSettings, queuedToday] = choosing ? await Promise.all([alertChannel(), getPackSettings(), autoPacksToday(now)]) : [null, null, 0];
+  const [channel, packSettings, queuedToday] = choosing ? await Promise.all([alertChannel(currentUser().id), getPackSettings(currentUser().id), autoPacksToday(currentUser().id, now)]) : [null, null, 0];
   const sends = choosing && channel && packSettings
     ? {
         alerts: stash.alerts ?? defaultImportAlerts(counts.passing),
@@ -288,6 +290,7 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
   }
 
   const jobs = mapped.jobs.map((job) => ({ ...job, companyId: source.id }));
+  const userId = currentUser().id;
 
   const { fetchingEnabled } = await getSettings();
   const { run, joined } = claimRun(key, {
@@ -306,7 +309,7 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
     let stats: CronStats = {};
     try {
       await recordCronRun('import', async () => {
-        const out = await runImportJob(source, jobs, alerts);
+        const out = await runImportJob(source, jobs, alerts, userId);
         stats = out.stats;
         return out;
       });

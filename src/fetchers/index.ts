@@ -3,7 +3,7 @@ import { prisma } from '../db';
 import { logger } from '../logger';
 import { HttpError, sleep } from '../http';
 import { getSettings, pausedFamilies } from '../settings';
-import { listActiveProfiles } from '../profiles';
+import { listAllActiveProfiles } from '../profiles';
 import { isBlankProfile } from '../profile-guards';
 import { EMPTY_CONTEXT, searchPlaces, type FetchContext } from './fetch-context';
 import {
@@ -156,7 +156,7 @@ export async function runAllFetchers(
   // Where the running searches hunt (stage 3a): sources with a geo filter
   // ask for these places instead of the whole world. Blank searches are
   // left out here as they are in process-jobs — they gate on nothing.
-  const usable = (await listActiveProfiles()).filter((p) => !isBlankProfile(p));
+  const usable = (await listAllActiveProfiles()).filter((p) => !isBlankProfile(p));
   const places = opts.places ?? searchPlaces(usable);
   if (places.countries.length > 0 || places.regions.length > 0) {
     logger.info(places, 'fetchers: geo-filtered sources follow the searches');

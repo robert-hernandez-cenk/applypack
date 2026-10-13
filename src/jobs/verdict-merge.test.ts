@@ -5,6 +5,7 @@ import {
   buildVerdicts,
   decideDismissReason,
   mergeVerdicts,
+  mergeVerdictsByUser,
   type ProfileVerdict,
 } from './verdict-merge';
 import type { ClaudeClassification } from '../types';
@@ -28,6 +29,7 @@ const verdict = (
   over: Partial<ProfileVerdict> = {},
 ): ProfileVerdict => ({
   profileId,
+  userId: 1,
   profileName,
   classification: classification(fit),
   dismissReason,
@@ -150,4 +152,27 @@ test('dismiss reasons keep their order of precedence', () => {
   assert.equal(decideDismissReason(classification(80, { location_match: false }), p), 'location-mismatch');
   assert.equal(decideDismissReason(classification(80, { salary_min: 60_000 }), p), 'low-salary');
   assert.equal(decideDismissReason(classification(80, { salary_min: 120_000 }), p), null);
+});
+
+test("each person gets a winner from their own searches only", () => {
+  const merged = mergeVerdictsByUser([
+    verdict(1, "A backend", 80, null, { userId: 1 }),
+    verdict(2, "B ops", 95, "low-fit", { userId: 2 }),
+    verdict(3, "B qa", 60, null, { userId: 2 }),
+  ]);
+  assert.deepEqual([...merged.keys()], [1, 2]);
+  assert.equal(merged.get(1)?.winner.profileId, 1);
+  assert.equal(merged.get(2)?.winner.profileId, 3);
+  assert.equal(merged.get(2)?.kept, true);
+  assert.equal(merged.get(2)?.scoreLine, "B ops 95 · B qa 60");
+});
+
+test("a person whose searches all dismiss it is not kept, others unaffected", () => {
+  const merged = mergeVerdictsByUser([
+    verdict(1, "A", 80, null, { userId: 1 }),
+    verdict(2, "B", 20, "low-fit", { userId: 2 }),
+  ]);
+  assert.equal(merged.get(1)?.kept, true);
+  assert.equal(merged.get(2)?.kept, false);
+  assert.equal(mergeVerdictsByUser([]).size, 0);
 });

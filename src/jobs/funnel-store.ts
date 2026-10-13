@@ -45,11 +45,12 @@ export interface SourceYield {
 
 /**
  * What each source brought in the last 30 days, off the jobs themselves:
- * stored, and kept as a match (scored, not dismissed). The window is the
+ * stored, and kept as a match by this person (scored, not dismissed; ADR
+ * 0067: what a source brought is the catalog's, what matched is theirs). The window is the
  * cleanup's: a dismissed job older than that is deleted, so a longer one
  * would undercount. A pasted posting is not a source's (its MANUAL row).
  */
-export async function loadSourceYield(now = new Date()): Promise<SourceYield[]> {
+export async function loadSourceYield(userId: number, now = new Date()): Promise<SourceYield[]> {
   const where = {
     fetchedAt: { gte: new Date(now.getTime() - MONTH_DAYS * DAY_MS) },
     company: { atsType: { not: AtsType.MANUAL } },
@@ -58,7 +59,7 @@ export async function loadSourceYield(now = new Date()): Promise<SourceYield[]> 
     prisma.job.groupBy({ by: ['companyId'], where, _count: { _all: true } }),
     prisma.job.groupBy({
       by: ['companyId'],
-      where: { ...where, status: { not: JobStatus.DISMISSED }, fitScore: { not: null } },
+      where: { ...where, userJobs: { some: { userId, status: { not: JobStatus.DISMISSED }, fitScore: { not: null } } } },
       _count: { _all: true },
     }),
   ]);

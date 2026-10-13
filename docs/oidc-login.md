@@ -65,3 +65,35 @@ a message saying so rather than running without the lock.
 - Serve the dashboard over https when it leaves your machine; cookies are marked
   `Secure` when `WEB_PUBLIC_URL` is https.
 - The worker is not involved and needs none of these settings.
+
+## Users and roles
+
+Signing in creates or finds the person's row in `users` (ADR 0065). The first
+person to sign in takes over the install's default user — and so everything the
+install held before — and is its **administrator**; anyone after is a **member**.
+Sessions issued before multi-user support carry no user id, so everyone signs in
+once more after upgrading.
+
+| | Administrator | Member |
+| --- | --- | --- |
+| Their own searches, jobs, resumes, comparisons, letters, applications | yes | yes |
+| Their own alerts, chats, mutes, language, time zone, pack settings | yes | yes |
+| Companies page | sources, watchlist, folders, starter packs | their muted companies only |
+| Runs | read, and "Fetch now" | read only |
+| Discovery, imports, AI usage, AI engine and keys, source keys, fetch schedule and pause, update check | yes | no (403) |
+| Employer mode and its screenings, the setup wizard | yes | no (403) |
+| The Users page | yes | no (403) |
+
+**Managing people.** Administrators open **Users** in the menu: promote a member,
+demote another administrator, or remove a user. Removing a person deletes their
+searches, job list, resumes and everything on them, destinations and mutes (the
+confirm lists the counts); the shared job catalog stays. If they sign in again
+they come back as a new member. Nobody can demote or remove themselves (ask
+another administrator), and the last administrator can never be demoted or
+removed, so the install is never left without one.
+
+**Restrict who can sign in at the provider.** There are no invitations or
+approvals: everyone the provider authenticates becomes a member and can read the
+shared job catalog and use the AI engine for their own comparisons.
+Per-person AI keys are not supported; the engine and its spend are the
+administrators'.

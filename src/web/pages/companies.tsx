@@ -294,6 +294,15 @@ const SuggestedSources: FC<{ suggestions: SourceSuggestion[]; packs: PackOffer[]
   );
 };
 
+/** What a member sees of Companies (ADR 0070): their muted companies; the boards the search reads are an administrator's. */
+export const CompaniesMemberPage: FC<{ muted: MutedRow[]; flash?: FlashMessage | null }> = ({ muted, flash }) => (
+  <Layout title={t('nav.companies')} active="companies">
+    <PageHeader title={t('nav.companies')}>{t('companies.memberDesc')}</PageHeader>
+    <Flash flash={flash} />
+    <MutedCompaniesSection rows={muted} />
+  </Layout>
+);
+
 export const CompaniesPage: FC<CompaniesProps> = ({
   companies,
   watchlist,

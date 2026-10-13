@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx */
+import { flat } from '../../jobs/user-job';
 import { Hono } from 'hono';
 import { AtsType, JobStatus, type Prisma } from '@prisma/client';
 import { prisma } from '../../db';
@@ -6,11 +7,13 @@ import { clearFlashCookie, parseFlashCookie } from '../flash';
 import { activeFetchRun } from '../fetch-runs';
 import { loadWelcomeContext } from '../welcome-facts';
 import { currentStep, needsWelcome } from '../welcome-steps';
+import { isAdmin } from '../../users/admin-policy';
 import { OverviewPage } from '../pages/overview';
 import { loadHeldLine, loadNextCheck } from '../schedule-view';
 import { companyForPage, withoutMuted } from '../../employer';
 import { mutedKeys } from '../../jobs/employer-store';
 import { getActiveProfile, listActiveProfiles } from '../../profiles';
+import { currentUser } from '../current-user';
 import { readStackParam } from '../overview-numbers';
 import { loadOverviewStats } from '../overview-stats';
 import { preferredPlaces } from '../place-line';
@@ -43,52 +46,60 @@ overviewRoute.get('/', async (c) => {
   // A fresh install is walked through setup first (docs/onboarding-plan.md §2);
   // every other page keeps working meanwhile.
   const { facts, settings } = await loadWelcomeContext();
-  if (needsWelcome(settings)) return c.redirect('/welcome', 303);
+  // The wizard sets up the install, so only an administrator is walked through it (ADR 0070).
+  if (needsWelcome(settings) && isAdmin(currentUser())) return c.redirect('/welcome', 303);
 
   // The chart's range and technology ride in the URL; anything else reads as the default.
   const rangeParam = c.req.query('range');
   const range = isRangeKey(rangeParam) ? rangeParam : DEFAULT_RANGE;
   // The numbers link to /jobs, which hides a muted company's rows (ADR 0056): they count what it shows.
-  const unmuted = withoutMuted(await mutedKeys()) ?? {};
-  const [countsRows, recentAlerts, latestRunRows, stats, searches] = await Promise.all([
-    prisma.job.groupBy({
+  const unmuted = withoutMuted(await mutedKeys(currentUser().id)) ?? {};
+  const userId = currentUser().id;
+  const [countsRows, recentRows, latestRunRows, stats, searches] = await Promise.all([
+    // The person's own postings and statuses (ADR 0067).
+    prisma.userJob.groupBy({
       by: ['status'],
       _count: { _all: true },
-      where: unmuted,
+      where: { userId, job: unmuted },
     }),
-    prisma.job.findMany({
-      where: { status: { in: [JobStatus.ALERTED, JobStatus.NEW] }, ...unmuted },
-      orderBy: [{ alertedAt: 'desc' }, { fetchedAt: 'desc' }],
+    prisma.userJob.findMany({
+      where: { userId, status: { in: [JobStatus.ALERTED, JobStatus.NEW] }, job: unmuted },
+      orderBy: [{ alertedAt: { sort: 'desc', nulls: 'last' } }, { job: { fetchedAt: 'desc' } }],
       take: RECENT_LIMIT,
       // The columns a row draws and no more: the page refreshes every 30 seconds,
       // and `include` carried eight descriptions with it each time.
       select: {
-        id: true,
-        title: true,
-        location: true,
-        workplace: true,
-        countries: true,
-        regions: true,
         techMatch: true,
         fitScore: true,
-        fetchedAt: true,
         alertedAt: true,
         status: true,
-        employer: true,
-        company: { select: { name: true, atsType: true } },
+        job: {
+          select: {
+            id: true,
+            title: true,
+            location: true,
+            workplace: true,
+            countries: true,
+            regions: true,
+            fetchedAt: true,
+            employer: true,
+            company: { select: { name: true, atsType: true } },
+          },
+        },
       },
     }),
     Promise.all(
       CRON_NAMES.map((name) =>
         prisma.cronRun.findFirst({
-          where: { name },
+          where: { name, OR: [{ userId: null }, { userId }] },
           orderBy: { startedAt: 'desc' },
         }),
       ),
     ),
-    loadOverviewStats({ range, stack: readStackParam(c.req.query('stack')), unmuted }),
-    listActiveProfiles(),
+    loadOverviewStats({ userId, range, stack: readStackParam(c.req.query('stack')), unmuted }),
+    listActiveProfiles(userId),
   ]);
+  const recentAlerts = recentRows.map(flat);
 
   const counts = countsRows.map((r) => ({
     status: r.status,
@@ -96,7 +107,7 @@ overviewRoute.get('/', async (c) => {
   }));
   // The status pill's third state: the schedule says this hour is not one of
   // the user's, so the next heartbeat that searches is named (TASKS §16).
-  const check = await loadNextCheck(settings.schedule);
+  const check = await loadNextCheck();
   const sleepingUntil = check.dueNow ? '' : check.next;
 
   const latestRuns = CRON_NAMES.map((name, i) => ({
@@ -118,8 +129,8 @@ overviewRoute.get('/', async (c) => {
       fetchRun={activeFetchRun()}
       finishSetup={currentStep(facts) !== null}
       next={await loadNextThings(unmuted)}
-      readyPacks={await listReadyPacks(READY_PACKS_SHOWN)}
-      readyPacksTotal={await countReadyPacks()}
+      readyPacks={await listReadyPacks(userId, READY_PACKS_SHOWN)}
+      readyPacksTotal={await countReadyPacks(userId)}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,
@@ -136,22 +147,24 @@ overviewRoute.get('/', async (c) => {
 const READY_PACKS_SHOWN = 8;
 
 async function loadNextThings(unmuted: Prisma.JobWhereInput): Promise<NextThing[] | null> {
-  const comparisons = await prisma.resumeMatch.count();
+  const comparisons = await prisma.resumeMatch.count({ where: { resume: { userId: currentUser().id } } });
   if (comparisons > 0) return null;
-  const profile = await getActiveProfile();
-  const top = await prisma.job.findFirst({
+  const profile = await getActiveProfile(currentUser().id);
+  const row = await prisma.userJob.findFirst({
     // A "best match" under the search's own floor would be a word for nothing.
     where: {
+      userId: currentUser().id,
       status: { in: [JobStatus.NEW, JobStatus.ALERTED, JobStatus.SAVED] },
       fitScore: { gte: profile?.minFitScore ?? 0 },
-      ...unmuted,
+      job: unmuted,
     },
-    orderBy: [{ fitScore: 'desc' }, { fetchedAt: 'desc' }],
-    select: { id: true, title: true, employer: true, fitScore: true, company: { select: { name: true, atsType: true } } },
+    orderBy: [{ fitScore: 'desc' }, { job: { fetchedAt: 'desc' } }],
+    select: { fitScore: true, job: { select: { id: true, title: true, employer: true, company: { select: { name: true, atsType: true } } } } },
   });
+  const top = row && flat(row);
   if (top === null || top.fitScore === null) return null;
   const [resumes, compareCost] = await Promise.all([
-    prisma.resume.count({ where: { hidden: false } }),
+    prisma.resume.count({ where: { userId: currentUser().id, hidden: false } }),
     spendHint('resume-match'),
   ]);
   return nextThings({

@@ -16,7 +16,7 @@ const only = Number(process.argv[process.argv.indexOf('--only') + 1]);
 async function main(): Promise<void> {
   const resumes = await prisma.resume.findMany({
     where: Number.isFinite(only) && only > 0 ? { id: only } : { hidden: false },
-    select: { id: true, name: true, text: true },
+    select: { id: true, userId: true, name: true, text: true },
     orderBy: { id: 'asc' },
   });
   for (const resume of resumes) {

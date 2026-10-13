@@ -10,11 +10,12 @@ import { runSeed } from './seed';
 import { fillEmployerKeys } from './jobs/employer-store';
 import {
   addNotificationTarget,
-  getSettings,
+  getUserSettings,
   listNotificationTargets,
   setTelegramEnabled,
 } from './settings';
 import { createProfile, listProfiles, setActiveProfile } from './profiles';
+import { DEFAULT_USER_ID } from './users/identity';
 
 export async function init(): Promise<void> {
   applySchema();
@@ -63,10 +64,10 @@ async function failInterruptedCronRuns(): Promise<void> {
  * "Fill from a resume". After this, the /settings page is the source of truth.
  */
 async function bootstrapDefaultProfile(): Promise<void> {
-  const existing = await listProfiles();
+  const existing = await listProfiles(DEFAULT_USER_ID);
   if (existing.length > 0) return;
 
-  const profile = await createProfile({
+  const profile = await createProfile(DEFAULT_USER_ID, {
     name: 'My profile',
     stackRequired: [],
     roleTypes: [],
@@ -93,7 +94,7 @@ async function bootstrapDefaultProfile(): Promise<void> {
     notificationTargetId: null,
     priorityRules: [],
   });
-  await setActiveProfile(profile.id);
+  await setActiveProfile(DEFAULT_USER_ID, profile.id);
   logger.info(
     { profileId: profile.id, name: profile.name },
     'init: bootstrapped default profile; manage via /settings',
@@ -107,12 +108,12 @@ async function bootstrapDefaultProfile(): Promise<void> {
  * Settings page is the source of truth (ADR 0041).
  */
 async function bootstrapTargetsFromEnv(): Promise<void> {
-  const existing = await listNotificationTargets();
+  const existing = await listNotificationTargets(DEFAULT_USER_ID);
   if (existing.length > 0) return;
   let added = 0;
   if (config.TELEGRAM_BOT_TOKEN && config.TELEGRAM_CHAT_ID) {
     // Null = another boot of the same compose stack got there first.
-    const target = await addNotificationTarget({
+    const target = await addNotificationTarget(DEFAULT_USER_ID, {
       kind: 'TELEGRAM',
       name: 'from .env',
       botToken: config.TELEGRAM_BOT_TOKEN,
@@ -122,16 +123,16 @@ async function bootstrapTargetsFromEnv(): Promise<void> {
   }
   if (config.DISCORD_WEBHOOK_URL) {
     if (isDiscordWebhookUrl(config.DISCORD_WEBHOOK_URL)) {
-      const target = await addNotificationTarget({ kind: 'DISCORD', name: 'Discord from .env', webhookUrl: config.DISCORD_WEBHOOK_URL });
+      const target = await addNotificationTarget(DEFAULT_USER_ID, { kind: 'DISCORD', name: 'Discord from .env', webhookUrl: config.DISCORD_WEBHOOK_URL });
       if (target) added++;
     } else {
       logger.warn('init: DISCORD_WEBHOOK_URL is not a Discord webhook URL; ignored');
     }
   }
   if (added === 0) return;
-  const settings = await getSettings();
+  const settings = await getUserSettings(DEFAULT_USER_ID);
   if (!settings.telegramEnabled) {
-    await setTelegramEnabled(true);
+    await setTelegramEnabled(DEFAULT_USER_ID, true);
   }
   logger.info({ added }, 'init: bootstrapped notification targets from .env; manage via /settings now');
 }
