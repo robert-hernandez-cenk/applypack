@@ -12,8 +12,12 @@ import { withApplyLinkFlags } from '../apply-link';
 import { validDate } from '../fetchers/dates';
 import { parseLocation } from '../location';
 import { classifyJob, type ClassifyOutcome } from '../classifier';
-import { buildVerdicts, mergeVerdicts, type ProfileVerdict } from './verdict-merge';
+import { buildVerdicts, mergeVerdicts, mergeVerdictsByUser, type MergedVerdict, type ProfileVerdict } from './verdict-merge';
 import { toScoreData } from './score-store';
+import { verdictColumns } from './user-job';
+import { holdAlert, markAlerted } from './user-job-store';
+import { listUserIds } from '../users/store';
+import { DEFAULT_USER_ID } from '../users/identity';
 import { mergeAiLocation, type StoredPlace } from './location-merge';
 import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
 import { alertChannel, sendAlert, type Delivery } from '../notifier';
@@ -165,6 +169,12 @@ export interface ProcessOptions {
    */
   groupAlerts?: boolean;
   /**
+   * The one person these rows are for (ADR 0067): an import is somebody's own,
+   * so only they get a row for it. Absent = every person the verdicts speak for
+   * (a fetched posting belongs to the shared catalog).
+   */
+  ownerId?: number;
+  /**
    * Filled with the source (`companyId`) of every posting that passed the
    * filter and was not stored because no verdict came for it: what
    * `classifyFailed` counts, by where it came from. A folder not named here
@@ -288,9 +298,12 @@ export async function processNormalizedJobs(
     recentFingerprints: candidates.length > 0 ? await loadRecentFingerprints() : [],
   };
 
+  // Unscored, a posting is every person's to see (or only the owner's).
+  const everyone = opts.ownerId !== undefined ? [opts.ownerId] : await listUserIds();
+
   if (!classify) {
     for (const item of candidates) {
-      await persistJob(item, null, JobStatus.NEW, [], batch);
+      await persistJob(item, null, unscoredRows(item, everyone, JobStatus.NEW), batch);
     }
     return;
   }
@@ -355,9 +368,14 @@ export async function processNormalizedJobs(
       // the next tick met it as new and paid the prefilter again, every hour it
       // stayed on its feed (#290). "Save & re-classify" still reads it. A
       // posting the user saved is kept Saved instead, as below (ADR 0062).
-      await persistJob(placed, null, job.handPicked === true ? JobStatus.SAVED : JobStatus.DISMISSED, [], batch, {
-        summary: prefilterReason ? `Set aside by the prefilter: ${prefilterReason}` : 'Set aside by the prefilter.',
-      });
+      await persistJob(
+        placed,
+        null,
+        unscoredRows(placed, everyone, job.handPicked === true ? JobStatus.SAVED : JobStatus.DISMISSED, {
+          summary: prefilterReason ? `Set aside by the prefilter: ${prefilterReason}` : 'Set aside by the prefilter.',
+        }),
+        batch,
+      );
       continue;
     }
     if (results.size === 0) {
@@ -378,20 +396,44 @@ export async function processNormalizedJobs(
       continue;
     }
     const { winner, scoreLine } = merged;
+    // The posting's own facts (salary) come from the best verdict of any search;
+    // what each person makes of it comes from their own searches (ADR 0067).
     const finalClassification = winner.classification;
-    // Every search dismissed it, but the user asked to be shown everything
-    // this company posts. The row is kept and alerted; the message says
-    // "new posting", not "match", so it never claims a score it does not have.
-    const keptByPolicy = !merged.kept && alertsEveryPosting(item.watch);
-    const kept = merged.kept || keptByPolicy;
-
-    if (!kept) {
+    const link = { url: job.url, pasted: false };
+    const policyKeeps = alertsEveryPosting(item.watch);
+    // Every search of a person dismissed it, but the user asked to be shown
+    // everything this company posts. The row is kept and alerted; the message
+    // says "new posting", not "match", so it never claims a score it does not have.
+    const keptByPolicy = !merged.kept && policyKeeps;
+    const people: PersonPlan[] = [];
+    for (const [userId, m] of mergeVerdictsByUser(verdicts)) {
+      if (opts.ownerId !== undefined && userId !== opts.ownerId) continue;
+      const keeps = m.kept || policyKeeps;
+      // A score produced without a required stack never alerts, whatever the
+      // threshold or priority boosts say (issue #50). A watched company on
+      // "every posting" is the exception: that flag is a statement about the
+      // SCORE, and this alert makes no claim about the score.
+      const skipsAlert = m.winner.classification.red_flags.includes(NO_PROFILE_STACK_FLAG) && !policyKeeps;
+      // Whether the alert is skipped or held — for the window, or while Alerts
+      // are off — is known before the row exists, so the held stamp is written
+      // WITH the row: a second statement could leave a NEW match with no stamp,
+      // which nothing would ever send (audit 2026-09-10, DATA-3).
+      const holds = keeps && !skipsAlert && item.quiet !== true && channel !== 'no-targets' && (!mayAlert || channel === 'alerts-off' || groupAlerts);
       // A posting the user saved is theirs to keep whatever the score says: Saved, as a paste is,
       // with the verdicts that explain it — never Dismissed, which is deleted after a month.
-      const status = job.handPicked === true ? JobStatus.SAVED : JobStatus.DISMISSED;
-      const stored = await persistJob(placed, finalClassification, status, winner.priorityRulesApplied, batch, {
-        verdicts,
-      });
+      const status = keeps ? JobStatus.NEW : job.handPicked === true ? JobStatus.SAVED : JobStatus.DISMISSED;
+      people.push({ userId, merged: m, keeps, skipsAlert, status, alertHeldAt: holds ? new Date() : null });
+    }
+    const rows: UserJobRow[] = people.map((p) => ({
+      userId: p.userId,
+      ...verdictColumns(p.merged, link),
+      status: p.status,
+      alertHeldAt: p.alertHeldAt,
+    }));
+    const keepers = people.filter((p) => p.keeps);
+
+    if (keepers.length === 0) {
+      const stored = await persistJob(placed, finalClassification, rows, batch, { verdicts });
       if (stored) {
         stats.dismissed++;
         if (winner.dismissReason) stats[DISMISS_KEY[winner.dismissReason]]++;
@@ -409,19 +451,7 @@ export async function processNormalizedJobs(
       continue;
     }
 
-    // Whether the alert is skipped (issue #50) or held — for the window, or
-    // while Alerts are off — is known before the row exists, so the held
-    // stamp is written WITH the row: a second statement could leave a NEW
-    // match with no stamp, which nothing would ever send (audit 2026-09-10,
-    // DATA-3).
-    const skipsAlert =
-      finalClassification.red_flags.includes(NO_PROFILE_STACK_FLAG) && !alertsEveryPosting(item.watch);
-    const holds = !skipsAlert && item.quiet !== true && channel !== 'no-targets' && (!mayAlert || channel === 'alerts-off' || groupAlerts);
-    const alertHeldAt = holds ? new Date() : null;
-    const stored = await persistJob(placed, finalClassification, JobStatus.NEW, winner.priorityRulesApplied, batch, {
-      verdicts,
-      alertHeldAt,
-    });
+    const stored = await persistJob(placed, finalClassification, rows, batch, { verdicts });
     if (!stored) continue;
     stats.matched++;
     const { created, crossListing } = stored;
@@ -429,10 +459,13 @@ export async function processNormalizedJobs(
     // stored — so the backlog is never walked and a re-classify queues
     // nothing (pack/trigger.ts). The runner picks the row up (pack-job.ts).
     // A source whose alerts are off asked to be left quiet: no pack is prepared on its own either.
+    // A pack is per posting and prepared with the default user's resume until resumes are scoped (slice 4): it follows their verdict.
+    const packOwner = keepers.find((p) => p.userId === DEFAULT_USER_ID && !p.skipsAlert);
+    const packFit = packOwner?.merged.winner.classification.fit_score ?? -1;
     if (
-      !skipsAlert &&
+      packFit >= 0 &&
       item.quiet !== true &&
-      autoPack({ settings: packs, fit: created.fitScore, postedAt: created.postedAt, dated: item.job.undated !== true, now: new Date(), queuedToday: packsToday }) === 'queue'
+      autoPack({ settings: packs, fit: packFit, postedAt: created.postedAt, dated: item.job.undated !== true, now: new Date(), queuedToday: packsToday }) === 'queue'
     ) {
       // A pack is an extra: failing to queue one must never cost the match its alert.
       try {
@@ -454,104 +487,118 @@ export async function processNormalizedJobs(
     // the unique key rejected was not kept by anything.
     if (keptByPolicy) stats.watchedKept++;
 
-    // A score produced without a required stack never alerts, whatever the
-    // threshold or priority boosts say (issue #50). The row stays NEW.
-    // A watched company on "every posting" is the exception: that flag is a
-    // statement about the SCORE, and this alert makes no claim about the
-    // score — it says a company the user chose has put something up.
-    if (skipsAlert) continue;
+    // One alert per person who keeps it, to the target of their own winning search.
+    for (const person of keepers) {
+      if (person.skipsAlert) continue;
 
-    // The source's own alerts are off: the match is on /jobs with its score, and nothing is sent or held.
-    if (item.quiet === true) {
-      stats.alertSourceOff++;
-      continue;
-    }
+      // The source's own alerts are off: the match is on /jobs with its score, and nothing is sent or held.
+      if (item.quiet === true) {
+        stats.alertSourceOff++;
+        continue;
+      }
 
-    // No chat to send to: the row stays NEW on the dashboard, which is where
-    // an install without notifications reads its matches. Nothing is held,
-    // so adding a chat later does not replay the backlog.
-    if (channel === 'no-targets') {
-      stats.alertNoTarget++;
-      continue;
-    }
+      // No chat to send to: the row stays NEW on the dashboard, which is where
+      // an install without notifications reads its matches. Nothing is held,
+      // so adding a chat later does not replay the backlog.
+      if (channel === 'no-targets') {
+        stats.alertNoTarget++;
+        continue;
+      }
 
-    // Outside the alert window, or while Alerts are off, the match is kept,
-    // not dropped: the row is NEW with its verdicts and its held stamp already
-    // stored, and the first heartbeat that may send it does, in one grouped
-    // message instead of twelve at 03:00.
-    if (alertHeldAt) {
-      if (channel === 'alerts-off') stats.alertsOffHeld++;
-      else stats.alertHeld++;
-      continue;
-    }
+      // Outside the alert window, or while Alerts are off, the match is kept,
+      // not dropped: the row is NEW with its held stamp already stored, and the
+      // first heartbeat that may send it does, in one grouped message instead
+      // of twelve at 03:00.
+      if (person.alertHeldAt) {
+        if (channel === 'alerts-off') stats.alertsOffHeld++;
+        else stats.alertHeld++;
+        continue;
+      }
 
-    let delivery: Delivery;
-    try {
-      delivery = await sendAlert(
-        {
-          title: created.title,
-          companyName: starred(fetchedHiringName(job.employer, companyName) ?? t('notify.companyNotNamed'), item.watch),
-          watched: item.watch?.watched === true,
-          attribution: sourceLine(job.sourceFile, companyName, item.source),
-          location: created.location,
-          countries: created.countries,
-          workplace: created.workplace,
-          url: created.url,
-          fitScore: created.fitScore ?? finalClassification.fit_score,
-          salaryMin: created.salaryMin,
-          salaryCurrency: created.salaryCurrency,
-          salaryPeriod: created.salaryPeriod,
-          salaryMax: created.salaryMax,
-          techMatch: created.techMatch,
-          redFlags: created.redFlags,
-          summary: created.summary ?? '',
-          crossListedAt: crossListing
-            ? await companyNameOfJob(crossListing.job.id)
-            : null,
-          // One alert per posting. With a single search running, naming it
-          // adds nothing and the message stays exactly what it is today; with
-          // several, the header says which hunt fired and the line says what
-          // the others made of it (ADR 0028).
-          matchedProfile: verdicts.length > 1 ? winner.profileName : null,
-          profileScores: verdicts.length > 1 ? scoreLine : null,
-        },
-        // Routed to the winning search's chat; null still broadcasts.
-        winner.notificationTargetId,
-      );
-    } catch (err) {
-      // Every chat refused it. Held, so the next heartbeat sends it with the
-      // others in one grouped message instead of never.
-      stats.alertFailed++;
-      logger.error(
-        { err, jobId: created.id, title: created.title },
-        'process-jobs: alert failed; held for the next heartbeat',
-      );
-      await holdAlert(created.id);
-      continue;
-    }
-    if (delivery.skipped === null) {
-      // Still NEW, exactly as the held-alert path checks: the send
-      // takes seconds and the dashboard is open the whole time. A row the
-      // user dismissed or saved in between keeps their status — the message
-      // is out either way, and overwriting their answer is the worse loss.
-      await prisma.job.updateMany({
-        where: { id: created.id, status: JobStatus.NEW },
-        data: { status: JobStatus.ALERTED, alertedAt: new Date() },
-      });
-      stats.alerted++;
-    } else if (delivery.skipped === 'alerts-off') {
-      // Switched off since the tick read the switch: this one waits too.
-      await holdAlert(created.id);
-      stats.alertsOffHeld++;
-    } else {
-      stats.alertNoTarget++;
+      const mine = person.merged;
+      const columns = verdictColumns(mine, link);
+      const several = mine.scoreLine.includes(' · ');
+      let delivery: Delivery;
+      try {
+        delivery = await sendAlert(
+          {
+            title: created.title,
+            companyName: starred(fetchedHiringName(job.employer, companyName) ?? t('notify.companyNotNamed'), item.watch),
+            watched: item.watch?.watched === true,
+            attribution: sourceLine(job.sourceFile, companyName, item.source),
+            location: created.location,
+            countries: created.countries,
+            workplace: created.workplace,
+            url: created.url,
+            fitScore: columns.fitScore,
+            salaryMin: created.salaryMin,
+            salaryCurrency: created.salaryCurrency,
+            salaryPeriod: created.salaryPeriod,
+            salaryMax: created.salaryMax,
+            techMatch: columns.techMatch,
+            redFlags: columns.redFlags,
+            summary: columns.summary ?? '',
+            crossListedAt: crossListing
+              ? await companyNameOfJob(crossListing.job.id)
+              : null,
+            // One alert per posting and person. With a single search running,
+            // naming it adds nothing and the message stays exactly what it is
+            // today; with several, the header says which hunt fired and the line
+            // says what the others made of it (ADR 0028).
+            matchedProfile: several ? mine.winner.profileName : null,
+            profileScores: several ? mine.scoreLine : null,
+          },
+          // Routed to the winning search's chat; null still broadcasts.
+          mine.winner.notificationTargetId,
+        );
+      } catch (err) {
+        // Every chat refused it. Held, so the next heartbeat sends it with the
+        // others in one grouped message instead of never.
+        stats.alertFailed++;
+        logger.error(
+          { err, jobId: created.id, userId: person.userId, title: created.title },
+          'process-jobs: alert failed; held for the next heartbeat',
+        );
+        await holdAlert(person.userId, created.id);
+        continue;
+      }
+      if (delivery.skipped === null) {
+        await markAlerted(person.userId, created.id);
+        stats.alerted++;
+      } else if (delivery.skipped === 'alerts-off') {
+        // Switched off since the tick read the switch: this one waits too.
+        await holdAlert(person.userId, created.id);
+        stats.alertsOffHeld++;
+      } else {
+        stats.alertNoTarget++;
+      }
     }
   }
 }
 
-/** Stamps a NEW match for the grouped delivery (`alert-delivery.ts`); a row the user already answered keeps their status. */
-async function holdAlert(id: number): Promise<void> {
-  await prisma.job.updateMany({ where: { id, status: JobStatus.NEW }, data: { alertHeldAt: new Date() } });
+/** One person's side of a freshly scored posting, before the row exists. */
+interface PersonPlan {
+  userId: number;
+  merged: MergedVerdict;
+  /** Their searches (or a watched company's policy) want it. */
+  keeps: boolean;
+  skipsAlert: boolean;
+  status: JobStatus;
+  alertHeldAt: Date | null;
+}
+
+/** A `user_job` row as the posting's create takes it. */
+type UserJobRow = Prisma.UserJobCreateManyJobInput;
+
+/** The rows of a posting stored without a verdict: one per person, nothing scored. */
+function unscoredRows(
+  { job }: Pick<Candidate, 'job'>,
+  userIds: number[],
+  status: JobStatus,
+  { summary = null }: { summary?: string | null } = {},
+): UserJobRow[] {
+  const redFlags = withApplyLinkFlags([], { url: job.url, pasted: false });
+  return userIds.map((userId) => ({ userId, status, redFlags, summary }));
 }
 
 function pairKey(job: Pick<NormalizedJob, 'companyId' | 'externalId'>): string {
@@ -628,20 +675,12 @@ type CrossListing = ReturnType<typeof findCrossListing<FingerprintedJob>>;
  */
 async function persistJob(
   { job, companyName, place, employerKey }: Candidate,
+  /** The posting's own facts (salary) from the best verdict; null = nothing was scored. */
   c: ClaudeClassification | null,
-  status: JobStatus,
-  priorityRulesApplied: string[],
+  /** Each person's row (ADR 0067), written with the posting. */
+  rows: UserJobRow[],
   { stats, recentFingerprints }: Batch,
-  {
-    verdicts = [],
-    alertHeldAt = null,
-    summary = null,
-  }: {
-    verdicts?: ProfileVerdict[];
-    alertHeldAt?: Date | null;
-    /** A row stored without a classification still says why it was set aside. */
-    summary?: string | null;
-  } = {},
+  { verdicts = [] }: { verdicts?: ProfileVerdict[] } = {},
 ): Promise<{ created: Job; crossListing: CrossListing } | null> {
   const fingerprint = simhash64(job.description);
   const crossListing = findCrossListing(fingerprint, job.companyId, recentFingerprints);
@@ -650,15 +689,14 @@ async function persistJob(
   try {
     created = await prisma.job.create({
       data: {
-        ...buildJobData(job, place, c, status, priorityRulesApplied, {
+        ...buildJobData(job, place, c, {
           descriptionSimhash: fingerprint,
           crossListedOfJobId: crossListing?.job.id ?? null,
         }),
-        ...(summary !== null && c === null && { summary }),
         employer: job.employer ?? null,
         employerKey,
         sourceFile: job.sourceFile ?? null,
-        alertHeldAt,
+        userJobs: { createMany: { data: rows } },
         // Every search's verdict, written with the row it belongs to — a
         // second statement could leave a scored Job with no JobScore.
         // `pasted: false` is the same invariant buildJobData relies on: a
@@ -710,8 +748,6 @@ function buildJobData(
   job: NormalizedJob,
   place: StoredPlace,
   c: ClaudeClassification | null,
-  status: JobStatus,
-  priorityRulesApplied: string[],
   dedup: DedupData,
 ): Prisma.JobCreateInput {
   return {
@@ -730,20 +766,11 @@ function buildJobData(
     locationSource: place.source,
     description: job.description,
     postedAt: job.postedAt,
-    fitScore: c?.fit_score ?? null,
     salaryMin: c?.salary_min ?? null,
     salaryMax: c?.salary_max ?? null,
     salaryCurrency: c?.salary_currency ?? null,
     salaryPeriod: c?.salary_period ?? null,
     ...(job.sourcePayload !== undefined ? { sourcePayload: job.sourcePayload as Prisma.InputJsonValue } : {}),
     ...(job.sourceUpdatedAt ? { sourceUpdatedAt: job.sourceUpdatedAt, sourceCheckedAt: new Date() } : {}),
-    techMatch: c?.tech_match ?? [],
-    // `pasted: false` is an invariant, not an assumption: a MANUAL company's
-    // fetchOne returns [], so a pasted row never reaches this loop. Pasted
-    // jobs get their flags from classify-existing.ts instead.
-    redFlags: withApplyLinkFlags(c?.red_flags ?? [], { url: job.url, pasted: false }),
-    summary: c?.summary ?? null,
-    status,
-    priorityRulesApplied,
   };
 }

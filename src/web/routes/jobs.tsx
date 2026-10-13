@@ -25,6 +25,7 @@ import { locationMismatchReason } from '../../jobs/location-reason';
 import { getActiveProfile, listActiveProfiles } from '../../profiles';
 import { currentUser } from '../current-user';
 import { isBlankProfile } from '../../profile-guards';
+import { flat, personalOf } from '../../jobs/user-job';
 import { createManualJob, ManualJobSchema, MAX_POSTING_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { onceGuard } from '../once-guard';
 import { fetchPostingText } from '../../jobs/posting-url';
@@ -189,9 +190,13 @@ jobsRoute.get('/jobs', async (c) => {
   const { page, status, minFit, q, sort, verified, profile, country, workplace, posted, open, watched, muted, panel } = parsed.data;
   const now = new Date();
 
+  // The person's rows (ADR 0067): `mine` filters what is theirs about a posting
+  // (status, best-of), `where` filters the posting itself.
+  const userId = currentUser().id;
+  const mine: Prisma.UserJobWhereInput = { userId };
   const where: Prisma.JobWhereInput = {};
   if (status) {
-    where.status = status as JobStatus;
+    mine.status = status as JobStatus;
   }
   const minFitNum = intQuery(minFit);
   // With a search selected both filters read that search's own score, not the
@@ -203,14 +208,14 @@ jobsRoute.get('/jobs', async (c) => {
     where.scores = {
       some: {
         profileId: profile,
-        profile: { userId: currentUser().id },
+        profile: { userId },
         ...(minFitNum === null ? {} : { fitScore: { gte: minFitNum } }),
         ...openOnly,
       },
     };
   } else {
-    if (minFitNum !== null) where.fitScore = { gte: minFitNum };
-    if (open === '1') where.scores = { some: { locationMatch: true, profile: { userId: currentUser().id } } };
+    if (minFitNum !== null) mine.fitScore = { gte: minFitNum };
+    if (open === '1') where.scores = { some: { locationMatch: true, profile: { userId } } };
   }
   if (q.trim().length > 0) {
     where.OR = [
@@ -242,13 +247,13 @@ jobsRoute.get('/jobs', async (c) => {
   if (workplace.length > 0) facetAnd.push({ workplace: { in: workplace } });
   if (facetAnd.length > 0) where.AND = facetAnd;
   // A status tab's count is what the tab would show: every filter but the status itself.
-  const { status: _status, ...anyStatusWhere } = where;
+  const { status: _status, ...anyStatus } = mine;
 
   const orderBy = sortToOrderBy(sort);
 
-  const [jobs, facetRows, statusGroups, activeProfile, activeProfiles, mutedHidden] = await Promise.all([
-    prisma.job.findMany({
-      where,
+  const [rows, facetRows, statusGroups, activeProfile, activeProfiles, mutedHidden] = await Promise.all([
+    prisma.userJob.findMany({
+      where: { ...mine, job: where },
       orderBy,
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
@@ -257,45 +262,50 @@ jobsRoute.get('/jobs', async (c) => {
       // applied-resume snapshots — 219 KB of text on the 09-04 data for
       // fifteen scalars (audit 2026-09-10, DATA-1).
       select: {
-        id: true,
-        title: true,
-        url: true,
-        location: true,
-        countries: true,
-        regions: true,
-        workplace: true,
         fitScore: true,
-        salaryMin: true,
-        salaryMax: true,
-        salaryCurrency: true,
-        salaryPeriod: true,
-        sourceUpdatedAt: true,
         status: true,
-        fetchedAt: true,
-        postedAt: true,
         techMatch: true,
-        employer: true,
-        liveness: true,
-        company: { select: { name: true, atsType: true, atsToken: true, watched: true } },
-        verifications: {
-          select: { verdict: true },
-          orderBy: { createdAt: 'desc' },
-          take: 1,
+        job: {
+          select: {
+            id: true,
+            title: true,
+            url: true,
+            location: true,
+            countries: true,
+            regions: true,
+            workplace: true,
+            salaryMin: true,
+            salaryMax: true,
+            salaryCurrency: true,
+            salaryPeriod: true,
+            sourceUpdatedAt: true,
+            fetchedAt: true,
+            postedAt: true,
+            employer: true,
+            liveness: true,
+            company: { select: { name: true, atsType: true, atsToken: true, watched: true } },
+            verifications: {
+              select: { verdict: true },
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+            },
+            // Only the selected search's row, so the list renders that search's
+            // score in place of the best-of.
+            ...(profile && { scores: { where: { profileId: profile, profile: { userId } }, take: 1, select: { fitScore: true } } }),
+          },
         },
-        // Only the selected search's row, so the list renders that search's
-        // score in place of the best-of.
-        ...(profile && { scores: { where: { profileId: profile, profile: { userId: currentUser().id } }, take: 1, select: { fitScore: true } } }),
       },
     }),
     prisma.job.findMany({
-      where: facetWhere,
+      where: { ...facetWhere, userJobs: { some: mine } },
       select: { countries: true, regions: true, workplace: true, postedAt: true },
     }),
-    prisma.job.groupBy({ by: ['status'], where: anyStatusWhere, _count: { _all: true } }),
+    prisma.userJob.groupBy({ by: ['status'], where: { ...anyStatus, job: where }, _count: { _all: true } }),
     getActiveProfile(currentUser().id),
     listActiveProfiles(currentUser().id),
-    hiddenKeys.length > 0 ? prisma.job.count({ where: { employerKey: { in: hiddenKeys } } }) : 0,
+    hiddenKeys.length > 0 ? prisma.job.count({ where: { employerKey: { in: hiddenKeys }, userJobs: { some: { userId } } } }) : 0,
   ]);
+  const jobs = rows.map(flat);
   // The list's own total is one of those counts (or their sum), so it costs no query of its own.
   const statusCounts: Partial<Record<JobStatus, number>> = Object.fromEntries(statusGroups.map((g) => [g.status, g._count._all]));
   const total = status
@@ -351,7 +361,7 @@ jobsRoute.post('/jobs/new', async (c) => {
       t('jobRoute.new.required', { min: MIN_DESCRIPTION_CHARS }),
     );
   }
-  const result = await createManualJob(parsed.data);
+  const result = await createManualJob(parsed.data, currentUser().id);
   if (result.kind === 'existing') {
     return flashRedirect(`/jobs/${result.job.id}`, 'ok', t('jobRoute.new.existing'));
   }
@@ -405,25 +415,25 @@ jobsRoute.get('/jobs/:id', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
 
-  const [job, settings, resumes, matches, verifications, letters, activeProfile, spentHere, matchCost, verifyCost, letterCost] = await Promise.all([
+  const userId = currentUser().id;
+  const [posting, mineRow, settings, resumes, matches, verifications, letters, activeProfile, spentHere, matchCost, verifyCost, letterCost] = await Promise.all([
     prisma.job.findUnique({
       where: { id },
       include: {
         company: { select: { id: true, name: true, atsType: true, atsToken: true, watched: true, checkEvery: true, alertPolicy: true } },
         // F3: the posting this one near-duplicates, and any that
         // near-duplicate it — the link is annotation only (ADR 0018).
+        // Only postings the person holds are named (ADR 0067).
         crossListedOf: {
-          select: { id: true, title: true, employer: true, company: { select: { name: true, atsType: true } } },
+          select: { id: true, title: true, employer: true, company: { select: { name: true, atsType: true } }, userJobs: { where: { userId }, select: { id: true } } },
         },
         crossListings: {
+          where: { userJobs: { some: { userId } } },
           select: { id: true, title: true, employer: true, company: { select: { name: true, atsType: true } } },
         },
-        // Stage C: the resume this application went out with. Only the name is
-        // read — the version and text snapshot live on the job itself.
-        appliedResume: { select: { name: true } },
         // The signed-in person's own searches, best first (ADR 0028, 0066).
         scores: {
-          where: { profile: { userId: currentUser().id } },
+          where: { profile: { userId } },
           include: {
             profile: {
               select: {
@@ -441,6 +451,13 @@ jobsRoute.get('/jobs/:id', async (c) => {
         },
       },
     }),
+    // The person's own row: their status, score, application and notes (ADR 0067).
+    // Stage C: the resume this application went out with. Only the name is
+    // read — the version and text snapshot live on the row itself.
+    prisma.userJob.findUnique({
+      where: { userId_jobId: { userId, jobId: id } },
+      include: { appliedResume: { select: { name: true } } },
+    }),
     getSettings(),
     listResumes(),
     listMatchesForJob(id),
@@ -454,7 +471,10 @@ jobsRoute.get('/jobs/:id', async (c) => {
     typicalCost('job-verify'),
     typicalCost('cover-letter'),
   ]);
-  if (!job) return c.text(t('http.notFound'), 404);
+  // A posting nobody of yours holds does not exist for you.
+  if (!posting || !mineRow) return c.text(t('http.notFound'), 404);
+  const crossListedOf = posting.crossListedOf && posting.crossListedOf.userJobs.length > 0 ? posting.crossListedOf : null;
+  const job = { ...posting, crossListedOf, ...personalOf(mineRow) };
 
   // Who this company is to the mute list (ADR 0056): the employer an
   // aggregator named, or the source when it is the employer; nobody else.
@@ -580,10 +600,12 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
     appliedResumeId: choice.kind === 'set' ? choice.id : undefined,
   });
   if (!parsed.success) return c.text(t('http.invalidStatus'), 400);
-  // The update below throws on a row that is not there; a missing job is a 404, not a 500.
-  if (!(await prisma.job.findUnique({ where: { id }, select: { id: true } }))) return c.text(t('http.notFound'), 404);
+  // The update below throws on a row that is not there; a posting you do not hold is a 404, not a 500.
+  const userId = currentUser().id;
+  const key = { userId_jobId: { userId, jobId: id } };
+  if (!(await prisma.userJob.findUnique({ where: key, select: { id: true } }))) return c.text(t('http.notFound'), 404);
 
-  const data: Prisma.JobUpdateInput = { status: parsed.data.status };
+  const data: Prisma.UserJobUpdateInput = { status: parsed.data.status };
   let sentPack: ReturnType<typeof packAsShown<PackRow>> = null;
   if (parsed.data.status === 'ALERTED' || parsed.data.status === 'APPLIED') {
     data.alertedAt = data.alertedAt ?? new Date();
@@ -596,8 +618,8 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
   if (parsed.data.status === 'APPLIED') {
     const settings = await getSettings();
     if (settings.applicationTrackingEnabled) {
-      const current = await prisma.job.findUnique({
-        where: { id },
+      const current = await prisma.userJob.findUnique({
+        where: key,
         select: { pipelineStage: true, appliedAt: true },
       });
       if (current && !current.pipelineStage) {
@@ -631,9 +653,9 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
     data.appliedResumeText = columns.appliedResumeText;
   }
 
-  const update = prisma.job.update({ where: { id }, data });
+  const update = prisma.userJob.update({ where: key, data });
   if (seedEvent) {
-    await prisma.$transaction([update, prisma.jobStageEvent.create({ data: seedEvent })]);
+    await prisma.$transaction([update, prisma.jobStageEvent.create({ data: { ...seedEvent, userId } })]);
   } else {
     await update;
   }
@@ -648,20 +670,22 @@ jobsRoute.post('/jobs/:id/reclassify', onceGuard((c) => `reclassify:${c.req.para
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const tab = formTab((await c.req.parseBody()).tab);
+  const userId = currentUser().id;
   const job = await prisma.job.findUnique({
     where: { id },
-    include: { company: { select: { name: true, atsType: true, sourceConfig: true } } },
+    include: { company: { select: { name: true, atsType: true, sourceConfig: true } }, userJobs: { where: { userId }, select: { status: true } } },
   });
-  if (!job) return c.text(t('http.notFound'), 404);
+  if (!job || !job.userJobs[0]) return c.text(t('http.notFound'), 404);
+  const before = job.userJobs[0].status;
   let outcome: Rescored;
   try {
-    outcome = await classifyExistingJob(job, { keepStatus: false });
+    outcome = await classifyExistingJob(job, { keepStatus: false, userId });
   } catch (err) {
     logger.error({ err, jobId: id }, 'web: reclassify failed');
     outcome = { kind: 'failed', reason: '' };
   }
   // A press that formed no verdict says so: the page it comes back to looks exactly as it did.
-  const said = rescoreFlash(outcome, job.status);
+  const said = rescoreFlash(outcome, before);
   return said ? flashRedirect(jobHref(id, tab), said.kind, said.text) : c.redirect(jobHref(id, tab), 303);
 });
 
@@ -712,7 +736,7 @@ jobsRoute.post('/jobs/:id/description', async (c) => {
   if (text.length > MAX_POSTING_CHARS) {
     return flashRedirect(jobHref(id, 'verify', {}, 'verification'), 'warn', t('jobRoute.refresh.tooLong', { max: MAX_POSTING_CHARS }));
   }
-  const swap = await refreshDescription(job, text);
+  const swap = await refreshDescription(job, text, currentUser().id);
   return flashRedirect(`/jobs/${id}`, 'ok', refreshFlash(job.description.length, swap.job.description.length, swap.reclassified));
 });
 
@@ -721,7 +745,7 @@ jobsRoute.post('/jobs/:id/description/restore', async (c) => {
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true, sourceConfig: true } } } });
   if (!job) return c.text(t('http.notFound'), 404);
-  const swap = await restoreDescription(job);
+  const swap = await restoreDescription(job, currentUser().id);
   if (!swap) return flashRedirect(`/jobs/${id}`, 'warn', t('jobRoute.restore.nothing'));
   return flashRedirect(`/jobs/${id}`, 'ok', restoreFlash(swap.job.description.length, swap.reclassified));
 });
@@ -1186,17 +1210,18 @@ function addresseeFromVerification(evidence: unknown, companyName: string): { su
   return { suggested: finding ? addresseeFromFinding(finding, companyName) : null, finding };
 }
 
-function sortToOrderBy(sort: string): Prisma.JobOrderByWithRelationInput[] {
+/** The list is the person's rows: the score is theirs, the dates and the title are the posting's. */
+function sortToOrderBy(sort: string): Prisma.UserJobOrderByWithRelationInput[] {
   switch (sort) {
     case 'fitScore_desc':
-      return [{ fitScore: { sort: 'desc', nulls: 'last' } }, { fetchedAt: 'desc' }];
+      return [{ fitScore: { sort: 'desc', nulls: 'last' } }, { job: { fetchedAt: 'desc' } }];
     case 'postedAt_desc':
-      return [{ postedAt: 'desc' }];
+      return [{ job: { postedAt: 'desc' } }];
     case 'title_asc':
-      return [{ title: 'asc' }];
+      return [{ job: { title: 'asc' } }];
     case 'fetchedAt_desc':
     default:
-      return [{ fetchedAt: 'desc' }];
+      return [{ job: { fetchedAt: 'desc' } }];
   }
 }
 

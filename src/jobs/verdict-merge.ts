@@ -17,6 +17,8 @@ export type DismissReason = 'low-fit' | 'location-mismatch' | 'low-salary';
 /** What one search made of one posting. */
 export interface ProfileVerdict {
   profileId: number;
+  /** Whose search this is (ADR 0067): verdicts are merged per owner. */
+  userId: number;
   profileName: string;
   classification: ClaudeClassification;
   /** null when this search wants the posting. */
@@ -62,6 +64,23 @@ export function mergeVerdicts(verdicts: ProfileVerdict[]): MergedVerdict | null 
   };
 }
 
+/**
+ * ADR 0067: the same merge, once per person. A posting is classified once
+ * against every running search, but each person sees only their own searches
+ * speak: their winner, their kept/dismissed, their score line. Ordered by user
+ * id so a re-run over the same verdicts is stable.
+ */
+export function mergeVerdictsByUser(verdicts: ProfileVerdict[]): Map<number, MergedVerdict> {
+  const byUser = new Map<number, ProfileVerdict[]>();
+  for (const v of verdicts) byUser.set(v.userId, [...(byUser.get(v.userId) ?? []), v]);
+  const merged = new Map<number, MergedVerdict>();
+  for (const userId of [...byUser.keys()].sort((a, b) => a - b)) {
+    const m = mergeVerdicts(byUser.get(userId) ?? []);
+    if (m) merged.set(userId, m);
+  }
+  return merged;
+}
+
 function byFitThenId(a: ProfileVerdict, b: ProfileVerdict): number {
   return b.classification.fit_score - a.classification.fit_score || a.profileId - b.profileId;
 }
@@ -95,6 +114,7 @@ export function buildVerdicts(
     if (priority.applied.length > 0) boosted++;
     verdicts.push({
       profileId: profile.id,
+      userId: profile.userId,
       profileName: profile.name,
       classification: priority.classification,
       dismissReason: decideDismissReason(priority.classification, profile),

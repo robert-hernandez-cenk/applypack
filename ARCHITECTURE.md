@@ -807,7 +807,9 @@ erDiagram
   Company ||--o{ Job : "companyId (Cascade)"
   Company ||--o{ SourceFile : "companyId (Cascade)"
   Job |o--o{ Job : "crossListedOfJobId (SetNull)"
-  Resume |o--o{ Job : "appliedResumeId (SetNull)"
+  User ||--o{ UserJob : "userId (Cascade), whose row it is"
+  Job ||--o{ UserJob : "jobId (Cascade), the shared posting"
+  Resume |o--o{ UserJob : "appliedResumeId (SetNull)"
   CompanyCandidate |o..o| Company : "the same atsType + atsToken, no foreign key"
   Job ||--o{ JobStageEvent : "jobId (Cascade)"
   Resume ||--o{ ResumeReview : "resumeId (Cascade)"
@@ -960,7 +962,6 @@ erDiagram
     String[] countries "ISO-2: where to live (remote) or the office"
     String[] regions "named markers only: EU, EUROPE, WORLDWIDE …"
     String locationSource "structured, parsed, ai or NULL"
-    Int fitScore "the best search's score"
     Int salaryMin
     Int salaryMax
     String salaryCurrency
@@ -968,9 +969,22 @@ erDiagram
     Json sourcePayload "France Travail's offer as received"
     DateTime sourceUpdatedAt
     DateTime sourceCheckedAt
+    String liveness "active, expired or uncertain (ADR 0016)"
+    String livenessCode
+    DateTime livenessCheckedAt
+    BigInt descriptionSimhash "ADR 0018"
+    Int crossListedOfJobId FK
+  }
+
+  UserJob {
+    Int id PK
+    Int userId FK "whose row (ADR 0067)"
+    Int jobId FK
+    Int fitScore "the best of THIS person's searches"
     String[] techMatch
     String[] redFlags
     String summary
+    String[] priorityRulesApplied
     JobStatus status
     DateTime alertedAt
     DateTime alertHeldAt "held outside the alert window"
@@ -981,12 +995,6 @@ erDiagram
     Int appliedResumeId FK
     Int appliedResumeVersion
     String appliedResumeText "snapshot — resume bytes are replaced in place"
-    String[] priorityRulesApplied
-    String liveness "active, expired or uncertain (ADR 0016)"
-    String livenessCode
-    DateTime livenessCheckedAt
-    BigInt descriptionSimhash "ADR 0018"
-    Int crossListedOfJobId FK
   }
 
   JobStageEvent {

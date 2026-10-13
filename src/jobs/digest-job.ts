@@ -13,7 +13,11 @@ import type { AlertJob } from '../types';
 /** The reach of the very first recap, before there is a previous one to measure from. */
 const DIGEST_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-export async function runDigestJob(): Promise<{ stats: CronStats }> {
+/**
+ * One person's recap (ADR 0067). Chats belong to the install until
+ * notifications do to a person (#11), so the worker asks for the default user's.
+ */
+export async function runDigestJob(userId: number): Promise<{ stats: CronStats }> {
   const started = Date.now();
   // The recap covers what arrived since the last recap, not a fixed day. The
   // digest hours are the user's now (TASKS §16) and there may be several: with
@@ -25,10 +29,11 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
   const since = previous ?? new Date(Date.now() - DIGEST_WINDOW_MS);
   logger.info({ since: since.toISOString(), firstEver: previous === null }, 'digest-job: start');
 
-  const found = await prisma.job.findMany({
+  const rows = await prisma.userJob.findMany({
     where: {
+      userId,
       status: { in: [JobStatus.NEW, JobStatus.ALERTED] },
-      fetchedAt: { gte: since },
+      job: { fetchedAt: { gte: since } },
       // A held match is delivered on its own a few minutes from now (TASKS
       // §16); listing it here too would show the user the same posting twice.
       alertHeldAt: null,
@@ -36,42 +41,47 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
     // The fields the message carries — not the description, the original or
     // the source payload the row also holds (DATA-5).
     select: {
-      title: true,
-      employer: true,
-      location: true,
-      countries: true,
-      workplace: true,
-      url: true,
       fitScore: true,
-      salaryMin: true,
-      salaryMax: true,
-      salaryCurrency: true,
-      salaryPeriod: true,
       techMatch: true,
       redFlags: true,
       summary: true,
-      fetchedAt: true,
-      sourceFile: true,
-      company: { select: { name: true, atsType: true, atsToken: true, sourceConfig: true } },
-      // The search that scored each posting best, so a reader running several
-      // can tell the hunts apart in one list (ADR 0028).
-      scores: {
-        select: { profile: { select: { name: true } } },
-        orderBy: { fitScore: 'desc' },
-        take: 2,
+      job: {
+        select: {
+          title: true,
+          employer: true,
+          location: true,
+          countries: true,
+          workplace: true,
+          url: true,
+          salaryMin: true,
+          salaryMax: true,
+          salaryCurrency: true,
+          salaryPeriod: true,
+          fetchedAt: true,
+          sourceFile: true,
+          company: { select: { name: true, atsType: true, atsToken: true, sourceConfig: true } },
+          // The searches that scored each posting, so a reader running several
+          // can tell the hunts apart in one list (ADR 0028).
+          scores: {
+            select: { profile: { select: { name: true, userId: true } } },
+            orderBy: { fitScore: 'desc' },
+          },
+        },
       },
     },
-    orderBy: [{ fitScore: 'desc' }, { fetchedAt: 'desc' }],
+    orderBy: [{ fitScore: { sort: 'desc', nulls: 'last' } }, { job: { fetchedAt: 'desc' } }],
   });
   // A folder set to "No alerts" is left out here as well: its match was never
   // sent and never held, which made it exactly the row this query finds (#391).
-  const loud = found.filter((j) => !alertsOff(j.company));
+  const loud = rows.filter((r) => !alertsOff(r.job.company));
   // A row stored while fetching was paused has no score yet: it is news, in
   // one line, and not a match — the recap used to list each as "fit 0/100" (#392).
-  const jobs = loud.filter((j) => j.fitScore !== null);
+  const jobs = loud.filter((r) => r.fitScore !== null);
   const unscored = loud.length - jobs.length;
 
-  const alerts: AlertJob[] = jobs.map((j) => ({
+  const alerts: AlertJob[] = jobs.map(({ job: j, ...mine }) => {
+    const searches = j.scores.filter((s) => s.profile.userId === userId);
+    return {
     title: j.title,
     companyName: companyForMessage(j.employer, j.company),
     location: j.location,
@@ -79,18 +89,19 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
     countries: j.countries,
     workplace: j.workplace,
     url: j.url,
-    fitScore: j.fitScore ?? 0,
+    fitScore: mine.fitScore ?? 0,
     salaryMin: j.salaryMin,
     salaryCurrency: j.salaryCurrency,
     salaryPeriod: j.salaryPeriod,
     salaryMax: j.salaryMax,
-    techMatch: j.techMatch,
-    redFlags: j.redFlags,
-    summary: j.summary ?? '',
-    // Named only when the posting carries more than one verdict — with a
-    // single search the name is noise on every line.
-    matchedProfile: j.scores.length > 1 ? (j.scores[0]?.profile.name ?? null) : null,
-  }));
+    techMatch: mine.techMatch,
+    redFlags: mine.redFlags,
+    summary: mine.summary ?? '',
+    // Named only when the person has more than one verdict on the posting —
+    // with a single search the name is noise on every line.
+    matchedProfile: searches.length > 1 ? (searches[0]?.profile.name ?? null) : null,
+    };
+  });
 
   // Broadcast, not routed: the digest spans every search, so it goes to every
   // active target rather than to any one search's chat. A send every chat

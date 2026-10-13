@@ -26,12 +26,18 @@ export async function runCleanupJob(): Promise<{ stats: CronStats }> {
 
   // pipelineStage: null — an application's funnel history (and its F5
   // ledger, which cascades with the job) is never garbage-collected.
-  const result = await prisma.job.deleteMany({
+  // A person's dismissed row goes first (ADR 0067); the posting itself goes
+  // when nobody holds it any more, so one person's dismissal never removes
+  // what another still has in their inbox.
+  const dismissed = await prisma.userJob.deleteMany({
     where: {
       status: JobStatus.DISMISSED,
       pipelineStage: null,
-      fetchedAt: { lt: cutoff },
+      job: { fetchedAt: { lt: cutoff } },
     },
+  });
+  const result = await prisma.job.deleteMany({
+    where: { userJobs: { none: {} }, fetchedAt: { lt: cutoff } },
   });
 
   // The optional weekly look for a newer release (TASKS N9); off unless turned on.
@@ -55,6 +61,7 @@ export async function runCleanupJob(): Promise<{ stats: CronStats }> {
   const durationMs = Date.now() - started;
   const stats = {
     deleted: result.count,
+    dismissedRowsDeleted: dismissed.count,
     screeningsDeleted: screenings.count,
     runsDeleted: runs.count,
     aiCallsDeleted: aiCalls.count,

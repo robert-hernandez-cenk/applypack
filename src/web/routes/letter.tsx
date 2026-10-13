@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx */
+import { currentUser } from '../current-user';
 import { Hono } from 'hono';
 import { companyForPrompt } from '../../employer';
 import { z } from 'zod';
@@ -97,7 +98,7 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
   let { companyName, title } = f;
   if (f.jobMode === 'existing') {
     if (!f.jobId) return flashRedirect('/letter', 'err', t('letter.flash.pickJob'));
-    const row = await prisma.job.findUnique({ where: { id: f.jobId }, select: { id: true, title: true } });
+    const row = await prisma.job.findFirst({ where: { id: f.jobId, userJobs: { some: { userId: currentUser().id } } }, select: { id: true, title: true } });
     if (!row) return flashRedirect('/letter', 'err', t('letter.flash.jobGone'));
     existingJob = row;
   } else {
@@ -195,6 +196,7 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
           salaryMin,
           salaryMax,
         },
+        currentUser().id,
         { classify: false },
       );
       job = {

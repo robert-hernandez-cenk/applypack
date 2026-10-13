@@ -33,8 +33,9 @@ export async function loadWelcomeContext(): Promise<WelcomeContext> {
     getSettings(),
     probeAiProviders(),
     getActiveProfile(currentUser().id),
-    prisma.job.count(),
-    prisma.job.count({ where: { fitScore: { not: null } } }),
+    // The person's own postings: a teammate's scored jobs say nothing about this person's setup (ADR 0067).
+    prisma.userJob.count({ where: { userId: currentUser().id } }),
+    prisma.userJob.count({ where: { userId: currentUser().id, fitScore: { not: null } } }),
     currentSuggestions(),
   ]);
   // Ollama answering on its default address is an offer — the "A model on

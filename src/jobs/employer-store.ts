@@ -30,12 +30,12 @@ export async function loadEmployerRules(now = new Date()): Promise<EmployerRules
   ]);
   const muted = new Set(mutes.map((m) => m.key));
   if (reapplyDays === null) return { muted, appliedRecently: new Set() };
-  const applied = await prisma.job.findMany({
-    where: { appliedAt: { gte: new Date(now.getTime() - reapplyDays * DAY_MS) }, employerKey: { not: null } },
-    select: { employerKey: true },
-    distinct: ['employerKey'],
+  // Anybody's application counts until mutes and this window belong to a person (#11, ADR 0067).
+  const applied = await prisma.userJob.findMany({
+    where: { appliedAt: { gte: new Date(now.getTime() - reapplyDays * DAY_MS) }, job: { employerKey: { not: null } } },
+    select: { job: { select: { employerKey: true } } },
   });
-  return { muted, appliedRecently: new Set(applied.flatMap((j) => (j.employerKey === null ? [] : [j.employerKey]))) };
+  return { muted, appliedRecently: new Set(applied.flatMap((u) => (u.job.employerKey === null ? [] : [u.job.employerKey]))) };
 }
 
 /** The keys /jobs hides by default. */

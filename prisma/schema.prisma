@@ -256,7 +256,6 @@ model Job {
   regions        String[]  @default([])
   locationSource String?
 
-  fitScore        Int?
   // The posting's OWN numbers (plan §5.1): `salaryCurrency` is ISO-4217 and
   // `salaryPeriod` one of year|month|week|day|hour. Both null on every row
   // stored before this change, which means USD a year — what the model used
@@ -271,39 +270,6 @@ model Job {
   sourcePayload   Json?
   sourceUpdatedAt DateTime?
   sourceCheckedAt DateTime?
-  techMatch       String[]
-  redFlags        String[]
-  summary         String?   @db.Text
-  status          JobStatus @default(NEW)
-  alertedAt       DateTime?
-  // TASKS §16: set when a match was scored outside the alert window, so the
-  // next heartbeat inside it delivers a grouped message instead of twelve
-  // separate ones at 03:00. The row stays NEW and its verdicts are already
-  // in job_score; cleared when it goes out.
-  alertHeldAt     DateTime?
-
-  // Application tracking (Phase 3.4). pipelineStage is orthogonal to status:
-  //   status        = inbox state (NEW / ALERTED / SAVED / DISMISSED / APPLIED)
-  //   pipelineStage = funnel state once you have actually applied
-  // E.g. status=APPLIED + pipelineStage='ghosted' is a valid combo.
-  appliedAt        DateTime?
-  recruiterContact String?
-  pipelineStage    String?
-  applicationNotes String?   @db.Text
-
-  // Stage C: which resume this application went out with. The text snapshot is
-  // not redundant with the FK — "Upload a new version" rewrites the bytes of
-  // the SAME resume row, so an id alone would name v3 and hand back v5's
-  // words. Same reasoning (and same shape) as ResumeMatch.resumeText.
-  appliedResumeId      Int?
-  appliedResume        Resume? @relation(fields: [appliedResumeId], references: [id], onDelete: SetNull)
-  appliedResumeVersion Int?
-  appliedResumeText    String? @db.Text
-
-  // Phase 7.1: labels of Profile.priorityRules that matched this job at
-  // classify-time and bumped fitScore to the rule's floor. Empty when no
-  // rule applied. Surfaced as a badge on /jobs/:id.
-  priorityRulesApplied String[] @default([])
 
   // F1 (ADR 0016): last liveness-ladder verdict. liveness is
   // active | expired | uncertain; livenessCode is the machine reason.
@@ -324,6 +290,7 @@ model Job {
   briefs        PostingBrief[]
   coverLetters  CoverLetter[]
   stageEvents   JobStageEvent[]
+  userJobs      UserJob[]
   scores        JobScore[]
   screenings    Screening[]
   pack          ApplicationPack?
@@ -331,13 +298,8 @@ model Job {
   @@unique([companyId, externalId])
   // Postgres does not index the referencing side of a foreign key: without
   // these, every job delete scans job for cross-listings and every resume
-  // delete scans job for applications (audit 2026-09-10, DATA-2).
+  // delete scans user_job for applications (audit 2026-09-10, DATA-2).
   @@index([crossListedOfJobId])
-  @@index([appliedResumeId])
-  @@index([status, fetchedAt])
-  // Delivery reads the held rows on every heartbeat; almost always none.
-  @@index([alertHeldAt])
-  @@index([pipelineStage, appliedAt])
   // The dedup scan reads fingerprints from the last 90 days.
   @@index([fetchedAt, descriptionSimhash])
   // /jobs facets: `countries hasSome` / `regions hasSome` use the GIN indexes.
@@ -376,6 +338,60 @@ model JobScore {
   // The /jobs chips filter by profile and rank by that profile's score.
   @@index([profileId, fitScore])
   @@map("job_score")
+}
+
+// ADR 0067: what one person has made of a posting. The posting itself is
+// shared (Job); everything here is the person's own — their best-of verdict
+// across their searches, their inbox status, alert stamps, application and
+// notes. A person sees a posting only when they hold a row for it.
+model UserJob {
+  id     Int  @id @default(autoincrement())
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId  Int
+  job    Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  // The winning search's numbers among this person's searches (verdict-merge.ts).
+  fitScore             Int?
+  techMatch            String[]
+  redFlags             String[]
+  summary              String?  @db.Text
+  // Labels of the winning search's priorityRules that lifted the score (phase 7.1).
+  priorityRulesApplied String[] @default([])
+
+  status      JobStatus @default(NEW)
+  alertedAt   DateTime?
+  // TASKS §16: set when a match was scored outside the alert window, so the
+  // next heartbeat inside it delivers a grouped message instead of twelve
+  // separate ones at 03:00. The row stays NEW; cleared when it goes out.
+  alertHeldAt DateTime?
+
+  // Application tracking (Phase 3.4). pipelineStage is orthogonal to status:
+  //   status        = inbox state (NEW / ALERTED / SAVED / DISMISSED / APPLIED)
+  //   pipelineStage = funnel state once you have actually applied
+  appliedAt        DateTime?
+  recruiterContact String?
+  pipelineStage    String?
+  applicationNotes String?   @db.Text
+
+  // Stage C: which resume this application went out with. The text snapshot is
+  // not redundant with the FK — "Upload a new version" rewrites the bytes of
+  // the SAME resume row, so an id alone would name v3 and hand back v5's words.
+  appliedResumeId      Int?
+  appliedResume        Resume? @relation(fields: [appliedResumeId], references: [id], onDelete: SetNull)
+  appliedResumeVersion Int?
+  appliedResumeText    String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, jobId])
+  @@index([userId, status])
+  // Delivery reads the held rows on every heartbeat; almost always none.
+  @@index([alertHeldAt])
+  @@index([userId, pipelineStage, appliedAt])
+  @@index([jobId])
+  @@index([appliedResumeId])
+  @@map("user_job")
 }
 
 model CronRun {
@@ -751,8 +767,8 @@ model Resume {
   coverLetters    CoverLetter[]
   // Searches that hunt with this resume (Profile.resumeId).
   profiles        Profile[]
-  // Applications sent with this resume (Job.appliedResumeId).
-  appliedTo       Job[]
+  // Applications sent with this resume (UserJob.appliedResumeId).
+  appliedTo       UserJob[]
 
   @@map("resume")
 }
@@ -944,6 +960,9 @@ model ApplicationPack {
 
 model JobStageEvent {
   id         Int      @id @default(autoincrement())
+  // ADR 0067: the stage history is the person's own.
+  userId     Int      @default(1)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobId      Int
   job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
   fromStage  String?
@@ -953,6 +972,7 @@ model JobStageEvent {
   source     String // ui | backfill | correction (F17 adds reply)
 
   @@index([jobId, recordedAt])
+  @@index([userId])
   @@map("job_stage_event")
 }
 
@@ -1170,18 +1190,20 @@ enum UserRole {
 // migration creates: the owner of everything that existed before, and the one
 // person an install without sign-in has. The first OIDC sign-in claims it.
 model User {
-  id               Int       @id @default(autoincrement())
+  id               Int             @id @default(autoincrement())
   // The identity provider's stable id for the person; NULL until someone
   // signs in as this user (and always for an install without sign-in).
-  oidcSub          String?   @unique
+  oidcSub          String?         @unique
   name             String
-  role             UserRole  @default(MEMBER)
-  createdAt        DateTime  @default(now())
+  role             UserRole        @default(MEMBER)
+  createdAt        DateTime        @default(now())
   // The person's primary search (ADR 0066): the defaults and preselects for
   // their pages, always running. Was AppSettings.activeProfileId.
-  primaryProfileId Int?      @unique
-  primaryProfile   Profile?  @relation("UserPrimary", fields: [primaryProfileId], references: [id], onDelete: SetNull)
-  profiles         Profile[] @relation("UserProfiles")
+  primaryProfileId Int?            @unique
+  primaryProfile   Profile?        @relation("UserPrimary", fields: [primaryProfileId], references: [id], onDelete: SetNull)
+  profiles         Profile[]       @relation("UserProfiles")
+  jobs             UserJob[]
+  stageEvents      JobStageEvent[]
 
   @@map("users")
 }

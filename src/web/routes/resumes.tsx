@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx */
+import { currentUser } from '../current-user';
 import { Hono, type Context } from 'hono';
 import { sameTextAs } from '../../resume/duplicate';
 import { idParam } from '../params';
@@ -242,7 +243,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   const baseText = typeof form.baseText === 'string' ? form.baseText.replace(/\r\n/g, '\n').trim() : '';
   const jobId = idParam(form.jobId);
   const job = Number.isFinite(jobId)
-    ? await prisma.job.findUnique({ where: { id: jobId }, include: { company: { select: { name: true, atsType: true } } } })
+    ? await prisma.job.findFirst({ where: { id: jobId, userJobs: { some: { userId: currentUser().id } } }, include: { company: { select: { name: true, atsType: true } } } })
     : null;
 
   // Claimed BEFORE the save, not after: this route's side effect is a new

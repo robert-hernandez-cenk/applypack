@@ -266,7 +266,8 @@ async function loadSettingsProps() {
       getActiveProfile(currentUser().id),
       listResumes(),
       probeAiProviders(aiKeys),
-      prisma.job.groupBy({
+      // The stage list is the install's; a stage in use by anyone counts (ADR 0067).
+      prisma.userJob.groupBy({
         by: ['pipelineStage'],
         _count: { _all: true },
         where: { pipelineStage: { not: null } },
@@ -955,7 +956,7 @@ settingsRoute.post('/settings/stages/:key/remove', async (c) => {
   // every card move queue on one row would be a poor trade — so a stranded
   // job is caught by the "Unfiled" column on the board rather than lost.
   const outcome = await withGlobalWriteLock(async (tx) => {
-    const held = await tx.job.count({ where: { pipelineStage: key } });
+    const held = await tx.userJob.count({ where: { pipelineStage: key } });
     if (held > 0) return { kind: 'in-use' as const, held };
     const row = await tx.appSettings.findUnique({
       where: { id: SETTINGS_ID },

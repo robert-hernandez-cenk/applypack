@@ -49,7 +49,7 @@ export async function deliverHeldAlerts(
   // waits — the row is on /jobs the whole time. Acting on it settles it: the
   // hold is moot, and delivering it would both pester the user about a
   // posting they have answered and overwrite their status with ALERTED.
-  await prisma.job.updateMany({
+  await prisma.userJob.updateMany({
     where: { alertHeldAt: { not: null }, status: { not: JobStatus.NEW } },
     data: { alertHeldAt: null },
   });
@@ -59,41 +59,53 @@ export async function deliverHeldAlerts(
   // with Alerts off does not build the messages every hour to discard them.
   if ((await alertChannel()) !== 'open') return nothing;
 
-  const rows = await prisma.job.findMany({
-    where: { alertHeldAt: { not: null }, status: JobStatus.NEW, ...(only && { companyId: only.companyId }) },
+  // Every person's held rows: the chats are the install's until notifications
+  // belong to a person (ADR 0067), and a row waits for its owner's own
+  // verdicts, so the search that routes it is read among theirs.
+  const userJobs = await prisma.userJob.findMany({
+    where: { alertHeldAt: { not: null }, status: JobStatus.NEW, ...(only && { job: { companyId: only.companyId } }) },
     // The message's fields only (DATA-5).
     select: {
       id: true,
-      title: true,
-      employer: true,
-      location: true,
-      countries: true,
-      workplace: true,
-      url: true,
+      userId: true,
       fitScore: true,
-      salaryMin: true,
-      salaryMax: true,
-      salaryCurrency: true,
-      salaryPeriod: true,
       techMatch: true,
       redFlags: true,
       summary: true,
-      fetchedAt: true,
-      sourceFile: true,
-      company: { select: { name: true, atsType: true, atsToken: true, watched: true, alertPolicy: true } },
-      scores: {
-        select: { profile: { select: { name: true, notificationTargetId: true } } },
-        orderBy: { fitScore: 'desc' },
-        take: 2,
+      job: {
+        select: {
+          id: true,
+          title: true,
+          employer: true,
+          location: true,
+          countries: true,
+          workplace: true,
+          url: true,
+          salaryMin: true,
+          salaryMax: true,
+          salaryCurrency: true,
+          salaryPeriod: true,
+          fetchedAt: true,
+          sourceFile: true,
+          company: { select: { name: true, atsType: true, atsToken: true, watched: true, alertPolicy: true } },
+          scores: {
+            select: { fitScore: true, profile: { select: { name: true, userId: true, notificationTargetId: true } } },
+            orderBy: { fitScore: 'desc' },
+          },
+        },
       },
     },
-    orderBy: [{ fitScore: 'desc' }, { fetchedAt: 'desc' }],
+    orderBy: [{ fitScore: { sort: 'desc', nulls: 'last' } }, { job: { fetchedAt: 'desc' } }],
   });
-  if (rows.length === 0) return nothing;
+  if (userJobs.length === 0) return nothing;
 
-  const held: HeldRow[] = rows.map((j) => ({
-    id: j.id,
-    targetId: j.scores[0]?.profile.notificationTargetId ?? null,
+  const held: HeldRow[] = userJobs.map((u) => {
+    const j = u.job;
+    // The owner's searches, best first — the same routing an instant alert takes.
+    const scores = j.scores.filter((s) => s.profile.userId === u.userId);
+    return {
+    id: u.id,
+    targetId: scores[0]?.profile.notificationTargetId ?? null,
     alert: {
       title: j.title,
       // The ★ is on the row, not on the send: a held posting from a watched
@@ -105,17 +117,18 @@ export async function deliverHeldAlerts(
       countries: j.countries,
       workplace: j.workplace,
       url: j.url,
-      fitScore: j.fitScore ?? 0,
+      fitScore: u.fitScore ?? 0,
       salaryMin: j.salaryMin,
       salaryMax: j.salaryMax,
       salaryCurrency: j.salaryCurrency,
       salaryPeriod: j.salaryPeriod,
-      techMatch: j.techMatch,
-      redFlags: j.redFlags,
-      summary: j.summary ?? '',
-      matchedProfile: j.scores.length > 1 ? (j.scores[0]?.profile.name ?? null) : null,
+      techMatch: u.techMatch,
+      redFlags: u.redFlags,
+      summary: u.summary ?? '',
+      matchedProfile: scores.length > 1 ? (scores[0]?.profile.name ?? null) : null,
     } satisfies AlertJob,
-  }));
+    };
+  });
 
   let delivered = 0;
   let messages = 0;
@@ -136,7 +149,7 @@ export async function deliverHeldAlerts(
     // Switched off, or the last chat removed, since the check above: the
     // other groups would meet the same answer.
     if (delivery.skipped !== null) break;
-    const { count } = await prisma.job.updateMany({
+    const { count } = await prisma.userJob.updateMany({
       // Still NEW: the same guard again, because the send takes seconds and
       // the dashboard is open. A row settled in between keeps the user's
       // status and simply loses its stamp on the next pass.
@@ -145,7 +158,7 @@ export async function deliverHeldAlerts(
     });
     // Counted in the header and left New: no longer waiting, never listed.
     if (group.unlisted.length > 0) {
-      await prisma.job.updateMany({ where: { id: { in: group.unlisted } }, data: { alertHeldAt: null } });
+      await prisma.userJob.updateMany({ where: { id: { in: group.unlisted } }, data: { alertHeldAt: null } });
     }
     delivered += count;
     counted += group.unlisted.length;
@@ -155,7 +168,7 @@ export async function deliverHeldAlerts(
   return { delivered, messages, counted, failed };
 }
 
-/** How many matches are waiting — for the overview line and the settings card. */
-export async function countHeldAlerts(): Promise<number> {
-  return prisma.job.count({ where: { alertHeldAt: { not: null }, status: JobStatus.NEW } });
+/** How many of a person's matches are waiting — for the overview line and the settings card. */
+export async function countHeldAlerts(userId: number): Promise<number> {
+  return prisma.userJob.count({ where: { userId, alertHeldAt: { not: null }, status: JobStatus.NEW } });
 }

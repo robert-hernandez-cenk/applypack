@@ -16,10 +16,17 @@
  * 145 handlers had zero automated requests before this (audit 2026-09-10,
  * TEST-1); the unit tests cover the pure modules, this covers the wiring.
  */
+import { DEFAULT_USER_ID } from '../users/identity';
 import { SMOKE_INBOX } from './route-smoke-env';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { Hono } from 'hono';
 import { app } from '../web/app';
+import { withCurrentUser } from '../web/current-user';
+import { requireHeldJob } from '../web/job-guard';
+import { jobsRoute } from '../web/routes/jobs';
+import { applicationsRoute } from '../web/routes/applications';
+import { loadUser } from '../users/store';
 import { DEFAULT_BODY_BYTES } from '../web/body-limits';
 import { prisma } from '../db';
 import { createManualJob } from '../jobs/manual-job';
@@ -27,7 +34,7 @@ import { createMatch, createResume } from '../resume/store';
 import { parseMatchResponse, PROMPT_VERSION } from '../resume/prompts';
 import { scoreMatch } from '../resume/score';
 import { getPackSettings, getSettings, setAiBudgetCents, setEmployerMode, setFetchingEnabled } from '../settings';
-import { blankProfileInput, listAllActiveProfiles } from '../profiles';
+import { blankProfileInput, ensurePrimaryProfile, listAllActiveProfiles } from '../profiles';
 import { recordAiCall } from '../ai-ledger';
 import { NO_USAGE } from '../ai-usage';
 import { createApplicants, createScreening } from '../screening/store';
@@ -144,6 +151,7 @@ interface Fixtures {
 async function fixtures(): Promise<Fixtures> {
   const job = await createManualJob(
     { companyName: 'Smoke Co', title: 'Backend Engineer', url: '', location: 'Remote', description: POSTING },
+    DEFAULT_USER_ID,
     { classify: false },
   );
   const resume = await createResume({
@@ -754,6 +762,7 @@ async function main(): Promise<void> {
   }
 
   rows.push(...(await importChecks()));
+  rows.push(...(await isolationChecks(f.jobId)));
   rows.push(...(await folderChecks()));
   rows.push(await packAgainCheck(f.jobId));
   rows.push(await packCancelCheck(f.jobId));
@@ -777,10 +786,7 @@ async function main(): Promise<void> {
           location: 'Remote',
           description: POSTING,
           postedAt: new Date(),
-          status: 'ALERTED',
-          fitScore: 88,
-          alertedAt: new Date(),
-          techMatch: ['node.js', 'typescript'],
+          userJobs: { create: { userId: DEFAULT_USER_ID, status: 'ALERTED', fitScore: 88, alertedAt: new Date(), techMatch: ['node.js', 'typescript'] } },
         },
       },
     },
@@ -822,6 +828,67 @@ const IMPORT_CSV = [
 const IMPORT_MAPPING = { title: 'Position', employer: 'Organisation', url: 'Job link', location: 'Where', description: 'About the role' };
 
 type Check = { route: string; url: string; status: number; ok: boolean };
+
+/**
+ * Two people on one install (ADR 0067): a posting is shared and what each
+ * does with it is their own. The second person goes through the same guard,
+ * routes and readers as a signed-in session would.
+ */
+async function isolationChecks(ownJobId: number): Promise<Check[]> {
+  const out: Check[] = [];
+  const add = (route: string, url: string, status: number, ok: boolean): void => {
+    out.push({ route, url, status, ok });
+  };
+  const teammate = await prisma.user.create({ data: { oidcSub: 'smoke-teammate', name: 'Smoke teammate', role: 'MEMBER' } });
+  await ensurePrimaryProfile(teammate.id);
+  const company = await prisma.company.create({ data: { name: 'Isolation Co', atsType: 'MANUAL', atsToken: 'isolation-co', active: false } });
+  const shared = await prisma.job.create({
+    data: { companyId: company.id, externalId: 'shared', title: 'Isolation Shared', url: '', location: 'Remote', description: POSTING, postedAt: new Date() },
+  });
+  const theirs = await prisma.job.create({
+    data: { companyId: company.id, externalId: 'theirs', title: 'Isolation Theirs', url: '', location: 'Remote', description: POSTING, postedAt: new Date() },
+  });
+  await prisma.userJob.createMany({
+    data: [
+      { userId: DEFAULT_USER_ID, jobId: shared.id, status: 'NEW', fitScore: 90 },
+      { userId: teammate.id, jobId: shared.id, status: 'NEW', fitScore: 61 },
+      { userId: teammate.id, jobId: theirs.id, status: 'NEW', fitScore: 75 },
+    ],
+  });
+  const asTeammate = new Hono();
+  asTeammate.use('*', async (c, next) => {
+    c.set('session', { sub: 'smoke-teammate', name: teammate.name, uid: teammate.id, exp: 9_999_999_999 });
+    return next();
+  });
+  asTeammate.use('*', withCurrentUser(loadUser));
+  asTeammate.use('/jobs/*', requireHeldJob());
+  asTeammate.route('/', jobsRoute);
+  asTeammate.route('/', applicationsRoute);
+
+  const list = await asTeammate.request('/jobs', { headers: ORIGIN });
+  const html = await list.text();
+  add('GET /jobs for a second person (their postings only)', '/jobs', list.status, list.status === 200 && html.includes('Isolation Theirs') && html.includes('Isolation Shared') && !html.includes('Backend Engineer'));
+  const mine = await asTeammate.request(`/jobs/${ownJobId}`, { headers: ORIGIN });
+  add('GET /jobs/:id of a posting the second person does not hold (not found)', `/jobs/${ownJobId}`, mine.status, mine.status === 404);
+  const owner = await app.request(`/jobs/${theirs.id}`, { headers: ORIGIN });
+  add('GET /jobs/:id of a posting only the other person holds (not found for the owner)', `/jobs/${theirs.id}`, owner.status, owner.status === 404);
+  const applied = await asTeammate.request(`/jobs/${shared.id}/status`, form({ status: 'APPLIED' }));
+  const rows = await prisma.userJob.findMany({ where: { jobId: shared.id }, orderBy: { userId: 'asc' } });
+  add(
+    'POST /jobs/:id/status by one person leaves the other person\'s row alone',
+    `/jobs/${shared.id}/status`,
+    applied.status,
+    applied.status === 303 && rows.find((r) => r.userId === DEFAULT_USER_ID)?.status === 'NEW' && rows.find((r) => r.userId === teammate.id)?.status === 'APPLIED',
+  );
+  const board = await asTeammate.request('/applications', { headers: ORIGIN });
+  const boardHtml = await board.text();
+  add('GET /applications for a second person (their application only)', '/applications', board.status, board.status === 200 && boardHtml.includes('Isolation Shared'));
+  const ownerBoard = await app.request('/applications', { headers: ORIGIN });
+  add('GET /applications for the owner (not the other person\'s application)', '/applications', ownerBoard.status, ownerBoard.status === 200 && !(await ownerBoard.text()).includes('Isolation Shared'));
+  const foreign = await asTeammate.request(`/jobs/${ownJobId}/status`, form({ status: 'DISMISSED' }));
+  add('POST /jobs/:id/status on a posting the second person does not hold (not found)', `/jobs/${ownJobId}/status`, foreign.status, foreign.status === 404);
+  return out;
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -971,7 +1038,7 @@ async function importChecks(): Promise<Check[]> {
   }
 
   const { res: stored, run } = await pressImport(preview);
-  const source = await prisma.company.findFirst({ where: { atsType: 'IMPORT' }, include: { jobs: { select: { fitScore: true, employer: true } } } });
+  const source = await prisma.company.findFirst({ where: { atsType: 'IMPORT' }, include: { jobs: { select: { employer: true, userJobs: { select: { fitScore: true } } } } } });
   check(
     'POST /jobs/import/:token while paused (stored unscored under an inactive source)',
     preview,
@@ -982,7 +1049,7 @@ async function importChecks(): Promise<Check[]> {
       source?.active === false &&
       source.sourceConfig !== null &&
       source.jobs.length === 3 &&
-      source.jobs.every((j) => j.fitScore === null && j.employer !== null),
+      source.jobs.every((j) => j.userJobs.length > 0 && j.userJobs.every((u) => u.fitScore === null) && j.employer !== null),
   );
 
   // The same file again holds nothing new: its preview offers no Import, and the form posted anyway is refused
@@ -1184,13 +1251,13 @@ async function savedPostingChecks(dir: string, checkNow: (id: number) => Promise
   if (!folder) return out;
   await app.request(`/companies/${folder.id}/toggle-active`, form({}));
   const looked = await checkNow(folder.id);
-  const job = await prisma.job.findFirst({ where: { companyId: folder.id } });
+  const job = await prisma.job.findFirst({ where: { companyId: folder.id }, include: { userJobs: true } });
   const note = await prisma.sourceFile.findFirst({ where: { companyId: folder.id, relPath: 'note.txt' } });
   check(
     'POST /companies/:id/check-now on saved postings while paused (the page stored unscored, the text waits for a model)',
     `/companies/${folder.id}/check-now`,
     looked,
-    (await stored()) === 1 && job?.sourceFile === 'page.html' && job.fitScore === null && job.employer === 'Smoke Saved Co' && job.url === 'https://saved.example/jobs/1' && note?.status === 'waiting',
+    (await stored()) === 1 && job?.sourceFile === 'page.html' && job.userJobs.every((u) => u.fitScore === null) && job.employer === 'Smoke Saved Co' && job.url === 'https://saved.example/jobs/1' && note?.status === 'waiting',
   );
   if (job) {
     const page = await app.request(`/jobs/${job.id}`, { headers: ORIGIN });
