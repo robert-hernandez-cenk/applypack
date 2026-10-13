@@ -37,7 +37,31 @@ import { createManualJob } from '../jobs/manual-job';
 import { createMatch, createResume, getResume, listFacts, upsertFact } from '../resume/store';
 import { parseMatchResponse, PROMPT_VERSION } from '../resume/prompts';
 import { scoreMatch } from '../resume/score';
-import { getPackSettings, getSettings, setAiBudgetCents, setEmployerMode, setFetchingEnabled } from '../settings';
+import {
+  addNotificationTarget,
+  deleteNotificationTarget,
+  getAlertSchedule,
+  getDisplaySettings,
+  getNotificationTarget,
+  getPackSettings,
+  getSchedule,
+  getSettings,
+  getUserSettings,
+  listActiveNotificationTargets,
+  setAiBudgetCents,
+  setEmployerMode,
+  setFetchingEnabled,
+  setPersonalSchedule,
+  setTelegramEnabled,
+} from '../settings';
+import { settingsRoute } from '../web/routes/settings';
+import { companiesRoute } from '../web/routes/companies';
+import { deliverHeldAlerts } from '../jobs/alert-delivery';
+import { runDigestJob } from '../jobs/digest-job';
+import { lastSuccessfulRunAt } from '../jobs/cron-run';
+import { loadEmployerRulesFor, mutedKeys } from '../jobs/employer-store';
+import { employerGates } from '../employer';
+import { sendAlert, sendBudgetAlert } from '../notifier';
 import { blankProfileInput, ensurePrimaryProfile, listAllActiveProfiles } from '../profiles';
 import { recordAiCall } from '../ai-ledger';
 import { NO_USAGE } from '../ai-usage';
@@ -768,6 +792,7 @@ async function main(): Promise<void> {
   rows.push(...(await importChecks()));
   rows.push(...(await isolationChecks(f.jobId)));
   rows.push(...(await resumeIsolationChecks(f.resumeId)));
+  rows.push(...(await notificationIsolationChecks()));
   rows.push(...(await folderChecks()));
   rows.push(await packAgainCheck(f.jobId));
   rows.push(await packCancelCheck(f.jobId));
@@ -898,6 +923,195 @@ async function isolationChecks(ownJobId: number): Promise<Check[]> {
   add('GET /applications for the owner (not the other person\'s application)', '/applications', ownerBoard.status, ownerBoard.status === 200 && !(await ownerBoard.text()).includes('Isolation Shared'));
   const foreign = await asTeammate.request(`/jobs/${ownJobId}/status`, form({ status: 'DISMISSED' }));
   add('POST /jobs/:id/status on a posting the second person does not hold (not found)', `/jobs/${ownJobId}/status`, foreign.status, foreign.status === 404);
+  return out;
+}
+
+/**
+ * Notifications, mutes and personal settings (ADR 0069), for the second person
+ * made by isolationChecks: their own destinations, switches, mutes, schedule
+ * and language; a held alert, a recap and a notice reach only the owning
+ * person's chat (Telegram is a recording stub for the length of the check),
+ * and neither person reads or changes the other's.
+ */
+async function notificationIsolationChecks(): Promise<Check[]> {
+  const out: Check[] = [];
+  const add = (route: string, url: string, status: number, ok: boolean): void => {
+    out.push({ route, url, status, ok });
+  };
+  const teammate = await prisma.user.findUniqueOrThrow({ where: { oidcSub: 'smoke-teammate' } });
+  const ownerBefore = await getUserSettings(DEFAULT_USER_ID);
+  // The checks above leave the owner's alerts on a digest; delivery below is asked in the instant mode.
+  const ownerSchedule = await getAlertSchedule(DEFAULT_USER_ID);
+  await setPersonalSchedule(DEFAULT_USER_ID, { ...ownerSchedule, alerts: { ...ownerSchedule.alerts, mode: 'instant' } });
+  const ownerTarget = await addNotificationTarget(DEFAULT_USER_ID, { kind: 'TELEGRAM', name: 'Owner chat', botToken: 'owner-token', chatId: 'owner-chat' });
+  const mateTarget = await addNotificationTarget(teammate.id, { kind: 'TELEGRAM', name: 'Mate chat', botToken: 'mate-token', chatId: 'mate-chat' });
+  if (!ownerTarget || !mateTarget) throw new Error('smoke: notification targets were not created');
+  // Even the same bot and chat may be two people's.
+  const sameChat = await addNotificationTarget(teammate.id, { kind: 'TELEGRAM', name: 'Owner chat again', botToken: 'owner-token', chatId: 'owner-chat' });
+  add('the same bot and chat can be added by a second person (unique per person)', '(store)', 200, sameChat !== null);
+  if (sameChat) await deleteNotificationTarget(teammate.id, sameChat.id);
+
+  const person = (user: { id: number; name: string }, sub: string) => {
+    const a = new Hono();
+    a.use('*', async (c, next) => {
+      c.set('session', { sub, name: user.name, uid: user.id, exp: 9_999_999_999 });
+      return next();
+    });
+    a.use('*', withCurrentUser(loadUser));
+    a.route('/', settingsRoute);
+    a.route('/', companiesRoute);
+    return a;
+  };
+  const asMate = person(teammate, 'smoke-teammate');
+
+  // The destinations on the Notifications tab.
+  const mateTab = await asMate.request('/settings?tab=notifications', { headers: ORIGIN });
+  const mateHtml = await mateTab.text();
+  add('GET /settings?tab=notifications for a second person (their chats only)', '/settings?tab=notifications', mateTab.status, mateTab.status === 200 && mateHtml.includes('Mate chat') && !mateHtml.includes('Owner chat'));
+  const ownerTab = await app.request('/settings?tab=notifications', { headers: ORIGIN });
+  const ownerHtml = await ownerTab.text();
+  add('GET /settings?tab=notifications for the owner (not the other person\'s chats)', '/settings?tab=notifications', ownerTab.status, ownerTab.status === 200 && ownerHtml.includes('Owner chat') && !ownerHtml.includes('Mate chat'));
+  for (const action of ['toggle', 'delete', 'test']) {
+    const url = `/settings/targets/${ownerTarget.id}/${action}`;
+    const res = await asMate.request(url, form({}));
+    add(`POST /settings/targets/:id/${action} on the other person's chat (not theirs: nothing happens)`, url, res.status, res.status === 303);
+  }
+  const ownerStill = await prisma.notificationTarget.findUnique({ where: { id: ownerTarget.id } });
+  add('...and the owner\'s chat is still there and still active', '(store)', 200, ownerStill?.active === true);
+  add('a chat of another person is not a destination for a search', '(store)', 200, (await getNotificationTarget(DEFAULT_USER_ID, mateTarget.id)) === null && (await getNotificationTarget(teammate.id, ownerTarget.id)) === null);
+  add('each person lists only their own active chats', '(store)', 200,
+    (await listActiveNotificationTargets(DEFAULT_USER_ID)).every((t) => t.userId === DEFAULT_USER_ID) &&
+    (await listActiveNotificationTargets(teammate.id)).map((t) => t.chatId).join() === 'mate-chat');
+
+  // Switches, window, language, board columns, packs: the person's own.
+  const toggled = await asMate.request('/settings/telegram-toggle', form({}));
+  add('POST /settings/telegram-toggle by one person leaves the other\'s Alerts switch alone', '/settings/telegram-toggle', toggled.status,
+    toggled.status === 303 && (await getUserSettings(teammate.id)).telegramEnabled === false && (await getUserSettings(DEFAULT_USER_ID)).telegramEnabled === ownerBefore.telegramEnabled);
+  await asMate.request('/settings/telegram-toggle', form({}));
+  const reapply = await asMate.request('/settings/reapply', form({ days: '60' }));
+  add('POST /settings/reapply by one person leaves the other\'s window alone', '/settings/reapply', reapply.status,
+    reapply.status === 303 && (await getUserSettings(teammate.id)).reapplyDays === 60 && (await getUserSettings(DEFAULT_USER_ID)).reapplyDays === ownerBefore.reapplyDays);
+  const stage = await asMate.request('/settings/stages/add', form({ label: 'Mate only column' }));
+  const mateStages = JSON.stringify((await getUserSettings(teammate.id)).pipelineStages);
+  add('POST /settings/stages/add by one person leaves the other\'s board columns alone', '/settings/stages/add', stage.status,
+    stage.status === 303 && mateStages.includes('Mate only column') && !JSON.stringify((await getUserSettings(DEFAULT_USER_ID)).pipelineStages).includes('Mate only column'));
+  const lang = await asMate.request('/settings/locale', form({ locale: 'es' }));
+  add('POST /settings/locale by one person leaves the other\'s language alone', '/settings/locale', lang.status,
+    lang.status === 303 && (await getDisplaySettings(teammate.id)).locale === 'es' && (await getDisplaySettings(DEFAULT_USER_ID)).locale === ownerBefore.locale);
+  const ownerFit = (await getPackSettings(DEFAULT_USER_ID)).minFit;
+  const pack = await asMate.request('/settings/pack', { method: 'POST', headers: { ...ORIGIN, 'content-type': 'application/x-www-form-urlencoded' }, body: 'enabled=1&minFit=77&dailyLimit=2&maxAgeDays=14&coverLetter=asked&sections=title&maxBullets=1&keywords=1' });
+  add('POST /settings/pack by one person leaves the other\'s pack settings alone', '/settings/pack', pack.status,
+    pack.status === 303 && (await getPackSettings(teammate.id)).minFit === 77 && (await getPackSettings(DEFAULT_USER_ID)).minFit === ownerFit);
+  // Alert timing is the person's; when the search runs is the install's (an administrator's to change).
+  const globalBefore = JSON.stringify(await getSchedule());
+  const alertsSave = await asMate.request('/settings/schedule', form({ part: 'alerts', alertMode: 'digest', alertFrom: '8', alertTo: '22', alertDays: '1', digestAt: '7' }));
+  const mateSchedule = await getAlertSchedule(teammate.id);
+  add('POST /settings/schedule (alerts) by a member stores their own timing only', '/settings/schedule', alertsSave.status,
+    alertsSave.status === 303 && mateSchedule.alerts.mode === 'digest' && (await getAlertSchedule(DEFAULT_USER_ID)).alerts.mode !== 'digest' && JSON.stringify(await getSchedule()) === globalBefore);
+  const mateSaved = await getAlertSchedule(teammate.id);
+  await setPersonalSchedule(teammate.id, { ...mateSaved, alerts: { ...mateSaved.alerts, mode: 'instant' } });
+  const fetchSave = await asMate.request('/settings/schedule', form({ part: 'fetch', fetchEvery: 'day', fetchFrom: '1', fetchTo: '2', fetchDays: '1' }));
+  add('POST /settings/schedule (fetch) by a member is refused: when the search runs is the install\'s', '/settings/schedule', fetchSave.status,
+    fetchSave.status === 303 && JSON.stringify(await getSchedule()) === globalBefore);
+
+  // Mutes.
+  const muted = await asMate.request('/companies/mutes', form({ name: 'Smoke Muted Inc', reason: 'mine' }));
+  const mateMutes = await mutedKeys(teammate.id);
+  add('POST /companies/mutes by one person mutes for them alone', '/companies/mutes', muted.status,
+    muted.status === 303 && mateMutes.includes('smoke muted') && !(await mutedKeys(DEFAULT_USER_ID)).includes('smoke muted'));
+  const rules = await loadEmployerRulesFor([DEFAULT_USER_ID, teammate.id]);
+  const gates = employerGates('smoke muted', rules, [DEFAULT_USER_ID, teammate.id]);
+  add('a posting one person muted still reaches the other (the tick turns it away only when everyone does)', '(store)', 200, gates.all === null && gates.away.has(teammate.id) && !gates.away.has(DEFAULT_USER_ID));
+  const unmute = await app.request('/companies/mutes/delete', form({ key: 'smoke muted' }));
+  add('POST /companies/mutes/delete of a mute the person does not have changes nothing', '/companies/mutes/delete', unmute.status, unmute.status === 303 && (await mutedKeys(teammate.id)).includes('smoke muted'));
+  await asMate.request('/companies/mutes/delete', form({ key: 'smoke muted' }));
+
+  // Delivery: a recording stand-in for Telegram, for the length of this block.
+  const sent: { chat: string; text: string }[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (!url.startsWith('https://api.telegram.org/bot')) return realFetch(input, init);
+    const body = JSON.parse(String(init?.body ?? '{}')) as { chat_id?: string; text?: string };
+    sent.push({ chat: body.chat_id ?? '', text: body.text ?? '' });
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch;
+  try {
+    await setTelegramEnabled(DEFAULT_USER_ID, true);
+    await setTelegramEnabled(teammate.id, true);
+    const notify = await prisma.company.create({
+      data: {
+        name: 'Notify Co',
+        atsType: 'MANUAL',
+        atsToken: 'notify-co',
+        active: false,
+        jobs: {
+          create: ['n1', 'n2'].map((externalId, i) => ({
+            externalId,
+            title: i === 0 ? 'Notify One' : 'Notify Two',
+            url: '',
+            location: 'Remote',
+            description: POSTING,
+            postedAt: new Date(),
+          })),
+        },
+      },
+      include: { jobs: true },
+    });
+    const one = notify.jobs.find((j) => j.externalId === 'n1')!;
+    const two = notify.jobs.find((j) => j.externalId === 'n2')!;
+    const held = new Date();
+    await prisma.userJob.createMany({
+      data: [
+        { userId: DEFAULT_USER_ID, jobId: one.id, status: 'NEW', fitScore: 90, alertHeldAt: held },
+        { userId: teammate.id, jobId: one.id, status: 'NEW', fitScore: 80, alertHeldAt: held },
+        { userId: teammate.id, jobId: two.id, status: 'NEW', fitScore: 70, alertHeldAt: held },
+      ],
+    });
+    const delivered = await deliverHeldAlerts(new Date());
+    const ownerMessages = sent.filter((m) => m.chat === 'owner-chat');
+    const mateMessages = sent.filter((m) => m.chat === 'mate-chat');
+    add('held alerts: one grouped message per person, each only to their own chat', '(worker)', 200,
+      delivered.messages === 2 && ownerMessages.length === 1 && mateMessages.length === 1 &&
+      ownerMessages[0]!.text.includes('Notify One') && !ownerMessages[0]!.text.includes('Notify Two') &&
+      mateMessages[0]!.text.includes('Notify One') && mateMessages[0]!.text.includes('Notify Two'));
+    add('...and each person\'s rows are marked as told, nobody else\'s', '(store)', 200,
+      (await prisma.userJob.count({ where: { jobId: { in: [one.id, two.id] }, status: 'ALERTED', alertHeldAt: null } })) === 3);
+
+    // An alert for one person never reaches the other's chat; a search with no chosen chat broadcasts to its owner's chats.
+    sent.length = 0;
+    const alert = { title: 'Alert Only', companyName: 'Notify Co', location: 'Remote', url: '', fitScore: 88, salaryMin: null, salaryMax: null, techMatch: [], redFlags: [], summary: '' };
+    await sendAlert(teammate.id, alert, null);
+    add('an alert broadcast to a person goes to that person\'s chats only', '(worker)', 200, sent.length === 1 && sent[0]!.chat === 'mate-chat');
+    sent.length = 0;
+    await sendAlert(teammate.id, alert, ownerTarget.id);
+    add('a search naming another person\'s chat falls back to its owner\'s chats', '(worker)', 200, sent.length === 1 && sent[0]!.chat === 'mate-chat');
+
+    // The recap and the nudge are each person\'s own, with their own run row and mark.
+    sent.length = 0;
+    await prisma.cronRun.create({ data: { name: 'digest', status: 'OK', startedAt: new Date(Date.now() - 3 * 60 * 60 * 1000), userId: teammate.id } });
+    const sinceMate = await lastSuccessfulRunAt('digest', teammate.id);
+    const sinceOwner = await lastSuccessfulRunAt('digest', DEFAULT_USER_ID);
+    add('the recap\'s "since the last one" is read per person', '(store)', 200, sinceMate !== null && (sinceOwner === null || sinceOwner.getTime() !== sinceMate.getTime()));
+    await runDigestJob(DEFAULT_USER_ID);
+    await runDigestJob(teammate.id);
+    const ownerDigest = sent.filter((m) => m.chat === 'owner-chat').map((m) => m.text).join('\n');
+    const mateDigest = sent.filter((m) => m.chat === 'mate-chat').map((m) => m.text).join('\n');
+    add('the recap of each person lists only their postings, in their own chat', '(worker)', 200,
+      ownerDigest.includes('Notify One') && !ownerDigest.includes('Notify Two') && mateDigest.includes('Notify Two') && sent.every((m) => m.chat === 'owner-chat' || m.chat === 'mate-chat'));
+
+    // Operator notices go to administrators: the member's chat hears nothing.
+    sent.length = 0;
+    await sendBudgetAlert('Budget notice');
+    add('an operator notice reaches the administrators\' chats and not a member\'s', '(worker)', 200, sent.some((m) => m.chat === 'owner-chat') && !sent.some((m) => m.chat === 'mate-chat'));
+  } finally {
+    globalThis.fetch = realFetch;
+    await prisma.company.deleteMany({ where: { atsToken: 'notify-co' } });
+    await prisma.notificationTarget.deleteMany({ where: { id: { in: [ownerTarget.id, mateTarget.id] } } });
+    await prisma.cronRun.deleteMany({ where: { name: 'digest' } });
+    await setTelegramEnabled(DEFAULT_USER_ID, ownerBefore.telegramEnabled);
+    await setPersonalSchedule(DEFAULT_USER_ID, ownerSchedule);
+  }
   return out;
 }
 

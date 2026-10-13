@@ -82,6 +82,7 @@ gets a dated addendum at the end of the ADR.
 - [0066 — Searches belong to a person; scoring still covers everyone's](./0066-searches-belong-to-a-person.md) *(amends 0028: the primary lives on the user)*
 - [0067 — What a person does with a posting is their own row; the posting is shared](./0067-a-person-holds-their-own-rows.md) *(amends 0028: the best-of lives on `UserJob`)*
 - [0068 — A resume, and everything written with it, is its owner's](./0068-a-resume-and-what-hangs-off-it-is-its-owners.md) *(amends 0063: a pack is per person)*
+- [0069 — What a person is told, where, and what they muted is their own; what runs the install is the install's](./0069-settings-chats-and-mutes-belong-to-a-person.md) *(amends 0041, 0056, 0061, 0063: destinations, mutes, language and pack settings are per person)*
 
 ## When to write a new one
 

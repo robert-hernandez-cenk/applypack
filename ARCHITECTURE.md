@@ -508,6 +508,7 @@ src/
     cleanup-job.ts              ← runCleanupJob (Sunday 03:00)
     hn-hiring-job.ts            ← runHnHiringJob (the 1st of the month, 06:mm)
     discovery-job.ts            ← runDiscoveryJob (Sunday 04:mm, validation probe)
+    for-each-user.ts            ← runs a per-person job (the recap, the stale nudge) once per person, a run row each (ADR 0069)
     pack-job.ts                 ← runPackJob: the queued application packs, one at a time, each prepared as its owner, then one message (every minute; ADR 0063, 0068)
     reclassify-job.ts           ← runReclassifyAll + runScoreUnscored (web-triggered, async)
     score-pick.ts               ← pure ranking of unscored jobs by profile mentions (wizard step 5)
