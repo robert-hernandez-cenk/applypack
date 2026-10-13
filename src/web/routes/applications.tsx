@@ -19,6 +19,8 @@ import { displayZone } from '../display-zone';
 import { withLocale } from '../../i18n/locale';
 import { t } from '../../i18n/t';
 import { companyForPage, companyOnPage } from '../../employer';
+import { flat } from '../../jobs/user-job';
+import { currentUser } from '../current-user';
 
 // Stage keys are validated at runtime against the configured list
 // (ADR 0025) — an enum would freeze what is now user data.
@@ -43,13 +45,11 @@ export const applicationsRoute = new Hono();
 async function loadBoard() {
   const settings = await getSettings();
   const work = parseStageConfig(settings.pipelineStages);
-  const rows = await prisma.job.findMany({
-    where: { pipelineStage: { not: null } },
+  // The person's own board (ADR 0067): their rows, their stages, their history.
+  const userId = currentUser().id;
+  const held = await prisma.userJob.findMany({
+    where: { userId, pipelineStage: { not: null } },
     select: {
-      id: true,
-      title: true,
-      url: true,
-      employer: true,
       fitScore: true,
       recruiterContact: true,
       applicationNotes: true,
@@ -57,10 +57,19 @@ async function loadBoard() {
       appliedAt: true,
       appliedResumeVersion: true,
       appliedResume: { select: { name: true } },
-      company: { select: { name: true, atsType: true } },
+      job: {
+        select: {
+          id: true,
+          title: true,
+          url: true,
+          employer: true,
+          company: { select: { name: true, atsType: true } },
+        },
+      },
     },
-    orderBy: [{ appliedAt: 'desc' }, { id: 'desc' }],
+    orderBy: [{ appliedAt: { sort: 'desc', nulls: 'first' } }, { jobId: 'desc' }],
   });
+  const rows = held.map(flat);
 
   // The ledger dates each card's time-in-stage (ADR 0024 keeps recording
   // even though the funnel cards are gone — ADR 0025). Scoped to the cards
@@ -70,7 +79,7 @@ async function loadBoard() {
   const events =
     settings.applicationTrackingEnabled && boardIds.length > 0
       ? await prisma.jobStageEvent.findMany({
-          where: { jobId: { in: boardIds } },
+          where: { userId, jobId: { in: boardIds } },
           orderBy: { recordedAt: 'asc' },
         })
       : [];
@@ -192,8 +201,10 @@ applicationsRoute.post('/jobs/:id/stage', async (c) => {
     return c.text(t('http.unknownStage'), 400);
   }
 
-  const current = await prisma.job.findUnique({
-    where: { id },
+  const userId = currentUser().id;
+  const key = { userId_jobId: { userId, jobId: id } };
+  const current = await prisma.userJob.findUnique({
+    where: key,
     select: { pipelineStage: true, appliedAt: true },
   });
   if (!current) return c.text(t('http.notFound'), 404);
@@ -207,8 +218,8 @@ applicationsRoute.post('/jobs/:id/stage', async (c) => {
   );
   if (event) {
     await prisma.$transaction([
-      prisma.job.update({ where: { id }, data: { pipelineStage: toStage } }),
-      prisma.jobStageEvent.create({ data: event }),
+      prisma.userJob.update({ where: key, data: { pipelineStage: toStage } }),
+      prisma.jobStageEvent.create({ data: { ...event, userId } }),
     ]);
   }
   return flashRedirect('/applications', 'ok', t('applications.movedTo', { stage: labelFor(work, toStage) }));
@@ -239,8 +250,10 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
   // "Which resume did I send?" is part of the application, so the form that
   // records the application records it too (#75). Until now only "Mark
   // applied" ever wrote these columns, and this form silently left them NULL.
-  const current = await prisma.job.findUnique({
-    where: { id },
+  const userId = currentUser().id;
+  const key = { userId_jobId: { userId, jobId: id } };
+  const current = await prisma.userJob.findUnique({
+    where: key,
     select: { pipelineStage: true, appliedAt: true, appliedResumeId: true },
   });
   if (!current) return c.text(t('http.notFound'), 404);
@@ -278,8 +291,8 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
     stageChangeEvent(id, current.pipelineStage, stageValue, appliedAtValue, new Date()) ??
     appliedDateCorrection(id, stageValue, current.appliedAt, appliedAtValue);
 
-  const update = prisma.job.update({
-    where: { id },
+  const update = prisma.userJob.update({
+    where: key,
     data: {
       pipelineStage: stageValue,
       appliedAt: appliedAtValue,
@@ -295,7 +308,7 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
     },
   });
   if (event) {
-    await prisma.$transaction([update, prisma.jobStageEvent.create({ data: event })]);
+    await prisma.$transaction([update, prisma.jobStageEvent.create({ data: { ...event, userId } })]);
   } else {
     await update;
   }

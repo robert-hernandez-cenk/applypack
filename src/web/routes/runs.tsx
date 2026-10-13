@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx */
+import { currentUser } from '../current-user';
 import { Hono } from 'hono';
 import { prisma } from '../../db';
 import { RunsPage } from '../pages/runs';
@@ -23,7 +24,7 @@ runsRoute.get('/runs', async (c) => {
       take: RUNS_LIMIT,
     }),
     loadFunnel(now),
-    loadSourceYield(now),
+    loadSourceYield(currentUser().id, now),
   ]);
   return c.html(
     <RunsPage

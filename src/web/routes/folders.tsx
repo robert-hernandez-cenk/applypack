@@ -381,11 +381,14 @@ foldersRoute.get('/companies/:id/files', async (c) => {
   if (!company) return c.text(t('http.notFound'), 404);
   const [files, summaries] = await Promise.all([listSourceFiles(id), folderSummaries()]);
   // The job each file became, by the file the job names (Job.sourceFile): one query, the files shown.
-  const jobs = await prisma.job.findMany({
-    where: { companyId: id, sourceFile: { in: files.map((f) => f.relPath) } },
-    select: { id: true, title: true, fitScore: true, status: true, sourceFile: true },
+  // Only the postings the signed-in person holds (ADR 0067), with their own score and status.
+  const userId = currentUser().id;
+  const held = await prisma.job.findMany({
+    where: { companyId: id, sourceFile: { in: files.map((f) => f.relPath) }, userJobs: { some: { userId } } },
+    select: { id: true, title: true, sourceFile: true, userJobs: { where: { userId }, select: { fitScore: true, status: true } } },
     orderBy: { id: 'asc' },
   });
+  const jobs = held.flatMap(({ userJobs, ...job }) => (userJobs[0] ? [{ ...job, ...userJobs[0] }] : []));
   const kept = readSourceConfig(company.sourceConfig);
   return c.html(
     <FolderFilesPage

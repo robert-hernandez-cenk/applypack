@@ -41,7 +41,7 @@ const STACK_OPTIONS = 12;
  * A posting a search kept after scoring, whatever the user did with it
  * since: still kept, or alerted / held before it was dismissed by hand.
  */
-const WAS_MATCH: Prisma.JobWhereInput = {
+const WAS_MATCH: Prisma.UserJobWhereInput = {
   fitScore: { not: null },
   OR: [{ status: { not: JobStatus.DISMISSED } }, { alertedAt: { not: null } }, { alertHeldAt: { not: null } }],
 };
@@ -86,10 +86,10 @@ export interface OverviewStats {
 }
 
 export async function loadOverviewStats(
-  opts: { range: RangeKey; stack: string | null; unmuted: Prisma.JobWhereInput },
+  opts: { userId: number; range: RangeKey; stack: string | null; unmuted: Prisma.JobWhereInput },
   now = new Date(),
 ): Promise<OverviewStats> {
-  const { range, unmuted } = opts;
+  const { range, unmuted, userId } = opts;
   const today = dayNumber(now);
   const { days } = RANGES[range];
   const since24h = new Date(now.getTime() - DAY_MS);
@@ -101,27 +101,32 @@ export async function loadOverviewStats(
   const [funnelRows, firstFunnelDay, kpiRows, matchRows, fetched24h, alerts24h, latest, lastCheck] = await Promise.all([
     prisma.funnelDay.findMany({ where: { day: { gte: dayStart(today - (2 * days - 1)) } } }),
     prisma.funnelDay.findFirst({ orderBy: { day: 'asc' }, select: { day: true } }),
-    prisma.job.findMany({
-      // AND, not a spread: the muted clause is an OR of its own (employer.ts:withoutMuted).
-      where: {
-        AND: [
-          {
-            status: { in: [...KPI_STATUSES] },
-            OR: [{ fetchedAt: { gte: sinceSpark } }, { alertedAt: { gte: sinceSpark } }, { appliedAt: { gte: sinceSpark } }],
-          },
-          unmuted,
-        ],
-      },
-      select: { status: true, fetchedAt: true, alertedAt: true, appliedAt: true },
-    }),
-    prisma.job.findMany({
-      where: { AND: [WAS_MATCH, unmuted], fetchedAt: { gte: sinceStack } },
-      select: { fetchedAt: true, techMatch: true },
-    }),
-    prisma.job.count({ where: { fetchedAt: { gte: since24h }, ...unmuted } }),
-    prisma.job.count({ where: { alertedAt: { gte: since24h }, ...unmuted } }),
+    // Everything below is this person's own rows (ADR 0067). `job: unmuted`,
+    // not a spread: the muted clause is an OR of its own (employer.ts:withoutMuted).
+    prisma.userJob
+      .findMany({
+        where: {
+          userId,
+          status: { in: [...KPI_STATUSES] },
+          OR: [{ job: { fetchedAt: { gte: sinceSpark } } }, { alertedAt: { gte: sinceSpark } }, { appliedAt: { gte: sinceSpark } }],
+          job: unmuted,
+        },
+        select: { status: true, alertedAt: true, appliedAt: true, job: { select: { fetchedAt: true } } },
+      })
+      .then((rows) => rows.map(({ job, ...r }) => ({ ...r, fetchedAt: job.fetchedAt }))),
+    prisma.userJob
+      .findMany({
+        where: { AND: [WAS_MATCH, { userId, job: { AND: [unmuted], fetchedAt: { gte: sinceStack } } }] },
+        select: { techMatch: true, job: { select: { fetchedAt: true } } },
+      })
+      .then((rows) => rows.map(({ job, techMatch }) => ({ techMatch, fetchedAt: job.fetchedAt }))),
+    prisma.userJob.count({ where: { userId, job: { AND: [unmuted], fetchedAt: { gte: since24h } } } }),
+    prisma.userJob.count({ where: { userId, alertedAt: { gte: since24h }, job: unmuted } }),
     // "Latest 2d ago" under a zero: when it last happened at all, not only inside the 24 hours.
-    prisma.job.aggregate({ where: unmuted, _max: { fetchedAt: true, alertedAt: true } }),
+    Promise.all([
+      prisma.job.aggregate({ where: { AND: [unmuted, { userJobs: { some: { userId } } }] }, _max: { fetchedAt: true } }),
+      prisma.userJob.aggregate({ where: { userId, job: unmuted }, _max: { alertedAt: true } }),
+    ]).then(([jobs, mine]) => ({ _max: { fetchedAt: jobs._max.fetchedAt, alertedAt: mine._max.alertedAt } })),
     prisma.cronRun.findFirst({
       where: { name: { in: ['fetch', 'fetch-now'] } },
       orderBy: { startedAt: 'desc' },

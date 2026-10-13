@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx */
+import { flat } from '../../jobs/user-job';
 import { Hono } from 'hono';
 import { idParam } from '../params';
 import { onceGuard } from '../once-guard';
@@ -91,17 +92,19 @@ welcomeRoute.get('/welcome', async (c) => {
     countAggregators(),
     packOffers(),
     profile
-      ? prisma.job.count({
-          where: { fitScore: { gte: profile.minFitScore }, status: { not: JobStatus.DISMISSED } },
+      ? prisma.userJob.count({
+          where: { userId: currentUser().id, fitScore: { gte: profile.minFitScore }, status: { not: JobStatus.DISMISSED } },
         })
       : 0,
-    prisma.job.findMany({
-      where: { fitScore: { not: null }, status: { not: JobStatus.DISMISSED } },
-      orderBy: [{ fitScore: 'desc' }, { fetchedAt: 'desc' }],
-      take: TOP_MATCHES,
-      select: { id: true, title: true, employer: true, fitScore: true, company: { select: { name: true, atsType: true } } },
-    }),
-    profile && facts.profileReady ? countWaitingUnscored(profile) : 0,
+    prisma.userJob
+      .findMany({
+        where: { userId: currentUser().id, fitScore: { not: null }, status: { not: JobStatus.DISMISSED } },
+        orderBy: [{ fitScore: 'desc' }, { job: { fetchedAt: 'desc' } }],
+        take: TOP_MATCHES,
+        select: { fitScore: true, job: { select: { id: true, title: true, employer: true, company: { select: { name: true, atsType: true } } } } },
+      })
+      .then((rows) => rows.map(flat)),
+    profile && facts.profileReady ? countWaitingUnscored(currentUser().id, profile) : 0,
     // One local request per default address, on step 1 only — no other step asks.
     current === 'ai' ? findLocalServers() : [],
   ]);
@@ -437,9 +440,9 @@ async function findLastSearch(): Promise<LastSearch | null> {
 }
 
 /** Stored-unscored jobs that pass the profile's words — what one "Score" press would read. */
-async function countWaitingUnscored(profile: Profile): Promise<number> {
+async function countWaitingUnscored(userId: number, profile: Profile): Promise<number> {
   const rows = await prisma.job.findMany({
-    where: { fitScore: null, status: JobStatus.NEW },
+    where: { userJobs: { some: { userId, fitScore: null, status: JobStatus.NEW } } },
     select: { title: true, location: true, workplace: true, countries: true, regions: true },
   });
   return rows.filter((j) => passesBaseFilter(j, profile)).length;

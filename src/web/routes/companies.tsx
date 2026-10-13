@@ -91,16 +91,17 @@ companiesRoute.get('/companies', async (c) => {
     include: {
       _count: { select: { jobs: true } },
       jobs: {
-        select: { fetchedAt: true, status: true },
+        select: { fetchedAt: true },
         orderBy: { fetchedAt: 'desc' },
         take: 1,
       },
     },
   });
 
+  // Alerted or applied for this person (ADR 0067).
   const alertedCounts = await prisma.job.groupBy({
     by: ['companyId'],
-    where: { status: { in: [JobStatus.ALERTED, JobStatus.APPLIED] } },
+    where: { userJobs: { some: { userId: currentUser().id, status: { in: [JobStatus.ALERTED, JobStatus.APPLIED] } } } },
     _count: { _all: true },
   });
   const alertedMap = new Map<number, number>();
@@ -114,7 +115,8 @@ companiesRoute.get('/companies', async (c) => {
   // applications behind "and all its 73 jobs?" (audit, TASKS §14).
   const applicationCounts = await prisma.job.groupBy({
     by: ['companyId'],
-    where: { OR: [{ pipelineStage: { not: null } }, { status: JobStatus.APPLIED }] },
+    // Anybody's: a delete takes every person's application with the job.
+    where: { userJobs: { some: { OR: [{ pipelineStage: { not: null } }, { status: JobStatus.APPLIED }] } } },
     _count: { _all: true },
   });
   const applicationMap = new Map(applicationCounts.map((r) => [r.companyId, r._count._all]));

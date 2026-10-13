@@ -1,4 +1,5 @@
 import { prisma } from '../db';
+import { currentUser } from './current-user';
 import { config } from '../config';
 import { cronMinute } from '../schedule';
 import { getInstanceId } from '../settings';
@@ -32,7 +33,7 @@ export interface NextCheck {
 
 /** The waiting line both pages show, or null when nothing is held. */
 export async function loadHeldLine(schedule: Schedule): Promise<HeldLine | null> {
-  const count = await countHeldAlerts();
+  const count = await countHeldAlerts(currentUser().id);
   if (count === 0) return null;
   return heldLine(count, heldReason(await alertChannel(), schedule.alerts.mode));
 }

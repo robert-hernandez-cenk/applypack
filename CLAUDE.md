@@ -194,8 +194,16 @@
   (ADR 0066): `profiles.ts` takes the `userId` first (a foreign id reads as
   "search gone"), `User.primaryProfileId` is the primary, the cap is per
   person, and the worker scores against `listAllActiveProfiles()` — every
-  running search of every person in ONE call; `Job.fitScore` stays the
-  global best-of until the per-user job state slice.
+  running search of every person in ONE call. What a person does with a
+  posting is `UserJob(userId, jobId)` (ADR 0067): status, their best-of
+  verdict, alert stamps, application fields, notes; `Job` keeps the shared
+  posting. A reader of "my postings" starts from `user_job` with
+  `currentUser().id` (`jobs/user-job.ts:flat` lays the row over the posting
+  for pages); `web/job-guard.ts` makes `/jobs/<id>/…` "not found" for a
+  posting the person holds no row for. `mergeVerdictsByUser` merges per owner;
+  `process-jobs.ts` creates the rows with the posting, `score-store.ts` is the
+  one write for a re-score. Pasted / imported postings are their adder's only
+  (`ownerId`, `givesRowToOthers`). The old `Job.status`-style columns are gone.
 - `src/starter-packs/` is the curated-pack module: `catalog.json` (data),
   `catalog.ts` and `resolve.ts` are pure (tested), `probe.ts` calls
   `probeAts`. Web-only — the worker never imports it. Every catalog entry

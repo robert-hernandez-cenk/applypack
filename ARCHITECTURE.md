@@ -95,14 +95,12 @@ sequenceDiagram
     else classified
       classifyJob-->>processNormalizedJobs: one verdict per search
       processNormalizedJobs->>processNormalizedJobs: buildVerdicts() + mergeVerdicts()
-      alt every search dismissed it
-        processNormalizedJobs->>prisma: create Job(status=DISMISSED) + JobScore rows
-      else kept, but canAlertNow says no
-        processNormalizedJobs->>prisma: create Job(status=NEW, alertHeldAt=now) + JobScore rows
-      else kept
-        processNormalizedJobs->>prisma: create Job(status=NEW) + JobScore rows
-        processNormalizedJobs->>sendAlert: sendAlert(job, winner.notificationTargetId)
-        processNormalizedJobs->>prisma: update Job(status=ALERTED)
+      alt every search of every person dismissed it
+        processNormalizedJobs->>prisma: create Job + JobScore rows + a UserJob(status=DISMISSED) per person
+      else some person keeps it
+        processNormalizedJobs->>prisma: create Job + JobScore rows + a UserJob per person (NEW, alertHeldAt=now when canAlertNow says no)
+        processNormalizedJobs->>sendAlert: sendAlert(job, that person's winner.notificationTargetId), once per person who keeps it
+        processNormalizedJobs->>prisma: update that person's UserJob(status=ALERTED)
       end
     end
   end
@@ -493,8 +491,10 @@ src/
     employer-store.ts           ← the mute list, the tick's employer rules, the one-time fill of older rows' keys (ADR 0056)
     fetch-pause.ts              ← makeFetchPauseProbe: a pause on /settings stops a running tick within seconds
     process-jobs.ts             ← processNormalizedJobs: the shared inner loop used by fetch + HN
-    verdict-merge.ts            ← pure: one verdict per search, the winner, the score line (ADR 0028)
-    score-store.ts              ← the one write path for a re-score of a stored job
+    verdict-merge.ts            ← pure: one verdict per search, the winner, the score line (ADR 0028), merged per owner (ADR 0067)
+    user-job.ts                 ← pure: a person's row from their merged verdict, the flat shape pages read, who gets a row on a re-score (ADR 0067)
+    user-job-store.ts           ← the worker's reads and alert stamps on user_job
+    score-store.ts              ← the one write path for a re-score of a stored job (its posting and every person's row, one transaction)
     location-merge.ts           ← pure: the classifier's place fills or narrows the parser's, never blanks it (ADR 0032)
     location-reason.ts          ← pure: "open to Poland; this search hunts in …" for the job page (ADR 0032)
     alert-delivery.ts           ← deliverHeldAlerts: sends the held matches on the first beat the schedule and the Alerts switch allow
@@ -579,6 +579,7 @@ src/
     job-facets.ts               ← /jobs place / workplace / posted facets: params, where, chip counts; the list's URLs (jobsHref), the filters in force (pure)
     job-tabs.ts                 ← the job page's tabs: resolveJobTab (explicit, else inferred from match= / letter=), jobHref, the labels with what exists (pure)
     job-pick.ts                 ← the jobs a candidate launcher offers (fit threshold, newest, ?job= kept)
+    job-guard.ts                ← middleware: /jobs/<id>/… is not found for a posting the person holds no row for (ADR 0067)
     runs-summary.ts             ← a run's stats as facts in a fixed order, a reason as a sentence (pure) — what /runs shows instead of JSON
     usage-hints.ts              ← what the AI ledger suggests changing (pure): the billed task, fallbacks, failures, a pricey scoring model, the budget's pace
     ai-plan.ts                  ← who answers each task, with which model and whose money (pure, ADR 0060)
@@ -807,7 +808,9 @@ erDiagram
   Company ||--o{ Job : "companyId (Cascade)"
   Company ||--o{ SourceFile : "companyId (Cascade)"
   Job |o--o{ Job : "crossListedOfJobId (SetNull)"
-  Resume |o--o{ Job : "appliedResumeId (SetNull)"
+  User ||--o{ UserJob : "userId (Cascade), whose row it is"
+  Job ||--o{ UserJob : "jobId (Cascade), the shared posting"
+  Resume |o--o{ UserJob : "appliedResumeId (SetNull)"
   CompanyCandidate |o..o| Company : "the same atsType + atsToken, no foreign key"
   Job ||--o{ JobStageEvent : "jobId (Cascade)"
   Resume ||--o{ ResumeReview : "resumeId (Cascade)"
@@ -960,7 +963,6 @@ erDiagram
     String[] countries "ISO-2: where to live (remote) or the office"
     String[] regions "named markers only: EU, EUROPE, WORLDWIDE …"
     String locationSource "structured, parsed, ai or NULL"
-    Int fitScore "the best search's score"
     Int salaryMin
     Int salaryMax
     String salaryCurrency
@@ -968,9 +970,22 @@ erDiagram
     Json sourcePayload "France Travail's offer as received"
     DateTime sourceUpdatedAt
     DateTime sourceCheckedAt
+    String liveness "active, expired or uncertain (ADR 0016)"
+    String livenessCode
+    DateTime livenessCheckedAt
+    BigInt descriptionSimhash "ADR 0018"
+    Int crossListedOfJobId FK
+  }
+
+  UserJob {
+    Int id PK
+    Int userId FK "whose row (ADR 0067)"
+    Int jobId FK
+    Int fitScore "the best of THIS person's searches"
     String[] techMatch
     String[] redFlags
     String summary
+    String[] priorityRulesApplied
     JobStatus status
     DateTime alertedAt
     DateTime alertHeldAt "held outside the alert window"
@@ -981,12 +996,6 @@ erDiagram
     Int appliedResumeId FK
     Int appliedResumeVersion
     String appliedResumeText "snapshot — resume bytes are replaced in place"
-    String[] priorityRulesApplied
-    String liveness "active, expired or uncertain (ADR 0016)"
-    String livenessCode
-    DateTime livenessCheckedAt
-    BigInt descriptionSimhash "ADR 0018"
-    Int crossListedOfJobId FK
   }
 
   JobStageEvent {

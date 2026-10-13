@@ -107,7 +107,7 @@ export async function runPackJob(): Promise<{ stats: CronStats }> {
 
 /** Why a pack the tick queued should not be prepared now (trigger.ts), or null. Read per pack: the settings and the job are the person's to change while the queue runs. */
 async function noLongerWanted(jobId: number): Promise<Unwanted | null> {
-  const [pack, job, muted] = await Promise.all([getPackSettings(), packJobState(jobId), mutedKeys()]);
+  const [pack, job, muted] = await Promise.all([getPackSettings(), packJobState(DEFAULT_USER_ID, jobId), mutedKeys()]);
   // A job that is gone fails in runOne, with its own sentence.
   if (!job) return null;
   return autoPackUnwanted({ enabled: pack.enabled, status: job.status, applied: job.applied, muted: job.employerKey !== null && muted.includes(job.employerKey) });

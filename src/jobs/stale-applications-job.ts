@@ -19,9 +19,11 @@ export { formatStaleMessage, type StaleApplicationItem } from './stale-applicati
 
 /**
  * Daily cron: find APPLIED jobs that have sat in 'applied' stage for more
- * than 14 days with no recruiter contact, and send a Telegram nudge.
+ * than 14 days with no recruiter contact, and send a Telegram nudge. One
+ * person's applications (ADR 0067); until chats belong to a person (#11) the
+ * worker asks for the default user's.
  */
-export async function runStaleApplicationsJob(): Promise<{ stats: CronStats }> {
+export async function runStaleApplicationsJob(userId: number): Promise<{ stats: CronStats }> {
   const settings = await getSettings();
   if (!settings.applicationTrackingEnabled) {
     logger.info('stale-applications: skipped (tracking disabled)');
@@ -33,23 +35,24 @@ export async function runStaleApplicationsJob(): Promise<{ stats: CronStats }> {
   }
 
   const cutoff = new Date(Date.now() - STALE_APPLICATION_DAYS * DAY_MS);
-  const rows = await prisma.job.findMany({
+  const rows = await prisma.userJob.findMany({
     where: {
+      userId,
       pipelineStage: 'applied',
       appliedAt: { lt: cutoff },
       recruiterContact: null,
     },
     include: {
-      company: { select: { name: true, atsType: true } },
+      job: { include: { company: { select: { name: true, atsType: true } } } },
       appliedResume: { select: { name: true } },
     },
     orderBy: { appliedAt: 'asc' },
   });
 
   const items: StaleApplicationItem[] = rows.map((j) => ({
-    title: j.title,
-    companyName: companyForMessage(j.employer, j.company),
-    url: j.url,
+    title: j.job.title,
+    companyName: companyForMessage(j.job.employer, j.job.company),
+    url: j.job.url,
     appliedAt: j.appliedAt as Date,
     daysSince: daysSince(j.appliedAt as Date),
     recruiterContact: j.recruiterContact,

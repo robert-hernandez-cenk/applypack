@@ -1,3 +1,4 @@
+import { DEFAULT_USER_ID } from './users/identity';
 import { writeFileSync } from 'node:fs';
 import cron from 'node-cron';
 import { config } from './config';
@@ -53,10 +54,10 @@ async function main(): Promise<void> {
   // (TASKS §16.4), so the heartbeat is hourly and the hour decides. They read
   // that hour differently: the recap is a window and goes out at every digest
   // time, the nudge is a standing state and goes out at the first one.
-  registerCron('0 * * * *', 'digest', () => onSchedule('digest', isDigestHour, runDigestJob));
+  registerCron('0 * * * *', 'digest', () => onSchedule('digest', isDigestHour, () => runDigestJob(DEFAULT_USER_ID)));
   registerCron('0 3 * * 0', 'cleanup', () => recordCronRun('cleanup', runCleanupJob));
   registerCron('0 * * * *', 'stale-applications', () =>
-    onSchedule('stale-applications', isFirstDigestHour, runStaleApplicationsJob),
+    onSchedule('stale-applications', isFirstDigestHour, () => runStaleApplicationsJob(DEFAULT_USER_ID)),
   );
   // 06:xx on the 1st of each month, in `config.TZ` (Who-is-hiring threads
   // land around the 1st-2nd; the minute is this install's own, see

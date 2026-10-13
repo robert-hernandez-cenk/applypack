@@ -16,6 +16,7 @@ import { authLock, planAuth, signInRuntime } from './oidc/mount';
 import { markSignInEnabled } from './oidc/enabled';
 import { signInRoutes } from './oidc/routes';
 import { withCurrentUser } from './current-user';
+import { requireHeldJob } from './job-guard';
 import { loadUser, provisionOidcUser } from '../users/store';
 import { ensurePrimaryProfile } from '../profiles';
 import { overviewRoute } from './routes/overview';
@@ -175,6 +176,8 @@ app.use('*', async (c, next) =>
 
 // Who the request acts as (ADR 0065): after the lock has read the session, before any route.
 app.use('*', withCurrentUser(loadUser));
+// A posting the person does not hold is not found, on every /jobs/<id> route (ADR 0067).
+app.use('/jobs/*', requireHeldJob());
 
 // After the language middleware, so the pages it draws read in the person's language.
 // A new member starts with a blank primary search of their own (ADR 0066); a known user keeps theirs.

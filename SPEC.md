@@ -117,7 +117,8 @@ classifyJob(input, profiles[], mode)   ONE call for every running search, on the
  scores: [{profile_id, fit_score, location_match, tech_match, …}]}
    ↓
 buildVerdicts()          per-search decideDismissReason() against that search's thresholds;
-mergeVerdicts()          the winner's numbers become Job.fitScore, every verdict a JobScore row
+mergeVerdicts()          the best verdict of any search supplies the posting's salary; every verdict a JobScore row
+mergeVerdictsByUser()    each person's winner becomes their UserJob.fitScore (ADR 0067)
    ↓ dismissed only when every search dismissed it
 Job(status=NEW) → one sendAlert(), named for the winner, routed to its notificationTargetId;
                   when canAlertNow says no (outside the window, or any time in digest mode), while
@@ -174,7 +175,7 @@ AI call (`web/overview-stats.ts`):
   which outlives the jobs. Under it, the funnel's four stages for the same
   range.
 - **What do the matches ask for?** *Jobs by stack*: the technologies of the
-  running searches that the last 30 days' matches name (`Job.techMatch`), and
+  running searches that the last 30 days' matches name (`UserJob.techMatch`), and
   the same list as the chart's **All stack** filter. Anything by technology
   reads the jobs, and a dismissed job is deleted after 30 days — so the
   filter covers 7D and 30D and is off beyond. A match here is a job that was
@@ -204,7 +205,7 @@ General → Schedule is read by a pure gate (`src/user-schedule.ts`) at the
 start of each beat, in the schedule's own time zone: `isFetchDue` decides
 whether the fetch tick searches (a "no" is `outside-schedule` on /runs),
 `canAlertNow` decides whether a fresh match is sent or held on
-`Job.alertHeldAt` (held too while Alerts are off, or after every chat
+`UserJob.alertHeldAt` (held too while Alerts are off, or after every chat
 refused it), `isDigestHour` decides whether the hourly recap beat does
 anything, and `isFirstDigestHour` whether the stale-application beat does.
 A beat that is not its digest hour writes no run row. An empty
@@ -228,7 +229,7 @@ Several run at once, up to 8 (ADR 0028): `Profile.active` is the switch, and
 `AppSettings.activeProfileId` names the **primary**, the one that supplies
 defaults everywhere and always runs. One classifier call scores each posting
 against every running search and returns a verdict each; those land in
-`JobScore` (jobId × profileId) while `Job.fitScore` keeps the best-of for
+`JobScore` (jobId × profileId) while each person's `UserJob.fitScore` keeps the best-of of their own searches for
 sorting. A posting is admitted when any search's base filter admits it, and
 dismissed only when every search rejects it. Alerts are one per posting,
 named for the winner and routed to that search's `notificationTargetId`.
@@ -312,7 +313,7 @@ clause at the start of the affected job/handler. The toggles live on
 
 ## Application tracking
 
-`Job.pipelineStage` is the funnel state, orthogonal to `Job.status`
+`UserJob.pipelineStage` is the funnel state, orthogonal to `UserJob.status`
 (`status=APPLIED` + `pipelineStage='ghosted'` is a valid pair). Columns are
 configured on `/settings` → Applications: **Applied** and **Rejected/Ghosted** are
 fixed, everything between them is user-named and reorderable, and keys never
@@ -321,7 +322,7 @@ ledger row in the same transaction (ADR 0024).
 
 **Which resume it went out with.** "Mark applied" on `/jobs/:id` carries a
 resume select — preselected from the comparison on screen, else from the
-search that scored the posting best — and writes `Job.appliedResumeId`,
+search that scored the posting best — and writes `UserJob.appliedResumeId`,
 `appliedResumeVersion` and `appliedResumeText`. The text snapshot is not
 redundant: "Upload a new version" replaces the bytes of the same `Resume`
 row, so an id alone would name v3 and hand back v5's words (the pattern
@@ -1067,8 +1068,11 @@ person, and the dashboard lists and changes only the signed-in person's
 searches. Scoring is shared: one classifier call per posting covers every
 running search of every person and stores a verdict per search; /jobs and a
 job page show only your own searches' verdicts. A new member starts with a
-blank primary search. No other table is scoped yet (issue #5, later
-slices).
+blank primary search. What a person does with a posting is their own
+`UserJob` row (ADR 0067): status, best-of verdict among their searches, alert
+stamps, application fields and stage history; the posting itself is shared and a
+person sees only the postings they hold. Resumes, notifications and mutes are
+not scoped yet (issue #5, later slices).
 
 ## Hard out-of-scope (Phase 7+)
 

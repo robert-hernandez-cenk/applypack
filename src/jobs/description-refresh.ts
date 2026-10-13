@@ -23,9 +23,9 @@ export interface DescriptionSwap {
 }
 
 /** Replace the description with the listing's text; the first refresh keeps the original, later ones keep the first. */
-export async function refreshDescription(job: ClassifiableJob, fetched: string): Promise<DescriptionSwap> {
+export async function refreshDescription(job: ClassifiableJob, fetched: string, userId: number): Promise<DescriptionSwap> {
   const description = normaliseDescription(fetched);
-  return swap(job, {
+  return swap(job, userId, {
     description,
     descriptionOriginal: job.descriptionOriginal ?? job.description,
     descriptionRefreshedAt: new Date(),
@@ -33,9 +33,9 @@ export async function refreshDescription(job: ClassifiableJob, fetched: string):
 }
 
 /** Put the original back; the swap stays dated so stored comparisons of the listing's text are not reused either. */
-export async function restoreDescription(job: ClassifiableJob): Promise<DescriptionSwap | null> {
+export async function restoreDescription(job: ClassifiableJob, userId: number): Promise<DescriptionSwap | null> {
   if (job.descriptionOriginal === null) return null;
-  return swap(job, {
+  return swap(job, userId, {
     description: job.descriptionOriginal,
     descriptionOriginal: null,
     descriptionRefreshedAt: new Date(),
@@ -44,6 +44,7 @@ export async function restoreDescription(job: ClassifiableJob): Promise<Descript
 
 async function swap(
   job: ClassifiableJob,
+  userId: number,
   data: { description: string; descriptionOriginal: string | null; descriptionRefreshedAt: Date },
 ): Promise<DescriptionSwap> {
   const updated = await prisma.job.update({
@@ -54,7 +55,7 @@ async function swap(
   try {
     // The user cares about this posting — they just refreshed it — so a
     // search that now rejects it must not dismiss it under them.
-    reclassified = (await classifyExistingJob({ ...job, ...updated }, { keepStatus: true })).kind === 'scored';
+    reclassified = (await classifyExistingJob({ ...job, ...updated }, { keepStatus: true, userId })).kind === 'scored';
   } catch (err) {
     logger.error({ err, jobId: job.id }, 'description-refresh: re-classify failed');
   }

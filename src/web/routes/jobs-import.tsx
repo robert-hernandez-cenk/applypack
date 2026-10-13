@@ -82,7 +82,7 @@ async function importSources(): Promise<ImportSourceRow[]> {
   return Promise.all(
     sources.map(async (s) => {
       const [applications, comparisons, letters] = await Promise.all([
-        prisma.job.count({ where: { companyId: s.id, OR: [{ pipelineStage: { not: null } }, { status: JobStatus.APPLIED }] } }),
+        prisma.job.count({ where: { companyId: s.id, userJobs: { some: { OR: [{ pipelineStage: { not: null } }, { status: JobStatus.APPLIED }] } } } }),
         prisma.resumeMatch.count({ where: { job: { companyId: s.id } } }),
         prisma.coverLetter.count({ where: { job: { companyId: s.id } } }),
       ]);
@@ -289,6 +289,7 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
   }
 
   const jobs = mapped.jobs.map((job) => ({ ...job, companyId: source.id }));
+  const userId = currentUser().id;
 
   const { fetchingEnabled } = await getSettings();
   const { run, joined } = claimRun(key, {
@@ -307,7 +308,7 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
     let stats: CronStats = {};
     try {
       await recordCronRun('import', async () => {
-        const out = await runImportJob(source, jobs, alerts);
+        const out = await runImportJob(source, jobs, alerts, userId);
         stats = out.stats;
         return out;
       });

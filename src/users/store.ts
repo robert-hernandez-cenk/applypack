@@ -33,3 +33,9 @@ export async function provisionOidcUser(identity: Identity): Promise<number> {
     return won.id;
   }
 }
+
+/** Every user's id: a posting stored without a verdict is handed to all of them (ADR 0067). */
+export async function listUserIds(): Promise<number[]> {
+  const rows = await prisma.user.findMany({ select: { id: true }, orderBy: { id: 'asc' } });
+  return rows.map((r) => r.id);
+}

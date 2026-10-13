@@ -9,7 +9,9 @@ import { DISMISS_KEY, FILTER_KEY } from '../funnel';
 import { getActiveProfile, listAllActiveProfiles } from '../profiles';
 import { getSettings } from '../settings';
 import { isBlankProfile } from '../profile-guards';
-import { buildVerdicts, mergeVerdicts } from './verdict-merge';
+import { buildVerdicts, mergeVerdicts, mergeVerdictsByUser } from './verdict-merge';
+import { givesRowToOthers, type UserOutcome } from './user-job';
+import { statusesOf } from './user-job-store';
 import { saveJobScores } from './score-store';
 import { storedPlace } from './classify-existing';
 import { mergeAiLocation } from './location-merge';
@@ -30,11 +32,12 @@ export interface ReclassifyOptions {
 }
 
 /**
- * Re-classifies all jobs (except APPLIED) against every active search
- * (ADR 0028). Rewrites that job's JobScore rows and the best-of on the Job
- * row, and may move jobs between NEW and DISMISSED — dismissed only when
- * every search rejects them, and never a Saved row or a posting the user
- * pasted or saved as a file (rescore-status.ts).
+ * Re-classifies all jobs (except those every holder has APPLIED to) against
+ * every active search of every person (ADR 0028, 0067). Rewrites that job's
+ * JobScore rows and each person's best-of, and may move a person's row between
+ * NEW and DISMISSED — dismissed only when every search of theirs rejects it,
+ * and never a Saved row or a posting they pasted or saved as a file
+ * (rescore-status.ts). Counters count rows (a posting two people hold counts twice).
  */
 export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
   return reclassify({});
@@ -61,7 +64,10 @@ export async function runScoreUnscored(
 
   const unscored = await prisma.job.findMany({
     // A muted company's rows are never scored: a mute promises no AI on them (ADR 0056).
-    where: { fitScore: null, status: JobStatus.NEW, ...withoutMuted(await mutedKeys()) },
+    where: {
+      userJobs: { some: { userId: opts.userId, fitScore: null, status: JobStatus.NEW } },
+      ...withoutMuted(await mutedKeys()),
+    },
     select: {
       id: true,
       title: true,
@@ -87,8 +93,8 @@ export async function runScoreUnscored(
     }
   }
   if (rejectedIds.length > 0) {
-    await prisma.job.updateMany({
-      where: { id: { in: rejectedIds } },
+    await prisma.userJob.updateMany({
+      where: { userId: opts.userId, jobId: { in: rejectedIds } },
       data: { status: JobStatus.DISMISSED },
     });
   }
@@ -120,7 +126,8 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
   const { classifierMode } = await getSettings();
   // A muted company's rows are not scored again: a mute promises no AI on them (ADR 0056).
   const scope = {
-    status: { not: JobStatus.APPLIED },
+    // Nothing to score again for a posting every holder has applied to.
+    NOT: { userJobs: { some: {}, every: { status: JobStatus.APPLIED } } },
     ...withoutMuted(await mutedKeys()),
     ...(opts.ids && { id: { in: opts.ids } }),
   };
@@ -202,17 +209,24 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
     // once per batch (DATA-4): a "Re-classify all" over thousands of rows was
     // thousands of single-row updates, next to an updateMany the same file
     // already uses above.
-    const demoteIds: number[] = [];
-    const saveIds: number[] = [];
-    const turnDown = (j: { id: number; status: JobStatus }, chosen: boolean): void => {
-      const target = statusAfterRescore(j.status, false, chosen);
-      if (target === j.status) return;
-      if (target === JobStatus.SAVED) {
-        saveIds.push(j.id);
-        keptSaved++;
-      } else {
-        demoteIds.push(j.id);
-        demoted++;
+    // Per person: userId -> the jobs to move.
+    const demoteIds = new Map<number, number[]>();
+    const saveIds = new Map<number, number[]>();
+    const queue = (into: Map<number, number[]>, userId: number, jobId: number): void => {
+      into.set(userId, [...(into.get(userId) ?? []), jobId]);
+    };
+    const states = await statusesOf(batch.map((b) => b.id));
+    const turnDown = (j: { id: number }, chosen: boolean): void => {
+      for (const [userId, current] of states.get(j.id) ?? []) {
+        const target = statusAfterRescore(current, false, chosen);
+        if (target === current) continue;
+        if (target === JobStatus.SAVED) {
+          queue(saveIds, userId, j.id);
+          keptSaved++;
+        } else {
+          queue(demoteIds, userId, j.id);
+          demoted++;
+        }
       }
     };
     for (const { job: j, chosen, outcome } of pending) {
@@ -247,21 +261,26 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
       reclassified++;
       priorityBoosted += boosted;
 
-      if (!merged.kept && merged.winner.dismissReason) dismissedBy[DISMISS_KEY[merged.winner.dismissReason]]++;
-      const targetStatus = statusAfterRescore(j.status, merged.kept, chosen);
+      const held = states.get(j.id) ?? new Map<number, JobStatus>();
+      const outcomes: UserOutcome[] = [];
+      for (const [userId, m] of mergeVerdictsByUser(verdicts)) {
+        const current = held.get(userId) ?? JobStatus.NEW;
+        const target = statusAfterRescore(current, m.kept, chosen);
+        outcomes.push({ userId, merged: m, status: target });
+        if (!m.kept && m.winner.dismissReason) dismissedBy[DISMISS_KEY[m.winner.dismissReason]]++;
+        if (target === current) unchanged++;
+        else if (target === JobStatus.NEW) promoted++;
+        else if (target === JobStatus.SAVED) keptSaved++;
+        else demoted++;
+      }
 
-      await saveJobScores(j, merged, verdicts, targetStatus, mergeAiLocation(storedPlace(j), location));
-
-      if (targetStatus === j.status) unchanged++;
-      else if (targetStatus === JobStatus.NEW) promoted++;
-      else if (targetStatus === JobStatus.SAVED) keptSaved++;
-      else demoted++;
+      await saveJobScores(j, merged, verdicts, outcomes, givesRowToOthers(chosen, false), mergeAiLocation(storedPlace(j), location));
     }
-    if (demoteIds.length > 0) {
-      await prisma.job.updateMany({ where: { id: { in: demoteIds } }, data: { status: JobStatus.DISMISSED } });
+    for (const [userId, ids] of demoteIds) {
+      await prisma.userJob.updateMany({ where: { userId, jobId: { in: ids } }, data: { status: JobStatus.DISMISSED } });
     }
-    if (saveIds.length > 0) {
-      await prisma.job.updateMany({ where: { id: { in: saveIds } }, data: { status: JobStatus.SAVED } });
+    for (const [userId, ids] of saveIds) {
+      await prisma.userJob.updateMany({ where: { userId, jobId: { in: ids } }, data: { status: JobStatus.SAVED } });
     }
   }
 

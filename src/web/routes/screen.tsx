@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx */
+import { currentUser } from '../current-user';
 import { Hono } from 'hono';
 import { idParam } from '../params';
 import { bodyLimit } from 'hono/body-limit';
@@ -101,7 +102,7 @@ screenRoute.get('/screen/new', async (c) => {
   // Pasted postings first — a position someone is hiring for is far likelier
   // to have been pasted than fetched from a board — then the newest.
   const jobs = await prisma.job.findMany({
-    where: { status: { not: 'DISMISSED' } },
+    where: { userJobs: { some: { userId: currentUser().id, status: { not: 'DISMISSED' } } } },
     orderBy: [{ fetchedAt: 'desc' }],
     take: JOB_PICK_LIMIT,
     // A picker option, not a posting (DATA-5).
@@ -141,7 +142,7 @@ screenRoute.post('/screen', postingUploadLimit, onceGuard(() => 'screen:new', ()
   let jobTitle: string;
   let postingText: string;
   if (f.jobMode === 'existing') {
-    const job = f.jobId ? await prisma.job.findUnique({ where: { id: f.jobId }, select: { id: true, title: true, description: true } }) : null;
+    const job = f.jobId ? await prisma.job.findFirst({ where: { id: f.jobId, userJobs: { some: { userId: currentUser().id } } }, select: { id: true, title: true, description: true } }) : null;
     if (!job) return flashRedirect('/screen/new', 'err', t('screenRoute.pickJob'));
     jobId = job.id;
     jobTitle = job.title;
@@ -163,6 +164,7 @@ screenRoute.post('/screen', postingUploadLimit, onceGuard(() => 'screen:new', ()
     }
     const result = await createManualJob(
       { companyName: f.companyName || 'Your company', title: f.title, url: '', location: f.location, description },
+      currentUser().id,
       { classify: false },
     );
     jobId = result.job.id;

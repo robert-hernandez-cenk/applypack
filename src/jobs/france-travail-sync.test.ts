@@ -7,6 +7,7 @@ import {
   dueBefore,
   expiredBefore,
   planExpiry,
+  storedOffer,
   planSync,
   unverifiedSince,
 } from './france-travail-sync';
@@ -95,4 +96,13 @@ describe('unverifiedSince', () => {
       OR: [{ sourceCheckedAt: { lt: before } }, { sourceCheckedAt: null, fetchedAt: { lt: before } }],
     });
   });
+});
+
+describe('storedOffer', () => { it('keeps what anybody holds: the strongest status and any stage', () => {
+  const offer = (userJobs: { status: JobStatus; pipelineStage: string | null }[]) => storedOffer({ id: 1, externalId: 'A', userJobs });
+  assert.equal(offer([{ status: JobStatus.DISMISSED, pipelineStage: null }, { status: JobStatus.APPLIED, pipelineStage: null }]).status, JobStatus.APPLIED);
+  assert.equal(offer([{ status: JobStatus.NEW, pipelineStage: null }, { status: JobStatus.SAVED, pipelineStage: null }]).status, JobStatus.SAVED);
+  assert.equal(offer([{ status: JobStatus.DISMISSED, pipelineStage: 'screening' }]).pipelineStage, 'screening');
+  assert.equal(offer([]).status, JobStatus.DISMISSED);
+});
 });

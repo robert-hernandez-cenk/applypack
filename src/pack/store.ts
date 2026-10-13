@@ -43,8 +43,14 @@ export async function getPackFile(jobId: number, kind: 'docx' | 'pdf'): Promise<
 /** `waiting`: already in the queue; `busy`: the runner has it. Both mean nothing was queued by this press. */
 export type QueueOutcome = 'queued' | 'waiting' | 'busy' | 'sent' | 'kept';
 
-/** A posting the person applied to, by any road: marked applied, or put on the applications board. */
-const APPLIED_TO = { OR: [{ status: 'APPLIED' }, { appliedAt: { not: null } }, { pipelineStage: { not: null } }] } satisfies Prisma.JobWhereInput;
+/**
+ * A posting somebody applied to, by any road: marked applied, or put on their
+ * applications board. A pack is per posting (resumes are slice 4, ADR 0067), so
+ * one person's application keeps the file that may have gone out.
+ */
+const APPLIED_TO = {
+  userJobs: { some: { OR: [{ status: 'APPLIED' }, { appliedAt: { not: null } }, { pipelineStage: { not: null } }] } },
+} satisfies Prisma.JobWhereInput;
 
 /**
  * Whether a job's ready pack is kept as it is: the person applied, and its
@@ -200,10 +206,20 @@ export async function claimNextPack(): Promise<{ id: number; jobId: number; trig
   }
 }
 
-/** What became of a job since its pack was queued: its status, whether it was applied to by any road, and who hires. */
-export async function packJobState(jobId: number): Promise<{ status: string; applied: boolean; employerKey: string | null } | null> {
-  const job = await prisma.job.findUnique({ where: { id: jobId }, select: { status: true, appliedAt: true, pipelineStage: true, employerKey: true } });
-  return job && { status: job.status, applied: job.status === 'APPLIED' || job.appliedAt !== null || job.pipelineStage !== null, employerKey: job.employerKey };
+/**
+ * What became of a job since its pack was queued, for the person the pack is
+ * prepared for: their status, whether they applied by any road, and who hires.
+ * A person who holds no row for it dismissed it as far as the pack is concerned.
+ */
+export async function packJobState(userId: number, jobId: number): Promise<{ status: string; applied: boolean; employerKey: string | null } | null> {
+  const job = await prisma.job.findUnique({
+    where: { id: jobId },
+    select: { employerKey: true, userJobs: { where: { userId }, select: { status: true, appliedAt: true, pipelineStage: true } } },
+  });
+  if (!job) return null;
+  const mine = job.userJobs[0];
+  if (!mine) return { status: 'DISMISSED', applied: false, employerKey: job.employerKey };
+  return { status: mine.status, applied: mine.status === 'APPLIED' || mine.appliedAt !== null || mine.pipelineStage !== null, employerKey: job.employerKey };
 }
 
 /**
@@ -337,24 +353,28 @@ export interface ReadyPack {
 
 /** Packs prepared and not yet sent, newest first — the Overview's "ready to send". */
 /**
- * A pack worth opening to send: ready, not sent, its job still undecided —
- * and its posting not found closed since (#384). `liveness` is NULL until a
- * check runs, and NULL is not "expired".
+ * A pack worth opening to send: ready, not sent, its job still undecided for
+ * this person — and its posting not found closed since (#384). `liveness` is
+ * NULL until a check runs, and NULL is not "expired".
  */
-const READY_TO_SEND = {
-  status: 'ready',
-  sentAt: null,
-  job: { status: { in: ['NEW', 'ALERTED', 'SAVED'] }, OR: [{ liveness: null }, { liveness: { not: 'expired' } }] },
-} satisfies Prisma.ApplicationPackWhereInput;
+const readyToSend = (userId: number) =>
+  ({
+    status: 'ready',
+    sentAt: null,
+    job: {
+      userJobs: { some: { userId, status: { in: ['NEW', 'ALERTED', 'SAVED'] } } },
+      OR: [{ liveness: null }, { liveness: { not: 'expired' } }],
+    },
+  }) satisfies Prisma.ApplicationPackWhereInput;
 
 /** How many packs are ready to send: the card lists the newest few and says how many there are. */
-export function countReadyPacks(): Promise<number> {
-  return prisma.applicationPack.count({ where: READY_TO_SEND });
+export function countReadyPacks(userId: number): Promise<number> {
+  return prisma.applicationPack.count({ where: readyToSend(userId) });
 }
 
-export async function listReadyPacks(take: number): Promise<ReadyPack[]> {
+export async function listReadyPacks(userId: number, take: number): Promise<ReadyPack[]> {
   const rows = await prisma.applicationPack.findMany({
-    where: READY_TO_SEND,
+    where: readyToSend(userId),
     orderBy: { finishedAt: 'desc' },
     take,
     select: { jobId: true, scoreBefore: true, scoreAfter: true, finishedAt: true, job: { select: { title: true, employer: true, company: { select: { name: true, atsType: true } } } } },

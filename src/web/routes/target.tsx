@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx */
+import { currentUser } from '../current-user';
 import { Hono } from 'hono';
 import { getAiRuntime } from '../../ai-runtime';
 import { laneOf, type Lane } from '../lane';
@@ -112,7 +113,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   if (f.jobMode === 'existing') {
     if (!f.jobId) return flashRedirect('/target', 'err', t('target.flash.pickJob'));
     const back = `/target?job=${f.jobId}`;
-    const job = await prisma.job.findUnique({ where: { id: f.jobId }, include: { company: { select: { name: true, atsType: true } } } });
+    const job = await prisma.job.findFirst({ where: { id: f.jobId, userJobs: { some: { userId: currentUser().id } } }, include: { company: { select: { name: true, atsType: true } } } });
     if (!job) return flashRedirect('/target', 'err', t('target.flash.jobGone'));
     const resume = await resolveResumeSource(form, f);
     if ('error' in resume) return flashRedirect(back, 'err', resume.error);
@@ -194,10 +195,11 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
         salaryMin,
         salaryMax,
       },
+      currentUser().id,
       { classify: false },
     );
     const job = result.job;
-    if (result.kind === 'created') classifyInBackground(result.job);
+    if (result.kind === 'created') classifyInBackground(result.job, currentUser().id);
     updateRun(run.id, { jobId: job.id });
 
     // 2. From here it is the comparison every other page runs: the memo (a

@@ -80,16 +80,22 @@ async function main(): Promise<void> {
   for (const r of ROWS) {
     const res = await createManualJob(
       { companyName: r.company, title: r.title, url: `https://jobs.example.com/${r.company.toLowerCase().replace(/[^a-z]+/g, '-')}`, location: r.location, description: r.description },
+      1,
       { classify: false },
     );
     const fetchedAt = new Date(now - r.ago * DAY);
-    await prisma.job.update({
-      where: { id: res.job.id },
+    await prisma.userJob.update({
+      where: { userId_jobId: { userId: 1, jobId: res.job.id } },
       data: {
         fitScore: r.fit, techMatch: r.tech, redFlags: r.flags ?? [], summary: r.summary, status: r.status,
         alertedAt: r.status === 'ALERTED' ? fetchedAt : null,
         appliedAt: r.status === 'APPLIED' ? new Date(now - (r.ago - 0.5) * DAY) : null,
         pipelineStage: r.status === 'APPLIED' ? 'applied' : null,
+      },
+    });
+    await prisma.job.update({
+      where: { id: res.job.id },
+      data: {
         salaryMin: r.salary?.[0] ?? null, salaryMax: r.salary?.[1] ?? null,
         salaryCurrency: r.salary?.[2] ?? null, salaryPeriod: r.salary ? 'year' : null,
         postedAt: new Date(now - (r.ago + 0.5) * DAY), fetchedAt,

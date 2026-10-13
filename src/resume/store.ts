@@ -295,7 +295,7 @@ export async function deleteImpact(resumeId: number): Promise<{
     prisma.coverLetter.count({ where: { resumeId } }),
     prisma.resumeReview.count({ where: { resumeId } }),
     prisma.profile.count({ where: { resumeId } }),
-    prisma.job.count({ where: { appliedResumeId: resumeId } }),
+    prisma.userJob.count({ where: { appliedResumeId: resumeId } }),
   ]);
   return { matches, letters, reviews, searches, applications };
 }

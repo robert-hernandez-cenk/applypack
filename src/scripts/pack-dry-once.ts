@@ -49,7 +49,8 @@ const JOB_INCLUDE = {
   // The search that scored it best is the one whose resume it would be sent with.
   scores: { orderBy: { fitScore: 'desc' }, take: 1, select: { profile: { select: { resumeId: true } } } },
 } satisfies Prisma.JobInclude;
-type StoredJob = Prisma.JobGetPayload<{ include: typeof JOB_INCLUDE }>;
+/** The posting plus the default user's score for it (ADR 0067: the worker's packs are the default user's until resumes are scoped). */
+type StoredJob = Prisma.JobGetPayload<{ include: typeof JOB_INCLUDE }> & { fitScore: number | null };
 
 interface Tools {
   settings: DrySettings;
@@ -187,12 +188,18 @@ async function main(): Promise<void> {
   };
   const only = (flagValue('only') ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0);
   const limit = flagNumber('limit', 0);
-  const jobs = await prisma.job.findMany({
-    where: { fitScore: { gte: settings.minFit }, status: { not: JobStatus.DISMISSED }, ...(only.length > 0 ? { id: { in: only } } : {}) },
-    orderBy: [{ fitScore: 'desc' }, { fetchedAt: 'desc' }],
+  const held = await prisma.userJob.findMany({
+    where: {
+      userId: DEFAULT_USER_ID,
+      fitScore: { gte: settings.minFit },
+      status: { not: JobStatus.DISMISSED },
+      ...(only.length > 0 ? { jobId: { in: only } } : {}),
+    },
+    orderBy: [{ fitScore: 'desc' }, { job: { fetchedAt: 'desc' } }],
     ...(limit > 0 ? { take: limit } : {}),
-    include: JOB_INCLUDE,
+    select: { fitScore: true, job: { include: JOB_INCLUDE } },
   });
+  const jobs: StoredJob[] = held.map(({ job, fitScore }) => ({ ...job, fitScore }));
 
   const recordsFile = path.join(out, 'records.json');
   const kept = fs.existsSync(recordsFile) ? readDryRecords(JSON.parse(fs.readFileSync(recordsFile, 'utf8'))) : [];

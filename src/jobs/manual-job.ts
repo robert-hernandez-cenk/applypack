@@ -12,7 +12,9 @@ import { employerKey } from '../employer';
 /*
  * Pasted postings (the /jobs/new form and the /target compare page) become
  * normal jobs under an inactive MANUAL company. Deduped by a hash of
- * title + description so re-pasting the same posting reuses the row.
+ * title + description so re-pasting the same posting reuses the row. The
+ * posting is shared, but a pasted one is its pasting person's alone: their
+ * `UserJob` is Saved, and nobody else gets a row (ADR 0067).
  */
 
 export const MIN_DESCRIPTION_CHARS = 200;
@@ -49,6 +51,7 @@ export type ManualJobResult =
  */
 export async function createManualJob(
   f: ManualJobInput,
+  userId: number,
   opts: { classify?: boolean } = {},
 ): Promise<ManualJobResult> {
   // Pastes copied from rendered pages occasionally carry literal entities
@@ -75,7 +78,13 @@ export async function createManualJob(
       });
       const where = { companyId_externalId: { companyId: company.id, externalId } };
       const existing = await tx.job.findUnique({ where, include: jobInclude });
-      if (existing) return { kind: 'existing' as const, job: existing, company };
+      if (existing) {
+        // The same text pasted by someone else: the posting is reused, the person gets their own row.
+        const held = await tx.userJob.findUnique({ where: { userId_jobId: { userId, jobId: existing.id } }, select: { id: true } });
+        if (held) return { kind: 'existing' as const, job: existing, company };
+        await tx.userJob.create({ data: { userId, jobId: existing.id, status: JobStatus.SAVED } });
+        return { kind: 'created' as const, job: existing, company };
+      }
       const job = await tx.job.create({
         data: {
           companyId: company.id,
@@ -93,7 +102,7 @@ export async function createManualJob(
           salaryMin: f.salaryMin ?? null,
           salaryMax: f.salaryMax ?? null,
           postedAt: new Date(),
-          status: JobStatus.SAVED,
+          userJobs: { create: { userId, status: JobStatus.SAVED } },
         },
         include: jobInclude,
       });
@@ -103,7 +112,7 @@ export async function createManualJob(
   if (found.kind === 'existing') return { kind: 'existing', job: found.job };
   const { job, company } = found;
   const classified =
-    opts.classify === false ? false : (await classifyExistingJob(job, { keepStatus: true })).kind === 'scored';
+    opts.classify === false ? false : (await classifyExistingJob(job, { keepStatus: true, userId })).kind === 'scored';
   logger.info({ jobId: job.id, company: company.name, classified }, 'web: manual job saved');
   return { kind: 'created', job, classified };
 }

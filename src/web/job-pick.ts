@@ -16,8 +16,10 @@ const JOB_PICK_LIMIT = 150;
 const PICKABLE: JobStatus[] = ['NEW', 'ALERTED', 'SAVED', 'APPLIED'];
 const DAY_MS = 86_400_000;
 
-/** A picker option, not a posting: five columns instead of the row's forty (DATA-5). */
-const PICK_SELECT = { id: true, title: true, employer: true, fitScore: true, fetchedAt: true, company: { select: { name: true, atsType: true } } } as const;
+/** A picker option, not a posting: a few columns instead of the row's forty (DATA-5). */
+const POSTING_SELECT = { id: true, title: true, employer: true, fetchedAt: true, company: { select: { name: true, atsType: true } } } as const;
+/** The person's own row for it: only the score is shown. */
+const PICK_SELECT = { fitScore: true, job: { select: POSTING_SELECT } } as const;
 
 export interface JobPickOption {
   id: number;
@@ -48,9 +50,11 @@ export function toPickOption(job: PickRow, note: string | null, now = Date.now()
  */
 export async function listPickableJobs(include: number | null = null): Promise<JobPickOption[]> {
   const profile = await getActiveProfile(currentUser().id);
-  const fitting = await prisma.job.findMany({
-    where: { status: { in: PICKABLE }, ...(profile ? { fitScore: { gte: profile.minFitScore } } : {}) },
-    orderBy: [{ fetchedAt: 'desc' }],
+  // Only postings the person holds (ADR 0067).
+  const userId = currentUser().id;
+  const fitting = await prisma.userJob.findMany({
+    where: { userId, status: { in: PICKABLE }, ...(profile ? { fitScore: { gte: profile.minFitScore } } : {}) },
+    orderBy: [{ job: { fetchedAt: 'desc' } }],
     take: JOB_PICK_LIMIT,
     select: PICK_SELECT,
   });
@@ -59,16 +63,16 @@ export async function listPickableJobs(include: number | null = null): Promise<J
   const jobs =
     fitting.length > 0
       ? fitting
-      : await prisma.job.findMany({
-          where: { status: { in: PICKABLE } },
-          orderBy: [{ fetchedAt: 'desc' }],
+      : await prisma.userJob.findMany({
+          where: { userId, status: { in: PICKABLE } },
+          orderBy: [{ job: { fetchedAt: 'desc' } }],
           take: JOB_PICK_LIMIT,
           select: PICK_SELECT,
         });
-  if (include !== null && !jobs.some((j) => j.id === include)) {
-    const extra = await prisma.job.findUnique({ where: { id: include }, select: PICK_SELECT });
+  if (include !== null && !jobs.some((j) => j.job.id === include)) {
+    const extra = await prisma.userJob.findUnique({ where: { userId_jobId: { userId, jobId: include } }, select: PICK_SELECT });
     if (extra) jobs.unshift(extra);
   }
   const now = Date.now();
-  return jobs.map((j) => toPickOption(j, j.fitScore !== null ? t('job.picker.fit', { score: j.fitScore }) : null, now));
+  return jobs.map(({ job, fitScore }) => toPickOption(job, fitScore !== null ? t('job.picker.fit', { score: fitScore }) : null, now));
 }
