@@ -17,7 +17,7 @@ import { t } from '../i18n/t';
  */
 
 /*
- * A pill paints its 12 % tint over white whatever it is laid on (the gradient
+ * A pill paints its 12 % tint over the raised surface whatever it is laid on (the gradient
  * is the tint, the colour under it the ground), so its text contrast is one
  * number held by tokens.test.ts — not one per surface. On the canvas alone the
  * bare tint read 4.44:1 for the Applied pill. The ground is a `pill-*` class
@@ -909,7 +909,7 @@ export const ConfirmAction: FC<{
         popover="auto"
         role="dialog"
         aria-label={ariaLabel ?? label}
-        class="m-auto w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-surface-raised p-4 text-left text-note leading-5 text-ink shadow-pop backdrop:bg-[rgb(var(--scrim)/0.25)]"
+        class="m-auto w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-surface-raised p-4 text-left text-note leading-5 text-ink shadow-pop backdrop:bg-[rgb(13_20_33/0.25)]"
       >
         <p>{confirm}</p>
         <form method="post" action={action} class="mt-3 flex justify-end gap-2">
@@ -1039,7 +1039,7 @@ export const ToggleRow: FC<
               }`}
             >
               <span
-                class={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-150 ${
+                class={`inline-block h-5 w-5 rounded-full bg-surface-raised shadow-sm transition-transform duration-150 ${
                   enabled ? 'translate-x-[22px]' : 'translate-x-0.5'
                 }`}
               />

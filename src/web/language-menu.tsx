@@ -79,7 +79,7 @@ export const LanguageMenu: FC<{ variant: keyof typeof TRIGGER }> = ({ variant })
         popover="auto"
         role="dialog"
         aria-label={label}
-        class="m-auto w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-surface-raised p-4 text-left text-sm text-ink shadow-pop backdrop:bg-[rgb(var(--scrim)/0.25)]"
+        class="m-auto w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-surface-raised p-4 text-left text-sm text-ink shadow-pop backdrop:bg-[rgb(13_20_33/0.25)]"
       >
         <p class="text-entity text-ink">{label}</p>
         <form method="post" action={SWITCH_ACTION} class="mt-3 grid gap-1" data-language-form>

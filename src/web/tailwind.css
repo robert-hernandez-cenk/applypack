@@ -4,7 +4,7 @@
 @tailwind utilities;
 
 /* A status pill's ground (ui.tsx TONE_SOFT): the tone at 12 % painted over
-   white, so the pill reads the same on every surface (tokens.test.ts holds
+   the raised surface (white in the light look), so the pill reads the same on every surface (tokens.test.ts holds
    the tone's text to AA on exactly this tint). */
 @layer components {
   .pill-ok,

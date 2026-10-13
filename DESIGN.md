@@ -212,11 +212,14 @@ scrollbars and native controls follow.
   dark one (#041E16). Use `text-on-accent`, never `text-white`, on a fill.
 - **Status tones** are the same five hues lifted until each clears AA on every
   dark surface and on its own 12 % pill; they stay apart from each other.
-- **Shadows and scrims** read `--shadow-ink` and `--scrim` (the ink in light,
-  black in dark), so a popover's backdrop and a card's edge follow the theme.
+- **Shadows and the menu's scrim** read `--shadow-ink` and `--scrim` (the ink in
+  light, black in dark). A popover's `::backdrop` stays a literal tint: older
+  browsers do not pass custom properties into it, and a missing variable would
+  drop the dimming altogether.
 - **Stays white on purpose:** the resume and posting document pane (it is a
-  page, as a printed one is), the toggle's knob and the AP mark's white-on-green
-  tile in the favicon.
+  page, as a printed one is) and the AP mark's white-on-green tile in the
+  favicon. A toggle's knob is `surface-raised`, so it reads on the lifted accent
+  track in dark.
 - **Chosen by:** System (default), Light or Dark — the three icons at the foot
   of the menu and Settings → General → Appearance. A `theme` cookie holds it
   (`theme.ts`); the server writes it onto `<html data-theme>` so the first paint

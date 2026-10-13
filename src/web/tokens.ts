@@ -29,7 +29,7 @@ export const LIGHT_TOKENS = {
   violet: [109, 40, 217],
   'on-accent': [255, 255, 255], // text on a solid accent or warn fill
   'shadow-ink': [13, 20, 33], // what every shadow is tinted with
-  scrim: [13, 20, 33], // what is laid over the page behind a popover
+  scrim: [13, 20, 33], // what is laid over the page behind the mobile menu
 } as const satisfies Record<string, Rgb>;
 
 export type TokenName = keyof typeof LIGHT_TOKENS;
@@ -62,9 +62,6 @@ export const DARK_TOKENS = {
   'shadow-ink': [0, 0, 0],
   scrim: [0, 0, 0],
 } as const satisfies Record<TokenName, Rgb>;
-
-/** The light set under the name the pages that never learned of a second set still read. */
-export const TOKENS = LIGHT_TOKENS;
 
 type TokenSet = Readonly<Record<TokenName, Rgb>>;
 

@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
 import { deleteCookie, setCookie } from 'hono/cookie';
-import { THEME_COOKIE, THEME_COOKIE_MAX_AGE, parseTheme } from '../theme';
+import { THEMES, THEME_COOKIE, THEME_COOKIE_MAX_AGE, parseTheme } from '../theme';
 import { idParam } from '../params';
 import { onceGuard } from '../once-guard';
 import { AtsType } from '@prisma/client';
@@ -1022,16 +1022,15 @@ settingsRoute.post('/settings/update-check-toggle', async (c) => {
 settingsRoute.post('/settings/theme', async (c) => {
   const form = await c.req.parseBody();
   const back = safeBack(form.back, '/');
-  const theme = parseTheme(form.theme);
-  if (form.theme === 'system') deleteCookie(c, THEME_COOKIE, { path: '/' });
-  else if (theme !== 'system') {
-    setCookie(c, THEME_COOKIE, theme, {
-      path: '/',
-      maxAge: THEME_COOKIE_MAX_AGE,
-      sameSite: 'Lax',
-      httpOnly: true,
-      secure: new URL(c.req.url).protocol === 'https:',
-    });
+  // A value the switch does not offer changes nothing; "system" is the one that clears the choice.
+  if (typeof form.theme === 'string' && (THEMES as readonly string[]).includes(form.theme)) {
+    const theme = parseTheme(form.theme);
+    if (theme === 'system') deleteCookie(c, THEME_COOKIE, { path: '/' });
+    else {
+      // Behind a proxy that ends TLS the request reads http: — the forwarded protocol says what the browser used.
+      const https = c.req.header('x-forwarded-proto') === 'https' || new URL(c.req.url).protocol === 'https:';
+      setCookie(c, THEME_COOKIE, theme, { path: '/', maxAge: THEME_COOKIE_MAX_AGE, sameSite: 'Lax', httpOnly: true, secure: https });
+    }
   }
   return c.redirect(back, 303);
 });
