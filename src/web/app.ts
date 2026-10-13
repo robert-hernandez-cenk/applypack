@@ -17,6 +17,8 @@ import { markSignInEnabled } from './oidc/enabled';
 import { signInRoutes } from './oidc/routes';
 import { currentUser, isUserless, withCurrentUser } from './current-user';
 import { requireHeldJob } from './job-guard';
+import { requireAdmin } from './admin-guard';
+import { isAdmin } from '../users/admin-policy';
 import { loadUser, provisionOidcUser } from '../users/store';
 import { ensurePrimaryProfile } from '../profiles';
 import { overviewRoute } from './routes/overview';
@@ -42,6 +44,7 @@ import { healthRoute } from './routes/health';
 import { welcomeRoute } from './routes/welcome';
 import { countriesRoute } from './routes/countries';
 import { screenRoute } from './routes/screen';
+import { usersRoute } from './routes/users';
 import { ensureEmployerMode } from './employer-mode';
 import { ensureUpdateNotice } from './update-notice';
 import { withDisplayZone } from './display-zone';
@@ -145,6 +148,8 @@ app.use('*', async (c, next) => {
     await ensureEmployerMode();
     await ensureUpdateNotice();
     display = await getDisplaySettings(currentUser().id);
+    // The wizard sets up the install: a member is not walked through it, nor held to its language rules (ADR 0070).
+    if (!isAdmin(currentUser())) display = { ...display, setupCompleted: true };
     // A page nobody is signed in to (the sign-in pages) is not worded in a user's language.
     if (isUserless(c.req.path)) display = { ...display, locale: null };
   } catch (err) {
@@ -171,6 +176,10 @@ app.use('*', async (c, next) => {
     'web: request',
   );
 });
+
+// What runs the install is an administrator's (ADR 0070). After the language middleware, so the refusal reads in
+// the person's language, and before any body is read.
+app.use('*', requireAdmin());
 
 // Every POST carries a body ceiling; the upload routes bring their own,
 // larger one and are stepped around here (body-limits.ts). It sits inside the
@@ -218,6 +227,7 @@ app.route('/', runsRoute);
 app.route('/', aiUsageRoute);
 app.route('/', screenRoute);
 app.route('/', settingsRoute);
+app.route('/', usersRoute);
 app.route('/', healthRoute);
 
 app.notFound((c) => c.text(t('http.notFound'), 404));

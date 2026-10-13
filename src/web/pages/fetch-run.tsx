@@ -5,6 +5,8 @@ import { ActionForm, Button, Card, Hint, Notice } from '../ui';
 import { Icon } from '../icons';
 import { RunSteps, type StepView } from './run-steps';
 import { FETCH_FAILED, FETCH_RUN_STEPS, type FetchRun } from '../fetch-runs';
+import { currentUser } from '../current-user';
+import { isAdmin } from '../../users/admin-policy';
 import { t } from '../../i18n/t';
 
 function stepView({ classify, scope }: Pick<FetchRun, 'classify' | 'scope'>): Record<string, StepView> {
@@ -28,14 +30,15 @@ export const FetchNowButton: FC<{ run: FetchRun | null }> = ({ run }) =>
       <Icon name="activity" size={16} />
       {t('fetch.fetchingWatch')}
     </Button>
-  ) : (
+  ) : // Starting a run is an administrator's (ADR 0070); a member can only watch one.
+  isAdmin(currentUser()) ? (
     <ActionForm action="/runs/fetch-now">
       <Button title={t('fetch.runTheHourlyFetchNow')}>
         <Icon name="play" size={16} />
         {t('fetch.fetchNow')}
       </Button>
     </ActionForm>
-  );
+  ) : null;
 
 /**
  * Live progress for a "Fetch now" run: target-run.mjs polls the state route

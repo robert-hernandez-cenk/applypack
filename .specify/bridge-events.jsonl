@@ -36,3 +36,7 @@
 
 {"timestamp":"2026-10-13T02:21:30.7826103Z","action":"handoff","status":"ready","feature_directory":"specs/011-per-user-notifications","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261013T0221307340331Z-ready"}
 
+{"timestamp":"2026-10-13T02:21:42.3583423Z","action":"handoff","status":"executing","feature_directory":"specs/012-admin-users-isolation","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261013T0221423142429Z-executing"}
+
+{"timestamp":"2026-10-13T02:21:43.0778884Z","action":"guard","status":"allow","feature_directory":"specs/012-admin-users-isolation","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
+

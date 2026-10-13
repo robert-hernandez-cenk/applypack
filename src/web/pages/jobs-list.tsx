@@ -3,6 +3,8 @@ import type { FC, PropsWithChildren } from 'hono/jsx';
 import type { JobStatus } from '@prisma/client';
 import { Layout } from '../layout';
 import { companyOnPage } from '../../employer';
+import { currentUser } from '../current-user';
+import { isAdmin } from '../../users/admin-policy';
 import {
   CompanyName,
   ActionForm,
@@ -351,11 +353,13 @@ export const JobsListPage: FC<JobsListProps> = ({
                   bare
                   title={t('jobs.noJobsYet')}
                   action={
-                    <ActionForm action="/runs/fetch-now" once>
-                      <Button variant="secondary" size="sm">
-                        {t('fetch.fetchNow')}
-                      </Button>
-                    </ActionForm>
+                    isAdmin(currentUser()) ? (
+                      <ActionForm action="/runs/fetch-now" once>
+                        <Button variant="secondary" size="sm">
+                          {t('fetch.fetchNow')}
+                        </Button>
+                      </ActionForm>
+                    ) : undefined
                   }
                 >
                   {t('jobs.theHourlySearchFillsThis')}

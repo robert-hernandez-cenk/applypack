@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { companyDeleteConfirm, deleteConfirm, type DeleteImpact } from './delete-confirm';
+import { companyDeleteConfirm, deleteConfirm, userDeleteConfirm, type DeleteImpact } from './delete-confirm';
 
 const NONE: DeleteImpact = {
   matches: 0,
@@ -116,5 +116,20 @@ describe('companyDeleteConfirm', () => {
       companyDeleteConfirm('Acme', { jobs: 1, applications: 1, comparisons: 1, letters: 1 }),
       /1 job, and with them 1 tracked application, 1 resume comparison and 1 cover letter/,
     );
+  });
+});
+
+describe('userDeleteConfirm', () => {
+  const NO_DATA = { searches: 0, postings: 0, resumes: 0, comparisons: 0, letters: 0, destinations: 0 };
+
+  it('names what goes with a person and what stays', () => {
+    assert.equal(
+      userDeleteConfirm('Ada', { searches: 2, postings: 14, resumes: 1, comparisons: 3, letters: 0, destinations: 1 }),
+      'Remove Ada? This permanently deletes 2 searches, 14 postings they hold, with their status, 1 resume, 3 comparisons and 1 alert destination, and their settings and muted companies. The shared job catalog is not touched. This cannot be undone.',
+    );
+  });
+
+  it('has its own sentence for a person with nothing yet', () => {
+    assert.equal(userDeleteConfirm('Ada', NO_DATA), 'Remove Ada? They have nothing of their own yet. This cannot be undone.');
   });
 });

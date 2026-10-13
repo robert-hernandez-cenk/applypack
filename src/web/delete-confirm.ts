@@ -79,6 +79,32 @@ export function companyDeleteConfirm(name: string, impact: CompanyDeleteImpact):
   return t('profile.deleteConfirm.company.jobsAndMore', { name, jobs: impact.jobs, rest });
 }
 
+export interface UserDeleteImpact {
+  searches: number;
+  postings: number;
+  resumes: number;
+  comparisons: number;
+  letters: number;
+  destinations: number;
+}
+
+/**
+ * The confirm text for "Remove this user" (ADR 0070). A user's rows cascade with them — searches, the
+ * postings they hold with their status, resumes and everything on them, alert destinations — while the
+ * shared catalog stays; the question names what is about to go.
+ */
+export function userDeleteConfirm(name: string, impact: UserDeleteImpact): string {
+  const rest = joinList([
+    countOf(impact.searches, 'users.impact.searches'),
+    countOf(impact.postings, 'users.impact.postings'),
+    countOf(impact.resumes, 'users.impact.resumes'),
+    countOf(impact.comparisons, 'profile.deleteConfirm.part.comparisons'),
+    countOf(impact.letters, 'profile.deleteConfirm.part.letters'),
+    countOf(impact.destinations, 'users.impact.destinations'),
+  ]);
+  return rest === '' ? t('users.delete.confirmEmpty', { name }) : t('users.delete.confirm', { name, rest });
+}
+
 /** "12 comparisons" by the count's own plural, or null when there are none to name. */
 function countOf(n: number, key: MessageKey): string | null {
   return n === 0 ? null : t(key, { n });
