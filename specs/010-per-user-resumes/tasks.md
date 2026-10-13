@@ -26,7 +26,7 @@ Format: `- [ ] Tnn [P?] [USn] description (file)`.
 ## Phase 6: US4 upgrade safety and polish
 - [x] T012 [US4] Route-smoke second user with isolation checks (resume, match, letter, fact, pack, search link); tests for any pure code added (src/scripts/route-smoke.ts)
 - [x] T013 ADR 0068, CLAUDE.md paragraph, docs/where-to-look.md, spec/ARCHITECTURE touch-ups
-- [ ] T014 Verification matrix: `lint:types`, full tests, `exports:audit`, migration over seeded data, `migrate diff`, route smoke on a scratch DB
+- [x] T014 Verification matrix: `lint:types`, full tests, `exports:audit`, migration over seeded data, `migrate diff`, route smoke on a scratch DB
 
 ## Dependencies
 T002 -> T003, T004 -> T005..T011 -> T012 -> T014. T013 any time after T004.

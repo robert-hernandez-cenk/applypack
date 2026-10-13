@@ -14,3 +14,7 @@
 
 {"timestamp":"2026-10-13T01:39:44.8780808Z","action":"guard","status":"allow","feature_directory":"specs/010-per-user-resumes","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
 
+{"timestamp":"2026-10-13T01:51:18.5059275Z","action":"handoff","status":"complete","feature_directory":"specs/010-per-user-resumes","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261013T0151184551864Z-complete"}
+
+{"event":"artifact_drift_detected","timestamp":"2026-10-13T01:51:18.5116384Z","actor":"claude","feature_directory":"specs/010-per-user-resumes","drifted_artifacts":[{"path":"tasks.md","old_sha256":"842d412b540468c4c0006ba27185588c7565b13f2fa9272c3abeb6eabf26fa0f","new_sha256":"63da86bfc411ae5e0fa80861ce4ba2f3ec0c8c496d1d548984d00f9716cac4cf"}]}
+

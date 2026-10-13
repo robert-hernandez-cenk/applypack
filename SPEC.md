@@ -1028,7 +1028,7 @@ A pack prepared again there is the person's from then on, whoever queued the
 first one: it takes no slot of the day's number, no message announces it, and
 switching packs off or dismissing the job does not take it out of the queue.
 
-The dashboard only queues a row in `application_pack` (one per posting:
+The dashboard only queues a row in `application_pack` (one per person and posting:
 queued → running → ready | stopped | failed). The worker's `pack` beat
 (`jobs/pack-job.ts`, every minute, one runner under an advisory lock)
 prepares them one at a time through `pack/prepare.ts:preparePosting`:

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-13T01:39:44.2224454Z",
+  "updated_at": "2026-10-13T01:51:18.4790363Z",
   "feature_directory": "specs/010-per-user-resumes",
   "source_of_truth": {
     "constitution": ".specify/memory/constitution.md",
@@ -19,16 +19,16 @@
     "requesting-code-review",
     "finishing-a-development-branch"
   ],
-  "status": "executing",
+  "status": "complete",
   "blocked_reason": null,
   "artifact_owner": "claude",
   "review_only_agents": [],
   "notes": null,
-  "last_snapshot_id": "20261013T0139442006872Z-executing",
+  "last_snapshot_id": "20261013T0151184551864Z-complete",
   "instructions": "Use /speckit-superpowers-bridge (Claude Code) or $speckit-superpowers-bridge (Codex). The bridge orchestrates native Superpowers skills against tasks.md; do not run speckit.implement and do not invoke superpowers:writing-plans / :brainstorming for an active Spec Kit feature.",
   "artifacts_sha256": {
     "spec.md": "ccbcce0d4e99c4680f13f2c37439c5e0370bed2cb75bc05fd9eb50f8f81d7c17",
     "plan.md": "069ec8c857682821399c2d52b1092a3d2840fee5fb9aa23fe916480c606a78d0",
-    "tasks.md": "842d412b540468c4c0006ba27185588c7565b13f2fa9272c3abeb6eabf26fa0f"
+    "tasks.md": "63da86bfc411ae5e0fa80861ce4ba2f3ec0c8c496d1d548984d00f9716cac4cf"
   }
 }
