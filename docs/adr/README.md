@@ -81,6 +81,7 @@ gets a dated addendum at the end of the ADR.
 - [0065 — An install has users; the catalog is shared, the workspace is private](./0065-users-and-identity.md) *(supersedes 0004's single-user stance for the workspace)*
 - [0066 — Searches belong to a person; scoring still covers everyone's](./0066-searches-belong-to-a-person.md) *(amends 0028: the primary lives on the user)*
 - [0067 — What a person does with a posting is their own row; the posting is shared](./0067-a-person-holds-their-own-rows.md) *(amends 0028: the best-of lives on `UserJob`)*
+- [0068 — A resume, and everything written with it, is its owner's](./0068-a-resume-and-what-hangs-off-it-is-its-owners.md) *(amends 0063: a pack is per person)*
 
 ## When to write a new one
 

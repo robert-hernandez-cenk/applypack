@@ -126,6 +126,7 @@ of truth when the two disagree.
 - 0065 An install has users; the catalog is shared, the workspace is private *(supersedes 0004's single-user stance for the workspace)*
 - 0066 Searches belong to a person; scoring still covers everyone's *(amends 0028: the primary lives on the user)*
 - 0067 What a person does with a posting is their own row; the posting is shared *(amends 0028: the best-of lives on `UserJob`)*
+- 0068 A resume, and everything written with it, is its owner's *(amends 0063: a pack is per person)*
 
 Check a proposal against these before touching process layout, sources,
 scheduling, profiles, how the AI is called, the resume score or employer

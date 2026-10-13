@@ -24,8 +24,8 @@ Format: `- [ ] Tnn [P?] [USn] description (file)`.
 - [x] T011 [US3] Scripts compile and state their scope (src/scripts/*)
 
 ## Phase 6: US4 upgrade safety and polish
-- [ ] T012 [US4] Route-smoke second user with isolation checks (resume, match, letter, fact, pack, search link); tests for any pure code added (src/scripts/route-smoke.ts)
-- [ ] T013 ADR 0068, CLAUDE.md paragraph, docs/where-to-look.md, spec/ARCHITECTURE touch-ups
+- [x] T012 [US4] Route-smoke second user with isolation checks (resume, match, letter, fact, pack, search link); tests for any pure code added (src/scripts/route-smoke.ts)
+- [x] T013 ADR 0068, CLAUDE.md paragraph, docs/where-to-look.md, spec/ARCHITECTURE touch-ups
 - [ ] T014 Verification matrix: `lint:types`, full tests, `exports:audit`, migration over seeded data, `migrate diff`, route smoke on a scratch DB
 
 ## Dependencies

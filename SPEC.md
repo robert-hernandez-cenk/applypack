@@ -487,6 +487,12 @@ refusal. The sitemap + JSON-LD rung the plan called stage B was measured and
 
 ## Resumes (Phase 8.1)
 
+Each person has their own resumes (ADR 0068): a resume, its scan, reviews,
+comparisons, confirmed facts, cover letters and application packs belong to
+the person who made them; another person's id reads as "not found". The
+posting brief and the company check are properties of the posting and are
+shared.
+
 `Resume` rows hold an uploaded file (`original` bytes, `.pdf` / `.docx` /
 `.md` / `.txt`) and its plain-text extraction (`text`). On upload the web
 process runs one AI call on a progress page (the engine's resume model: the
