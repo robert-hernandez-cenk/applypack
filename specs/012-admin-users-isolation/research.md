@@ -4,7 +4,7 @@
 
 **R2 - Mixed pages. Decision**: pages adapt to the role (`isAdmin` prop); only writes are refused by the middleware. `/companies` GET for a member shows the mute list only, because the mutes live there (ADR 0056) and are personal. `/runs` GET stays readable: it lists install runs and the person's own recaps already (ADR 0069); the funnel (`funnel_day`) is the catalog's counters, not anyone's private data, so it stays readable; the person's source yield was already per user. This closes the "decide and record" item from #11.
 
-**R3 - Last activity. Decision**: newest of `UserJob.updatedAt`-style column (checked in schema when implementing), `JobStageEvent` time and the user's own `CronRun.startedAt`; null shows "never". No new column or write on each request (cheaper, no write amplification). Alternative `lastSeenAt` on every request rejected: a write per page view.
+**R3 - Last activity. Decision**: newest of `Resume.updatedAt`, `UserSettings.updatedAt`, `JobStageEvent.recordedAt` and `UserJob.appliedAt` (UserJob has no updated-at column); null shows "never". No new column or write on each request (cheaper, no write amplification). Alternative `lastSeenAt` on every request rejected: a write per page view.
 
 **R4 - Self-protection. Decision**: nobody demotes or removes themselves, even with another admin present. Rationale: simplest rule that cannot lock out; another admin does it. The last-admin rule is still separate because an admin can be the only one and a second admin could be removed concurrently. Concurrency: re-check in a transaction under the repo's global write lock.
 

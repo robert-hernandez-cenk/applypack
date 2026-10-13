@@ -32,8 +32,8 @@ Format: `- [ ] Tnn [P?] [USn] description (file)`.
 - [x] T017 [US3] Route smoke: registered-routes classification check; member sweep over admin routes (403, no change) and personal routes with the administrator's ids (not found, no foreign text); users-page rule checks; removed-user 401 (src/scripts/route-smoke.ts)
 
 ## Phase 7: US5 docs and release
-- [ ] T018 [US5] ADR 0070 + ADR README row; SPEC.md, PRODUCT.md, README, docs/oidc-login.md multi-user section, docs/where-to-look.md, CLAUDE.md bullet, ADR 0066-0069 "forced for slice 6" notes closed (docs/, *.md)
-- [ ] T019 [US5] CHANGELOG 2.57.0 + compare link, package.json and lock version (no tag) (CHANGELOG.md, package.json, package-lock.json)
+- [x] T018 [US5] ADR 0070 + ADR README row; SPEC.md, PRODUCT.md, README, docs/oidc-login.md multi-user section, docs/where-to-look.md, CLAUDE.md bullet, ADR 0066-0069 "forced for slice 6" notes closed (docs/, *.md)
+- [x] T019 [US5] CHANGELOG 2.57.0 + compare link, package.json and lock version (no tag) (CHANGELOG.md, package.json, package-lock.json)
 
 ## Phase 8: Polish and verification
 - [ ] T020 Full verification: lint:types, tests, exports:audit, build, route smoke on a fresh scratch database, screenshots of /users at 375 and 1280 px (no files)

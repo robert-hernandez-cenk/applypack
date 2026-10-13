@@ -225,6 +225,13 @@
   a pack for every person who keeps a new posting, against their own day's
   count, and `pack-job.ts` prepares each row as its owner. A new reader of
   any of these starts from the person.
+  Roles (ADR 0070): `users/admin-policy.ts` (pure) lists every route as
+  administrators' (`ADMIN_ROUTES`) or personal (`PERSONAL_ROUTES`); `web/admin-guard.tsx`
+  refuses a member the first, and an unlisted route is administrators-only. A
+  new route goes in exactly one list — the route smoke fails otherwise — and a
+  page that shows an install-wide control draws it for `isAdmin(currentUser())`
+  only. `users/rules.ts` (pure) keeps the last administrator; nobody changes
+  their own account on the users page.
 - `src/starter-packs/` is the curated-pack module: `catalog.json` (data),
   `catalog.ts` and `resolve.ts` are pure (tested), `probe.ts` calls
   `probeAts`. Web-only — the worker never imports it. Every catalog entry

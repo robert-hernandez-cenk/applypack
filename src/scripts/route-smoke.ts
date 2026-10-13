@@ -62,7 +62,7 @@ import { lastSuccessfulRunAt } from '../jobs/cron-run';
 import { loadEmployerRulesFor, mutedKeys } from '../jobs/employer-store';
 import { employerGates } from '../employer';
 import { sendAlert, sendBudgetAlert } from '../notifier';
-import { blankProfileInput, ensurePrimaryProfile, listAllActiveProfiles } from '../profiles';
+import { blankProfileInput, createProfile, ensurePrimaryProfile, listAllActiveProfiles, updateProfile } from '../profiles';
 import { recordAiCall } from '../ai-ledger';
 import { NO_USAGE } from '../ai-usage';
 import { createApplicants, createScreening } from '../screening/store';
@@ -1813,6 +1813,16 @@ async function roleSweep(f: Fixtures): Promise<Check[]> {
     add(`member ${r.method} ${r.path} with the owner's id (not found)`, url, res.status, res.status !== 200 && res.status < 500 && leaked.length === 0);
   }
   add("the owner's rows are as they were after the member's requests", '(database)', 200, (await ownerFingerprint()) === ownerBefore);
+  // The store refuses it too, whatever the route checked (ADR 0070).
+  const refused = async (run: () => Promise<unknown>): Promise<boolean> => run().then(() => false, () => true);
+  const memberProfile = await prisma.profile.findFirstOrThrow({ where: { userId: member.id }, select: { id: true } });
+  add(
+    "a search cannot be linked to another person's resume (the store)",
+    '(store)',
+    200,
+    (await refused(() => createProfile(member.id, { ...blankProfileInput(), resumeId: f.resumeId }))) &&
+      (await refused(() => updateProfile(member.id, memberProfile.id, { ...blankProfileInput(), resumeId: f.resumeId }))),
+  );
   const ownRun = await app.request(`/target/runs/${ownerRun.id}/state`, { headers: ORIGIN });
   add('GET /target/runs/:id/state by the person who started the run (found)', `/target/runs/${ownerRun.id}/state`, ownRun.status, ownRun.status === 200);
   const otherRun = await asMember.request(`/target/runs/${ownerRun.id}/state`, { headers: ORIGIN });

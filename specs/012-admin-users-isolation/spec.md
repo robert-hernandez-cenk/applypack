@@ -67,7 +67,7 @@ README and the operator docs explain multi-user setup with OIDC, the first-user-
 - **SC-004** The sweep fails when a route is added without being classified.
 
 ## Assumptions
-- "Last activity" is the newest of the user's held-posting change, application event or per-person run; a user who never did anything shows "never".
+- "Last activity" is the newest of the user's resume save, settings save, stage change or application; a user who never did anything shows "never" (no write per page view).
 - The funnel on `/runs` is install-wide (the catalog's counters) and is shown read-only to members; their own source yield stays theirs.
 - Role names stay `ADMIN` and `MEMBER`; there is no invitation or approval step: anyone the identity provider lets in becomes a member (restrict at the provider, ADR 0064).
 - Removing a user is permanent; a returning person signing in again becomes a new member.
