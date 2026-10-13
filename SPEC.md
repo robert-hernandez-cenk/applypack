@@ -487,6 +487,12 @@ refusal. The sitemap + JSON-LD rung the plan called stage B was measured and
 
 ## Resumes (Phase 8.1)
 
+Each person has their own resumes (ADR 0068): a resume, its scan, reviews,
+comparisons, confirmed facts, cover letters and application packs belong to
+the person who made them; another person's id reads as "not found". The
+posting brief and the company check are properties of the posting and are
+shared.
+
 `Resume` rows hold an uploaded file (`original` bytes, `.pdf` / `.docx` /
 `.md` / `.txt`) and its plain-text extraction (`text`). On upload the web
 process runs one AI call on a progress page (the engine's resume model: the
@@ -1022,7 +1028,7 @@ A pack prepared again there is the person's from then on, whoever queued the
 first one: it takes no slot of the day's number, no message announces it, and
 switching packs off or dismissing the job does not take it out of the queue.
 
-The dashboard only queues a row in `application_pack` (one per posting:
+The dashboard only queues a row in `application_pack` (one per person and posting:
 queued → running → ready | stopped | failed). The worker's `pack` beat
 (`jobs/pack-job.ts`, every minute, one runner under an advisory lock)
 prepares them one at a time through `pack/prepare.ts:preparePosting`:

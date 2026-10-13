@@ -77,10 +77,10 @@ export const resumesRoute = new Hono();
 
 resumesRoute.get('/resumes', async (c) => {
   const [resumes, facts, stats, reviews] = await Promise.all([
-    listResumes(),
-    listFacts(),
-    matchStatsByResume(),
-    latestReviewByResume(),
+    listResumes(currentUser().id),
+    listFacts(currentUser().id),
+    matchStatsByResume(currentUser().id),
+    latestReviewByResume(currentUser().id),
   ]);
   return c.html(
     <ResumesPage
@@ -102,7 +102,7 @@ resumesRoute.post('/resumes', resumeUploadLimit('/resumes'), onceGuard(() => 're
   const upload = await readResumeUpload(form);
   if ('error' in upload) return flashRedirect('/resumes', 'err', upload.error);
   // R16: the same text again is not a second resume, and not a second scan to pay for.
-  const same = await findResumeWithText(upload.text);
+  const same = await findResumeWithText(currentUser().id, upload.text);
   if (same) {
     return flashRedirect(`/resumes/${same.id}`, 'warn', t('resume.flash.sameAsExisting', { name: same.name, version: same.version }));
   }
@@ -110,7 +110,7 @@ resumesRoute.post('/resumes', resumeUploadLimit('/resumes'), onceGuard(() => 're
     typeof form.name === 'string' && form.name.trim().length > 0
       ? form.name.trim().slice(0, MAX_RESUME_NAME_CHARS)
       : nameFromFilename(upload.sourceFilename);
-  const resume = await createResume({ name, ...upload });
+  const resume = await createResume(currentUser().id, { name, ...upload });
   return startScanRun(c, resume, {
     subtitle: t('resume.run.scanSubtitle', { name }),
     onScanned: () => t('resume.flash.uploaded', { name }),
@@ -121,7 +121,7 @@ resumesRoute.post('/resumes', resumeUploadLimit('/resumes'), onceGuard(() => 're
 resumesRoute.post('/resumes/:id/replace', resumeUploadLimit('/resumes'), onceGuard((c) => `resumes:replace:${c.req.param('id')}`, (c) => `/resumes/${c.req.param('id')}`), async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const current = await getResume(id);
+  const current = await getResume(currentUser().id, id);
   if (!current) return c.text(t('http.notFound'), 404);
   const upload = await readResumeUpload(await c.req.parseBody());
   if ('error' in upload) return flashRedirect(`/resumes/${id}`, 'err', upload.error);
@@ -129,7 +129,7 @@ resumesRoute.post('/resumes/:id/replace', resumeUploadLimit('/resumes'), onceGua
   if (sameTextAs(upload.text, [current])) {
     return flashRedirect(`/resumes/${id}`, 'warn', t('resume.flash.sameAsCurrent', { version: current.version }));
   }
-  const resume = await replaceResumeFile(id, upload);
+  const resume = await replaceResumeFile(currentUser().id, id, upload);
   return startScanRun(c, resume, {
     subtitle: t('resume.run.rescanSubtitle', { name: resume.name, version: resume.version }),
     onScanned: () => t('resume.flash.versionUploaded', { version: resume.version }),
@@ -141,7 +141,7 @@ resumesRoute.post('/resumes/:id/replace', resumeUploadLimit('/resumes'), onceGua
 resumesRoute.post('/resumes/:id/compare-format', resumeUploadLimit('/resumes'), async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const resume = await getResume(id);
+  const resume = await getResume(currentUser().id, id);
   if (!resume) return c.text(t('http.notFound'), 404);
   const upload = await readResumeUpload(await c.req.parseBody());
   if ('error' in upload) return flashRedirect(`/resumes/${id}#ats`, 'err', upload.error);
@@ -155,13 +155,13 @@ resumesRoute.get('/resumes/:id', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const [resume, matches, review, linkedProfiles, impact, tables, facts] = await Promise.all([
-    getResume(id),
-    listMatchesForResume(id),
-    getLatestReviewForResume(id),
-    listProfilesForResume(id),
-    deleteImpact(id),
-    listLatestKeywordTables(id),
-    listFacts(),
+    getResume(currentUser().id, id),
+    listMatchesForResume(currentUser().id, id),
+    getLatestReviewForResume(currentUser().id, id),
+    listProfilesForResume(currentUser().id, id),
+    deleteImpact(currentUser().id, id),
+    listLatestKeywordTables(currentUser().id, id),
+    listFacts(currentUser().id),
   ]);
   if (!resume) return c.text(t('http.notFound'), 404);
   // What the compared postings keep asking for (N10): no AI, the stored
@@ -172,12 +172,12 @@ resumesRoute.get('/resumes/:id', async (c) => {
   // The template check is recomputed from the bytes on every view (ADR 0038) —
   // 40 KB of XML, sub-millisecond. Only a .docx is read; a 5 MB PDF is not
   // pulled out of the database to learn its extension.
-  const original = isDocx(resume.sourceFilename) ? await getResumeOriginal(id) : null;
+  const original = isDocx(resume.sourceFilename) ? await getResumeOriginal(currentUser().id, id) : null;
   const docx = original ? Buffer.from(original.original) : null;
   const structure: DocxStructure | null = docx ? docxStructure(docx) : null;
   const props: DocxProps | null = docx ? readProps(docx) : null;
   // The run before this one, so the card can say what the edits changed.
-  const previous = review ? await getPreviousReview(id, review.id) : null;
+  const previous = review ? await getPreviousReview(currentUser().id, id, review.id) : null;
   return c.html(
     <ResumeDetailPage
       resume={resume}
@@ -206,7 +206,7 @@ resumesRoute.get('/resumes/:id', async (c) => {
 resumesRoute.get('/resumes/:id/download', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const row = await getResumeOriginal(id);
+  const row = await getResumeOriginal(currentUser().id, id);
   if (!row) return c.text(t('http.notFound'), 404);
   const filename = row.sourceFilename.replace(/["\r\n]/g, '');
   return new Response(Buffer.from(row.original), {
@@ -220,7 +220,7 @@ resumesRoute.get('/resumes/:id/download', async (c) => {
 resumesRoute.post('/resumes/:id/draft', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const current = await getResume(id);
+  const current = await getResume(currentUser().id, id);
   if (!current) return c.text(t('http.notFound'), 404);
   const form = await c.req.parseBody();
   const text = typeof form.text === 'string' ? form.text.replace(/\r\n/g, '\n').trim() : '';
@@ -328,7 +328,7 @@ async function saveEdited(
   text: string,
   baseText: string,
 ): Promise<{ resume: ResumeSummary; note: string; document: boolean }> {
-  const [current, row] = await Promise.all([getResume(id), getResumeOriginal(id)]);
+  const [current, row] = await Promise.all([getResume(currentUser().id, id), getResumeOriginal(currentUser().id, id)]);
   if (!current) throw new Error(`resume ${id} is gone`);
   const nextVersion = current.version + 1;
   const name = current.name;
@@ -369,7 +369,7 @@ async function saveEdited(
     original: Buffer.from(text, 'utf8'),
     text,
   };
-  return { resume: await replaceResumeFile(id, payload), note, document: file !== null };
+  return { resume: await replaceResumeFile(currentUser().id, id, payload), note, document: file !== null };
 }
 
 /**
@@ -380,12 +380,12 @@ async function saveEdited(
 resumesRoute.post('/resumes/:id/props', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const [resume, row] = await Promise.all([getResume(id), getResumeOriginal(id)]);
+  const [resume, row] = await Promise.all([getResume(currentUser().id, id), getResumeOriginal(currentUser().id, id)]);
   if (!resume || !row) return c.text(t('http.notFound'), 404);
   if (!isDocx(row.sourceFilename)) return flashRedirect(`/resumes/${id}`, 'err', t('resume.flash.propsOnlyDocx'));
   const candidate = resume.text.split('\n')[0]?.trim() || resume.name;
   const fixed = await withProps(Buffer.from(row.original), { title: `${candidate} — Resume`, creator: candidate, lastModifiedBy: candidate });
-  await replaceResumeBytes(id, fixed);
+  await replaceResumeBytes(currentUser().id, id, fixed);
   return flashRedirect(`/resumes/${id}`, 'ok', t('resume.flash.propsFixed', { candidate }));
 });
 
@@ -396,7 +396,7 @@ resumesRoute.post('/resumes/:id/props', async (c) => {
 resumesRoute.post('/resumes/:id/profile', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const resume = await getResume(id);
+  const resume = await getResume(currentUser().id, id);
   if (!resume || resume.hidden) return c.text(t('http.notFound'), 404);
   if (!resume.scannedAt) {
     return flashRedirect(`/resumes/${id}`, 'err', t('resume.flash.scanFirst'));
@@ -413,7 +413,7 @@ resumesRoute.post('/resumes/:id/profile', async (c) => {
 resumesRoute.post('/resumes/:id/rescan', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const resume = await getResume(id);
+  const resume = await getResume(currentUser().id, id);
   if (!resume) return c.text(t('http.notFound'), 404);
   return startScanRun(c, resume, {
     subtitle: t('resume.run.scanSubtitle', { name: resume.name }),
@@ -447,7 +447,7 @@ function deltaFor(current: ResumeReview | null, previous: ResumeReview | null): 
 resumesRoute.post('/resumes/:id/review', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const resume = await getResume(id);
+  const resume = await getResume(currentUser().id, id);
   if (!resume) return c.text(t('http.notFound'), 404);
   const { text, version, roleTypes, answers } = resume;
   const answered = readAnswers(answers);
@@ -469,7 +469,7 @@ resumesRoute.post('/resumes/:id/review', async (c) => {
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
     const row = await reviewResume({ id, text, version, roleTypes, answers });
-    const delta = deltaFor(row, row ? await getPreviousReview(id, row.id) : null);
+    const delta = deltaFor(row, row ? await getPreviousReview(currentUser().id, id, row.id) : null);
     updateRun(run.id, row
       ? {
           stage: 'done',
@@ -497,10 +497,10 @@ resumesRoute.post('/resumes/:id/answers', async (c) => {
   const answer = typeof form.answer === 'string' ? form.answer : '';
   if (question.trim().length === 0) return c.text(t('http.badAnswer'), 400);
 
-  const saved = await saveReviewAnswer(id, question, answer);
+  const saved = await saveReviewAnswer(currentUser().id, id, question, answer);
   if (saved === null) return c.text(t('http.notFound'), 404);
   const open = unansweredAsks(
-    readReviewAdvice((await getLatestReviewForResume(id))?.advice).map((a) => a.ask),
+    readReviewAdvice((await getLatestReviewForResume(currentUser().id, id))?.advice).map((a) => a.ask),
     saved,
   ).length;
   const cleared = answer.trim().length === 0;
@@ -526,7 +526,7 @@ resumesRoute.post('/resumes/:id/rename', async (c) => {
   if (name.length === 0) {
     return flashRedirect(`/resumes/${id}`, 'err', t('resume.flash.needsName'));
   }
-  const renamed = await renameResume(id, name);
+  const renamed = await renameResume(currentUser().id, id, name);
   if (!renamed) return c.text(t('http.notFound'), 404);
   return flashRedirect(`/resumes/${id}`, 'ok', t('resume.flash.renamed', { name }));
 });
@@ -534,8 +534,8 @@ resumesRoute.post('/resumes/:id/rename', async (c) => {
 resumesRoute.post('/resumes/:id/default', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  if (!(await getResume(id))) return c.text(t('http.notFound'), 404);
-  await setDefaultResume(id);
+  if (!(await getResume(currentUser().id, id))) return c.text(t('http.notFound'), 404);
+  await setDefaultResume(currentUser().id, id);
   return flashRedirect(`/resumes/${id}`, 'ok', t('resume.flash.defaultUpdated'));
 });
 
@@ -544,7 +544,7 @@ resumesRoute.post('/resumes/:id/delete', async (c) => {
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   // A row that was not there is not a deletion. Saying it was sent a user
   // looking for a resume they still have back to a list that still shows it.
-  const deleted = await deleteResume(id);
+  const deleted = await deleteResume(currentUser().id, id);
   if (!deleted) {
     return flashRedirect('/resumes', 'warn', t('resume.flash.deleteMissing'));
   }
@@ -577,7 +577,7 @@ function startScanRun(
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
-    const scan = await scanResume({ id, text });
+    const scan = await scanResume({ id, userId: currentUser().id, text });
     updateRun(run.id, scan
       ? { stage: 'done', resultUrl: `/resumes/${id}`, flash: copy.onScanned(scan) }
       : { stage: 'error', error: copy.onFailed });

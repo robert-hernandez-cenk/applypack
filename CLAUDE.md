@@ -204,6 +204,17 @@
   `process-jobs.ts` creates the rows with the posting, `score-store.ts` is the
   one write for a re-score. Pasted / imported postings are their adder's only
   (`ownerId`, `givesRowToOthers`). The old `Job.status`-style columns are gone.
+  A resume is its owner's (ADR 0068): `Resume.userId`, and `resume/store.ts`
+  takes the `userId` first on every list, getter, default flag, scratch row
+  and fact — never `currentUser()` inside a store, so the worker passes the
+  pack's owner; AI modules take it from the `ResumeSummary` they were given.
+  Comparisons, reviews and letters are owned THROUGH the resume (read them
+  `resume: { userId }`, no column of their own); `CandidateFact` and
+  `ApplicationPack` carry a `userId` ((userId, term) and (userId, jobId) are
+  unique). `PostingBrief` and `JobVerification` stay shared. The tick queues
+  a pack for every person who keeps a new posting, against their own day's
+  count, and `pack-job.ts` prepares each row as its owner. A new reader of
+  any of these starts from the person.
 - `src/starter-packs/` is the curated-pack module: `catalog.json` (data),
   `catalog.ts` and `resolve.ts` are pure (tested), `probe.ts` calls
   `probeAts`. Web-only — the worker never imports it. Every catalog entry

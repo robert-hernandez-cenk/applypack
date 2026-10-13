@@ -26,7 +26,7 @@ const DRY_RUN = process.argv.includes('--dry-run');
 async function main(): Promise<void> {
   const matcher = await loadKeywordMatcher();
   const rows = await prisma.resumeMatch.findMany({
-    select: { id: true, matchScore: true, keywords: true, resumeText: true, breakdown: true },
+    select: { id: true, resume: { select: { userId: true } }, matchScore: true, keywords: true, resumeText: true, breakdown: true },
     orderBy: { id: 'asc' },
   });
 
@@ -41,7 +41,7 @@ async function main(): Promise<void> {
       continue;
     }
     // The edit runs again inside the lock, on the row as it is then.
-    const outcome = await rescoreMatchKeywords(row.id, (match) => {
+    const outcome = await rescoreMatchKeywords(row.resume.userId, row.id, (match) => {
       const keywords = readKeywords(match.keywords);
       const flips = new Set(writtenCannotClaims(keywords, match.resumeText, matcher));
       return { keywords: keywords.map((k) => (flips.has(k) ? { ...k, status: 'present' as const } : k)), detail: null };

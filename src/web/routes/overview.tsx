@@ -145,7 +145,7 @@ overviewRoute.get('/', async (c) => {
 const READY_PACKS_SHOWN = 8;
 
 async function loadNextThings(unmuted: Prisma.JobWhereInput): Promise<NextThing[] | null> {
-  const comparisons = await prisma.resumeMatch.count();
+  const comparisons = await prisma.resumeMatch.count({ where: { resume: { userId: currentUser().id } } });
   if (comparisons > 0) return null;
   const profile = await getActiveProfile(currentUser().id);
   const row = await prisma.userJob.findFirst({
@@ -162,7 +162,7 @@ async function loadNextThings(unmuted: Prisma.JobWhereInput): Promise<NextThing[
   const top = row && flat(row);
   if (top === null || top.fitScore === null) return null;
   const [resumes, compareCost] = await Promise.all([
-    prisma.resume.count({ where: { hidden: false } }),
+    prisma.resume.count({ where: { userId: currentUser().id, hidden: false } }),
     spendHint('resume-match'),
   ]);
   return nextThings({

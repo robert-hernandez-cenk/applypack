@@ -264,7 +264,7 @@ async function loadSettingsProps() {
       listNotificationTargets(),
       listProfiles(currentUser().id),
       getActiveProfile(currentUser().id),
-      listResumes(),
+      listResumes(currentUser().id),
       probeAiProviders(aiKeys),
       // The stage list is the install's; a stage in use by anyone counts (ADR 0067).
       prisma.userJob.groupBy({
@@ -1347,7 +1347,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   // can be gone by the time the form arrives (issue #73). Prisma's answer to
   // a dead id is a raw foreign-key error — a 500 with the whole edit lost.
   const [resumeRow, targetRow] = await Promise.all([
-    resumeId === null ? null : getResume(resumeId),
+    resumeId === null ? null : getResume(currentUser().id, resumeId),
     notificationTargetId === null
       ? null
       : prisma.notificationTarget.findUnique({ where: { id: notificationTargetId }, select: { id: true } }),
@@ -1470,13 +1470,13 @@ settingsRoute.post(
   if (form.file instanceof File && form.file.size > 0) {
     const upload = await readResumeUpload(form);
     if ('error' in upload) return flashRedirect('/settings?tab=profile', 'err', upload.error);
-    resume = await createResume({ name: nameFromFilename(upload.sourceFilename), ...upload });
+    resume = await createResume(currentUser().id, { name: nameFromFilename(upload.sourceFilename), ...upload });
   } else {
     const resumeId = idParam(form.resumeId);
     if (!Number.isFinite(resumeId)) {
       return flashRedirect('/settings?tab=profile', 'err', t('settingsRoute.fill.pickResume'));
     }
-    resume = await getResume(resumeId);
+    resume = await getResume(currentUser().id, resumeId);
   }
   if (!resume || resume.hidden) {
     return flashRedirect('/settings?tab=profile', 'err', t('settingsRoute.fill.resumeGone'));
@@ -1484,7 +1484,7 @@ settingsRoute.post(
 
   // Scans from before the primary-stack field (or failed ones) re-scan here.
   if (!resume.scannedAt || resume.primarySkills.length === 0) {
-    const scan = await scanResume({ id: resume.id, text: resume.text });
+    const scan = await scanResume({ id: resume.id, userId: resume.userId, text: resume.text });
     if (!scan) {
       return flashRedirect(
         '/settings?tab=profile',
@@ -1492,7 +1492,7 @@ settingsRoute.post(
         t('settingsRoute.fill.scanFailed', { name: resume.name }),
       );
     }
-    resume = (await getResume(resume.id)) ?? resume;
+    resume = (await getResume(currentUser().id, resume.id)) ?? resume;
   }
 
   const draft = buildProfileDraft(profile, {

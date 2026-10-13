@@ -26,11 +26,15 @@ import { withCurrentUser } from '../web/current-user';
 import { requireHeldJob } from '../web/job-guard';
 import { jobsRoute } from '../web/routes/jobs';
 import { applicationsRoute } from '../web/routes/applications';
+import { resumesRoute } from '../web/routes/resumes';
+import { factsRoute } from '../web/routes/facts';
+import { packRoute } from '../web/routes/pack';
+import { listProfilesForResume } from '../profiles';
 import { loadUser } from '../users/store';
 import { DEFAULT_BODY_BYTES } from '../web/body-limits';
 import { prisma } from '../db';
 import { createManualJob } from '../jobs/manual-job';
-import { createMatch, createResume } from '../resume/store';
+import { createMatch, createResume, getResume, listFacts, upsertFact } from '../resume/store';
 import { parseMatchResponse, PROMPT_VERSION } from '../resume/prompts';
 import { scoreMatch } from '../resume/score';
 import { getPackSettings, getSettings, setAiBudgetCents, setEmployerMode, setFetchingEnabled } from '../settings';
@@ -42,7 +46,7 @@ import { draftRubric } from '../screening/rubric';
 import { fingerprintText } from '../screening/intake';
 import { tryFetchLock } from '../jobs/fetch-lock';
 import { addToFunnel } from '../jobs/funnel-store';
-import { autoPacksToday, listUnnotifiedPacks } from '../pack/store';
+import { autoPacksToday, listUnnotifiedPacks, loadPackInputs } from '../pack/store';
 import { getFetchRun } from '../web/fetch-runs';
 import { getRun } from '../web/target-runs';
 import { parseFlashCookie } from '../web/flash';
@@ -154,7 +158,7 @@ async function fixtures(): Promise<Fixtures> {
     DEFAULT_USER_ID,
     { classify: false },
   );
-  const resume = await createResume({
+  const resume = await createResume(DEFAULT_USER_ID, {
     name: 'Smoke resume',
     sourceFilename: 'smoke.txt',
     mimeType: 'text/plain',
@@ -763,6 +767,7 @@ async function main(): Promise<void> {
 
   rows.push(...(await importChecks()));
   rows.push(...(await isolationChecks(f.jobId)));
+  rows.push(...(await resumeIsolationChecks(f.resumeId)));
   rows.push(...(await folderChecks()));
   rows.push(await packAgainCheck(f.jobId));
   rows.push(await packCancelCheck(f.jobId));
@@ -896,6 +901,120 @@ async function isolationChecks(ownJobId: number): Promise<Check[]> {
   return out;
 }
 
+/**
+ * Resumes and what hangs off them (ADR 0068), for the second person made by
+ * isolationChecks: their own resume, fact and pack; every id of the owner's is
+ * "not found", and neither person reads the other's comparison, letter or pack.
+ */
+async function resumeIsolationChecks(ownResumeId: number): Promise<Check[]> {
+  const out: Check[] = [];
+  const add = (route: string, url: string, status: number, ok: boolean): void => {
+    out.push({ route, url, status, ok });
+  };
+  const teammate = await prisma.user.findUniqueOrThrow({ where: { oidcSub: 'smoke-teammate' } });
+  const shared = await prisma.job.findFirstOrThrow({ where: { externalId: 'shared', company: { atsToken: 'isolation-co' } } });
+  const mate = await createResume(teammate.id, {
+    name: 'Teammate resume',
+    sourceFilename: 'mate.txt',
+    mimeType: 'text/plain',
+    original: Buffer.from(RESUME),
+    text: RESUME,
+  });
+  const ownerMatch = await prisma.resumeMatch.create({
+    data: { jobId: shared.id, resumeId: ownResumeId, model: 'smoke', matchScore: 77, summary: 'OWNER-ONLY-COMPARISON', keywords: [], actions: [] },
+  });
+  const ownerLetter = await prisma.coverLetter.create({
+    data: { jobId: shared.id, resumeId: ownResumeId, text: 'OWNER-ONLY-LETTER', model: 'smoke', promptVersion: 1, gateVerdict: 'pass' },
+  });
+  await prisma.candidateFact.create({ data: { userId: DEFAULT_USER_ID, term: 'isolationterm', status: 'confirmed' } });
+  const person = (user: { id: number; name: string }, sub: string) => {
+    const a = new Hono();
+    a.use('*', async (c, next) => {
+      c.set('session', { sub, name: user.name, uid: user.id, exp: 9_999_999_999 });
+      return next();
+    });
+    a.use('*', withCurrentUser(loadUser));
+    a.use('/jobs/*', requireHeldJob());
+    a.route('/', jobsRoute);
+    a.route('/', resumesRoute);
+    a.route('/', factsRoute);
+    a.route('/', packRoute);
+    return a;
+  };
+  const asMate = person(teammate, 'smoke-teammate');
+
+  const list = await asMate.request('/resumes', { headers: ORIGIN });
+  const listHtml = await list.text();
+  add('GET /resumes for a second person (their resumes only)', '/resumes', list.status, list.status === 200 && listHtml.includes('Teammate resume') && !listHtml.includes('Smoke resume'));
+  const ownerList = await app.request('/resumes', { headers: ORIGIN });
+  add('GET /resumes for the owner (not the other person\'s resume)', '/resumes', ownerList.status, ownerList.status === 200 && !(await ownerList.text()).includes('Teammate resume'));
+  for (const [what, method, path] of [
+    ['detail', 'GET', ''],
+    ['download', 'GET', '/download'],
+  ] as const) {
+    const url = `/resumes/${ownResumeId}${path}`;
+    const res = await asMate.request(url, { method, headers: ORIGIN });
+    add(`${method} /resumes/:id${path} of the other person's resume (${what}: not found)`, url, res.status, res.status === 404);
+  }
+  for (const action of ['rename', 'default', 'answers', 'rescan', 'review', 'profile']) {
+    const url = `/resumes/${ownResumeId}/${action}`;
+    const res = await asMate.request(url, form({ name: 'Hijacked', question: 'q', answer: 'a' }));
+    add(`POST /resumes/:id/${action} on the other person's resume (not found)`, url, res.status, res.status === 404);
+  }
+  const deleted = await asMate.request(`/resumes/${ownResumeId}/delete`, form({}));
+  const stillThere = await prisma.resume.findUnique({ where: { id: ownResumeId }, select: { name: true } });
+  add('POST /resumes/:id/delete on the other person\'s resume (nothing is deleted)', `/resumes/${ownResumeId}/delete`, deleted.status, deleted.status === 303 && stillThere?.name === 'Smoke resume');
+  add('A search of the other person cannot link a resume they do not own', '(store)', 200, (await getResume(teammate.id, ownResumeId)) === null && (await listProfilesForResume(teammate.id, ownResumeId)).length === 0);
+
+  // Comparisons and letters are read through the resume.
+  const ownerPage = await app.request(`/jobs/${shared.id}?match=${ownerMatch.id}`, { headers: ORIGIN });
+  const matePage = await asMate.request(`/jobs/${shared.id}?match=${ownerMatch.id}`, { headers: ORIGIN });
+  const matePageText = await matePage.text();
+  add('GET /jobs/:id shows the owner\'s comparison to the owner only', `/jobs/${shared.id}`, matePage.status, matePage.status === 200 && !matePageText.includes('OWNER-ONLY-COMPARISON') && (await ownerPage.text()).includes('OWNER-ONLY-COMPARISON'));
+  const mateLetter = await asMate.request(`/jobs/${shared.id}?letter=${ownerLetter.id}`, { headers: ORIGIN });
+  add('GET /jobs/:id?letter= of the owner\'s letter (not shown to the other person)', `/jobs/${shared.id}?letter=`, mateLetter.status, !(await mateLetter.text()).includes('OWNER-ONLY-LETTER'));
+  const letterEdit = await asMate.request(`/jobs/${shared.id}/cover/${ownerLetter.id}`, form({ text: 'x' }));
+  add('POST letter edit of the owner\'s letter (not found, unchanged)', `/jobs/${shared.id}/cover/${ownerLetter.id}`, letterEdit.status, letterEdit.status === 404 && (await prisma.coverLetter.findUniqueOrThrow({ where: { id: ownerLetter.id } })).editedText === null);
+
+  // Facts: one term, two people, two answers.
+  const mateFact = await asMate.request('/facts', form({ term: 'isolationterm', decision: 'denied' }));
+  const facts = await prisma.candidateFact.findMany({ where: { term: 'isolationterm' }, orderBy: { userId: 'asc' } });
+  add(
+    'POST /facts by one person leaves the other person\'s answer alone',
+    '/facts',
+    mateFact.status,
+    mateFact.status === 303 && facts.length === 2 && facts[0]?.status === 'confirmed' && facts[1]?.status === 'denied' && (await listFacts(teammate.id)).length === 1,
+  );
+  const crossFact = await asMate.request('/facts', form({ term: 'isolationterm', decision: 'confirmed', matchId: String(ownerMatch.id) }));
+  const untouched = await prisma.resumeMatch.findUniqueOrThrow({ where: { id: ownerMatch.id } });
+  add('POST /facts with the owner\'s comparison id (the comparison is not touched)', '/facts', crossFact.status, untouched.matchScore === 77);
+
+  // Packs: one row per person and posting, and a person reaches only their own.
+  const queued = await asMate.request(`/jobs/${shared.id}/pack`, form({}));
+  const packs = await prisma.applicationPack.findMany({ where: { jobId: shared.id } });
+  add('POST /jobs/:id/pack queues the pack for the person who asked', `/jobs/${shared.id}/pack`, queued.status, queued.status === 303 && packs.length === 1 && packs[0]?.userId === teammate.id);
+  const mateState = await asMate.request(`/jobs/${shared.id}/pack/state`, { headers: ORIGIN });
+  const ownerState = await app.request(`/jobs/${shared.id}/pack/state`, { headers: ORIGIN });
+  add('GET /jobs/:id/pack/state (a pack is its owner\'s: the other person sees none)', `/jobs/${shared.id}/pack/state`, ownerState.status, mateState.status === 200 && ownerState.status === 404);
+  const inputs = await loadPackInputs(teammate.id, shared.id, null);
+  add('The worker prepares a pack with its owner\'s resume', '(store)', 200, inputs?.resume?.id === mate.id && inputs.resume.userId === teammate.id);
+  const ownerInputs = await loadPackInputs(DEFAULT_USER_ID, shared.id, null);
+  add('...and the owner\'s pack with the owner\'s', '(store)', 200, ownerInputs?.resume?.userId === DEFAULT_USER_ID);
+
+  // A person who goes takes their resumes with them.
+  const leaver = await prisma.user.create({ data: { name: 'Smoke leaver', role: 'MEMBER' } });
+  const gone = await createResume(leaver.id, { name: 'Leaver resume', sourceFilename: 'l.txt', mimeType: 'text/plain', original: Buffer.from(RESUME), text: RESUME });
+  await upsertFact(leaver.id, 'leaverterm', 'confirmed', null);
+  await prisma.user.delete({ where: { id: leaver.id } });
+  add(
+    'Deleting a user deletes their resumes and facts',
+    '(store)',
+    200,
+    (await prisma.resume.findUnique({ where: { id: gone.id } })) === null && (await prisma.candidateFact.count({ where: { userId: leaver.id } })) === 0,
+  );
+  return out;
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -926,8 +1045,8 @@ async function packCancelCheck(jobId: number): Promise<Check> {
   const url = `/jobs/${jobId}/pack/cancel`;
   const res = await app.request(url, form({}));
   // Under `npm start` the worker may have taken the pack first: then it is no longer queued, which is all Cancel promises.
-  const left = await prisma.applicationPack.findUnique({ where: { jobId }, select: { status: true } });
-  if (!left) await prisma.applicationPack.create({ data: { jobId, trigger: 'manual' } });
+  const left = await prisma.applicationPack.findUnique({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, select: { status: true } });
+  if (!left) await prisma.applicationPack.create({ data: { userId: DEFAULT_USER_ID, jobId, trigger: 'manual' } });
   return { route: 'POST /jobs/:id/pack/cancel (a pack in the queue is taken out)', url, status: res.status, ok: res.status === 303 && left?.status !== 'queued' };
 }
 
@@ -940,14 +1059,14 @@ async function packAgainCheck(jobId: number): Promise<Check> {
   const url = `/jobs/${jobId}/pack`;
   const yesterday = new Date(Date.now() - DAY_MS);
   // As the worker leaves a pack it queued on its own: finished, and carried by a message.
-  await prisma.applicationPack.update({ where: { jobId }, data: { trigger: 'auto', status: 'stopped', queuedAt: yesterday, finishedAt: yesterday, notifiedAt: yesterday } });
+  await prisma.applicationPack.update({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, data: { trigger: 'auto', status: 'stopped', queuedAt: yesterday, finishedAt: yesterday, notifiedAt: yesterday } });
   const res = await app.request(url, form({}));
   // Only the trigger is asked: under `npm start` the worker may have taken the pack already.
-  const again = await prisma.applicationPack.findUnique({ where: { jobId }, select: { trigger: true } });
-  const counted = await autoPacksToday(new Date());
-  await prisma.applicationPack.update({ where: { jobId }, data: { status: 'stopped' } });
+  const again = await prisma.applicationPack.findUnique({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, select: { trigger: true } });
+  const counted = await autoPacksToday(DEFAULT_USER_ID, new Date());
+  await prisma.applicationPack.update({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, data: { status: 'stopped' } });
   const owed = (await listUnnotifiedPacks()).length;
-  await prisma.applicationPack.update({ where: { jobId }, data: { status: 'queued' } });
+  await prisma.applicationPack.update({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, data: { status: 'queued' } });
   return {
     route: "POST /jobs/:id/pack on a pack the tick queued (the person's now: no slot of today's limit, no message)",
     url,

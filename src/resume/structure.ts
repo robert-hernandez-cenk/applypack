@@ -22,7 +22,7 @@ import { t } from '../i18n/t';
  * failure or an unusable reply.
  */
 export async function structureResume(
-  resume: { id: number; text: string },
+  resume: { id: number; userId: number; text: string },
   onError?: (reason: string) => void,
 ): Promise<JsonResume | null> {
   const answer = await askForJson(
@@ -74,6 +74,6 @@ export async function structureResume(
     );
     return null;
   }
-  await saveResumeStructure(resume.id, report.structure);
+  await saveResumeStructure(resume.userId, resume.id, report.structure);
   return report.structure;
 }

@@ -4,6 +4,7 @@ import { resumeOptionLabel } from './resume-label';
 import type { MatchEvidence } from '../resume/match-mode';
 import { MAX_RESUME_NAME_CHARS, nameFromFilename, readResumeUpload } from './upload';
 import { t } from '../i18n/t';
+import { currentUser } from './current-user';
 
 /*
  * "Which resume?" on the two launchers (/target, /letter): one of the user's
@@ -35,11 +36,12 @@ export interface ResumeOption {
 
 /** The launcher's "One of your resumes" list: the Resumes rows, the scratch row never. */
 export async function listResumeOptions(): Promise<ResumeOption[]> {
-  return (await listResumes()).map((r) => ({ id: r.id, isDefault: r.isDefault, label: resumeOptionLabel(r) }));
+  return (await listResumes(currentUser().id)).map((r) => ({ id: r.id, isDefault: r.isDefault, label: resumeOptionLabel(r) }));
 }
 
 export interface ResolvedResume {
   id: number;
+  userId: number;
   name: string;
   version: number;
   text: string;
@@ -54,24 +56,24 @@ export async function resolveResumeSource(
 ): Promise<ResolvedResume | { error: string }> {
   if (f.resumeMode === 'existing') {
     if (!f.resumeId) return { error: t('upload.source.pick') };
-    const row = await getResume(f.resumeId);
+    const row = await getResume(currentUser().id, f.resumeId);
     if (!row || row.hidden) return { error: t('upload.source.gone') };
     return { ...row, evidence: 'own' };
   }
   // A file that reads exactly like one of the user's own resumes is theirs, checked or not (R16 helps R1).
-  const theirs = async (text: string): Promise<MatchEvidence> => (f.mine || (await findResumeWithText(text)) ? 'own' : 'text');
+  const theirs = async (text: string): Promise<MatchEvidence> => (f.mine || (await findResumeWithText(currentUser().id, text)) ? 'own' : 'text');
   if (f.resumeMode === 'upload') {
     const upload = await readResumeUpload(form);
     if ('error' in upload) return upload;
     const name = f.uploadName.trim().slice(0, MAX_RESUME_NAME_CHARS) || nameFromFilename(upload.sourceFilename);
-    return { ...(await upsertScratchResume({ name, ...upload })), evidence: await theirs(upload.text) };
+    return { ...(await upsertScratchResume(currentUser().id, { name, ...upload })), evidence: await theirs(upload.text) };
   }
   const text = f.resumeText.replace(/\r\n/g, '\n').trim();
   if (text.length < MIN_RESUME_CHARS) {
     return { error: t('upload.source.tooShort', { min: MIN_RESUME_CHARS }) };
   }
   const name = f.pasteName.trim().slice(0, MAX_RESUME_NAME_CHARS) || t('upload.pastedName');
-  const scratch = await upsertScratchResume({
+  const scratch = await upsertScratchResume(currentUser().id, {
     name,
     sourceFilename: 'pasted.txt',
     mimeType: 'text/plain',

@@ -293,7 +293,7 @@ model Job {
   userJobs      UserJob[]
   scores        JobScore[]
   screenings    Screening[]
-  pack          ApplicationPack?
+  packs         ApplicationPack[]
 
   @@unique([companyId, externalId])
   // Postgres does not index the referencing side of a foreign key: without
@@ -722,6 +722,10 @@ model Profile {
 // until the first successful scan.
 model Resume {
   id              Int            @id @default(autoincrement())
+  // ADR 0068: a resume is its owner's document; matches, reviews and letters
+  // belong to the person through it.
+  userId          Int            @default(1)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   name            String
   sourceFilename  String
   mimeType        String
@@ -770,6 +774,7 @@ model Resume {
   // Applications sent with this resume (UserJob.appliedResumeId).
   appliedTo       UserJob[]
 
+  @@index([userId])
   @@map("resume")
 }
 
@@ -851,12 +856,16 @@ model ResumeMatch {
 // always cannot_claim and never asked again.
 model CandidateFact {
   id        Int      @id @default(autoincrement())
-  term      String   @unique // lowercase canonical, e.g. "azure"
+  // ADR 0068: what a person confirmed or denied about themselves is theirs.
+  userId    Int      @default(1)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  term      String // lowercase canonical, e.g. "azure"
   status    String // confirmed | denied
   note      String? // user's context: where / when / what
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([userId, term])
   @@map("candidate_fact")
 }
 
@@ -904,7 +913,10 @@ model CoverLetter {
 // table, no broker. A posting's row goes when the posting does.
 model ApplicationPack {
   id              Int       @id @default(autoincrement())
-  jobId           Int       @unique
+  // ADR 0068: one pack per person and posting, prepared with the owner's resume.
+  userId          Int       @default(1)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId           Int
   job             Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
   // queued | running | ready | stopped | failed (src/pack/store.ts)
   status          String    @default("queued")
@@ -953,8 +965,10 @@ model ApplicationPack {
   startedAt       DateTime?
   finishedAt      DateTime?
 
+  @@unique([userId, jobId])
   // The runner takes the oldest queued row; the limit counts today's auto rows.
   @@index([status, queuedAt])
+  @@index([userId, status])
   @@map("application_pack")
 }
 
@@ -1190,20 +1204,23 @@ enum UserRole {
 // migration creates: the owner of everything that existed before, and the one
 // person an install without sign-in has. The first OIDC sign-in claims it.
 model User {
-  id               Int             @id @default(autoincrement())
+  id               Int               @id @default(autoincrement())
   // The identity provider's stable id for the person; NULL until someone
   // signs in as this user (and always for an install without sign-in).
-  oidcSub          String?         @unique
+  oidcSub          String?           @unique
   name             String
-  role             UserRole        @default(MEMBER)
-  createdAt        DateTime        @default(now())
+  role             UserRole          @default(MEMBER)
+  createdAt        DateTime          @default(now())
   // The person's primary search (ADR 0066): the defaults and preselects for
   // their pages, always running. Was AppSettings.activeProfileId.
-  primaryProfileId Int?            @unique
-  primaryProfile   Profile?        @relation("UserPrimary", fields: [primaryProfileId], references: [id], onDelete: SetNull)
-  profiles         Profile[]       @relation("UserProfiles")
+  primaryProfileId Int?              @unique
+  primaryProfile   Profile?          @relation("UserPrimary", fields: [primaryProfileId], references: [id], onDelete: SetNull)
+  profiles         Profile[]         @relation("UserProfiles")
   jobs             UserJob[]
   stageEvents      JobStageEvent[]
+  resumes          Resume[]
+  candidateFacts   CandidateFact[]
+  applicationPacks ApplicationPack[]
 
   @@map("users")
 }

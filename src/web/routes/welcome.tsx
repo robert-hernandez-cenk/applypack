@@ -87,7 +87,7 @@ welcomeRoute.get('/welcome', async (c) => {
   const current = isWelcomeStep(requested) ? requested : currentStep(facts);
 
   const [resumes, lastSearch, aggregators, packs, matchCount, top, waiting, localServers] = await Promise.all([
-    listResumes(),
+    listResumes(currentUser().id),
     findLastSearch(),
     countAggregators(),
     packOffers(),
@@ -114,7 +114,7 @@ welcomeRoute.get('/welcome', async (c) => {
 
   const resumeId = idParam(c.req.query('resume'));
   const asNew = c.req.query('mode') === 'new';
-  const draftResume = Number.isFinite(resumeId) && profile ? await getResume(resumeId) : null;
+  const draftResume = Number.isFinite(resumeId) && profile ? await getResume(currentUser().id, resumeId) : null;
   const draft = draftResume && profile ? draftCard(profile, draftResume, asNew) : null;
 
   return c.html(
@@ -254,10 +254,10 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), onceGuard(
   if (form.file instanceof File && form.file.size > 0) {
     const upload = await readResumeUpload(form);
     if ('error' in upload) return flashRedirect(PROFILE_STEP, 'err', upload.error);
-    resume = await createResume({ name: nameFromFilename(upload.sourceFilename), ...upload });
+    resume = await createResume(currentUser().id, { name: nameFromFilename(upload.sourceFilename), ...upload });
   } else {
     const id = idParam(form.resumeId);
-    if (Number.isFinite(id)) resume = await getResume(id);
+    if (Number.isFinite(id)) resume = await getResume(currentUser().id, id);
   }
   if (!resume || resume.hidden) return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.pickResume'));
   if (resume.scannedAt && resume.primarySkills.length > 0) {
@@ -276,7 +276,7 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), onceGuard(
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
-    const scan = await scanResume({ id, text });
+    const scan = await scanResume({ id, userId: currentUser().id, text });
     if (!scan) {
       updateRun(run.id, {
         stage: 'error',
@@ -297,7 +297,7 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), onceGuard(
 welcomeRoute.post('/welcome/profile/apply', async (c) => {
   const form = await c.req.parseBody();
   const { profile } = await loadWelcomeContext();
-  const resume = await getResume(idParam(form.resumeId));
+  const resume = await getResume(currentUser().id, idParam(form.resumeId));
   if (!profile) return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.noPrimary'));
   if (!resume || !resume.scannedAt) return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.notScanned'));
   const draft = buildProfileDraft(profile, scanFields(resume));
@@ -323,7 +323,7 @@ welcomeRoute.post('/welcome/profile/apply', async (c) => {
  */
 welcomeRoute.post('/welcome/profile/create', async (c) => {
   const form = await c.req.parseBody();
-  const resume = await getResume(idParam(form.resumeId));
+  const resume = await getResume(currentUser().id, idParam(form.resumeId));
   if (!resume || resume.hidden || !resume.scannedAt) {
     return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.notScanned'));
   }

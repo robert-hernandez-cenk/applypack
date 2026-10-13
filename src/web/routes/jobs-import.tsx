@@ -81,6 +81,7 @@ async function importSources(): Promise<ImportSourceRow[]> {
   });
   return Promise.all(
     sources.map(async (s) => {
+      // Everybody's: deleting a source takes every person's comparisons and letters with its postings (ADR 0068).
       const [applications, comparisons, letters] = await Promise.all([
         prisma.job.count({ where: { companyId: s.id, userJobs: { some: { OR: [{ pipelineStage: { not: null } }, { status: JobStatus.APPLIED }] } } } }),
         prisma.resumeMatch.count({ where: { job: { companyId: s.id } } }),
@@ -186,7 +187,7 @@ async function previewFacts(stash: ImportStash) {
   const counts = previewCounts(mapped.jobs, roster, storedIds, turnsAway);
   // What the Alerts choice is about, read only when there is something to choose: who would hear, and how many packs.
   const choosing = scoring && counts.passing > 0;
-  const [channel, packSettings, queuedToday] = choosing ? await Promise.all([alertChannel(), getPackSettings(), autoPacksToday(now)]) : [null, null, 0];
+  const [channel, packSettings, queuedToday] = choosing ? await Promise.all([alertChannel(), getPackSettings(), autoPacksToday(currentUser().id, now)]) : [null, null, 0];
   const sends = choosing && channel && packSettings
     ? {
         alerts: stash.alerts ?? defaultImportAlerts(counts.passing),
