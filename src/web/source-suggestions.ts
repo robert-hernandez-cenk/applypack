@@ -2,6 +2,7 @@ import { prisma } from '../db';
 import { getSourceKeys } from '../settings';
 import { unlockedSources } from '../source-keys';
 import { listActiveProfiles } from '../profiles';
+import { currentUser } from './current-user';
 import { isBlankProfile } from '../profile-guards';
 import { suggestSources, type SourceSuggestion } from '../starter-packs/suggest';
 
@@ -13,7 +14,7 @@ import { suggestSources, type SourceSuggestion } from '../starter-packs/suggest'
 export async function currentSuggestions(): Promise<SourceSuggestion[]> {
   const [tracked, profiles, keys] = await Promise.all([
     prisma.company.findMany({ select: { id: true, atsType: true, atsToken: true, active: true } }),
-    listActiveProfiles(),
+    listActiveProfiles(currentUser().id),
     getSourceKeys(),
   ]);
   return suggestSources(profiles.filter((p) => !isBlankProfile(p)), tracked, { unlocked: unlockedSources(keys) });

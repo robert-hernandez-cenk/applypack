@@ -9,13 +9,14 @@
  */
 import { prisma } from '../db';
 import { getActiveProfile } from '../profiles';
+import { DEFAULT_USER_ID } from '../users/identity';
 import {
   evaluatePriorityRules,
   parsePriorityRules,
 } from '../priority-rules';
 
 async function main(): Promise<void> {
-  const profile = await getActiveProfile();
+  const profile = await getActiveProfile(DEFAULT_USER_ID);
   if (!profile) {
     console.error('no active profile');
     process.exit(1);

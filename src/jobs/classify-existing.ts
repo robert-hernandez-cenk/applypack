@@ -3,7 +3,7 @@ import { prisma } from '../db';
 import { logger } from '../logger';
 import { classifyJob } from '../classifier';
 import { companyForPrompt } from '../employer';
-import { listActiveProfiles } from '../profiles';
+import { listAllActiveProfiles } from '../profiles';
 import { isBlankProfile } from '../profile-guards';
 import { getSettings } from '../settings';
 import { buildVerdicts, mergeVerdicts } from './verdict-merge';
@@ -44,7 +44,7 @@ export async function classifyExistingJob(
   // Blank searches are dropped here exactly as in the tick and in
   // "Re-classify all" (issue #50) — otherwise this path, and only this path,
   // would store a vibes-based verdict next to the real ones.
-  const profiles = (await listActiveProfiles()).filter((p) => !isBlankProfile(p));
+  const profiles = (await listAllActiveProfiles()).filter((p) => !isBlankProfile(p));
   if (profiles.length === 0) {
     logger.warn({ jobId: job.id }, 'classify-existing: no usable active search');
     return { kind: 'no-search' };

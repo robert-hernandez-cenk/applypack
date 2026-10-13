@@ -5,6 +5,7 @@ import { aiEngineOrder, parseAiEngineConfig, type AiProviderId } from '../ai-eng
 import { config } from '../config';
 import { getSettings, type AppSettingsView } from '../settings';
 import { getActiveProfile } from '../profiles';
+import { currentUser } from './current-user';
 import { isBlankProfile } from '../profile-guards';
 import type { SourceSuggestion } from '../starter-packs/suggest';
 import { currentSuggestions, waitingSuggestions } from './source-suggestions';
@@ -31,7 +32,7 @@ export async function loadWelcomeContext(): Promise<WelcomeContext> {
   const [settings, probed, profile, jobCount, scoredCount, suggestions] = await Promise.all([
     getSettings(),
     probeAiProviders(),
-    getActiveProfile(),
+    getActiveProfile(currentUser().id),
     prisma.job.count(),
     prisma.job.count({ where: { fitScore: { not: null } } }),
     currentSuggestions(),

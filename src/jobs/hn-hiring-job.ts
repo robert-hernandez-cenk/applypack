@@ -3,7 +3,7 @@ import { prisma } from '../db';
 import { logger } from '../logger';
 import { markClockDated } from '../fetchers/dates';
 import { fetchHnHiring, findLatestHiringThread } from '../fetchers/hn-hiring';
-import { listActiveProfiles } from '../profiles';
+import { listAllActiveProfiles } from '../profiles';
 import { getSchedule, getSettings } from '../settings';
 import { recordCandidatesFromText } from '../discovery';
 import { makeFetchPauseProbe } from './fetch-pause';
@@ -58,7 +58,7 @@ async function pullHnThread(): Promise<{ stats: CronStats }> {
     return { stats: { skipped: 1, reason: 'source-disabled' } };
   }
 
-  const profiles = await listActiveProfiles();
+  const profiles = await listAllActiveProfiles();
   if (profiles.length === 0) {
     logger.warn('hn-hiring: no active search; aborting');
     return { stats: { aborted: 1, reason: 'no-active-profile' } };

@@ -23,6 +23,7 @@ import { classifyExistingJob, type Rescored } from '../../jobs/classify-existing
 import { rescoreFlash } from '../rescore-flash';
 import { locationMismatchReason } from '../../jobs/location-reason';
 import { getActiveProfile, listActiveProfiles } from '../../profiles';
+import { currentUser } from '../current-user';
 import { isBlankProfile } from '../../profile-guards';
 import { createManualJob, ManualJobSchema, MAX_POSTING_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { onceGuard } from '../once-guard';
@@ -202,13 +203,14 @@ jobsRoute.get('/jobs', async (c) => {
     where.scores = {
       some: {
         profileId: profile,
+        profile: { userId: currentUser().id },
         ...(minFitNum === null ? {} : { fitScore: { gte: minFitNum } }),
         ...openOnly,
       },
     };
   } else {
     if (minFitNum !== null) where.fitScore = { gte: minFitNum };
-    if (open === '1') where.scores = { some: { locationMatch: true } };
+    if (open === '1') where.scores = { some: { locationMatch: true, profile: { userId: currentUser().id } } };
   }
   if (q.trim().length > 0) {
     where.OR = [
@@ -282,7 +284,7 @@ jobsRoute.get('/jobs', async (c) => {
         },
         // Only the selected search's row, so the list renders that search's
         // score in place of the best-of.
-        ...(profile && { scores: { where: { profileId: profile }, take: 1, select: { fitScore: true } } }),
+        ...(profile && { scores: { where: { profileId: profile, profile: { userId: currentUser().id } }, take: 1, select: { fitScore: true } } }),
       },
     }),
     prisma.job.findMany({
@@ -290,8 +292,8 @@ jobsRoute.get('/jobs', async (c) => {
       select: { countries: true, regions: true, workplace: true, postedAt: true },
     }),
     prisma.job.groupBy({ by: ['status'], where: anyStatusWhere, _count: { _all: true } }),
-    getActiveProfile(),
-    listActiveProfiles(),
+    getActiveProfile(currentUser().id),
+    listActiveProfiles(currentUser().id),
     hiddenKeys.length > 0 ? prisma.job.count({ where: { employerKey: { in: hiddenKeys } } }) : 0,
   ]);
   // The list's own total is one of those counts (or their sum), so it costs no query of its own.
@@ -419,8 +421,9 @@ jobsRoute.get('/jobs/:id', async (c) => {
         // Stage C: the resume this application went out with. Only the name is
         // read — the version and text snapshot live on the job itself.
         appliedResume: { select: { name: true } },
-        // Every search's verdict, best first (ADR 0028).
+        // The signed-in person's own searches, best first (ADR 0028, 0066).
         scores: {
+          where: { profile: { userId: currentUser().id } },
           include: {
             profile: {
               select: {
@@ -443,7 +446,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
     listMatchesForJob(id),
     listVerificationsForJob(id),
     listCoverLettersForJob(id),
-    getActiveProfile(),
+    getActiveProfile(currentUser().id),
     // What the AI spent here, and what the three expensive buttons usually
     // cost — read off the ledger, no call spent (ADR 0055).
     jobSpend(id),

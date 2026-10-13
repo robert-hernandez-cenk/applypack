@@ -1,7 +1,7 @@
 import type { FolderAlerts } from '../datasets/map';
 import { t } from '../i18n/t';
 import { logger } from '../logger';
-import { listActiveProfiles } from '../profiles';
+import { listAllActiveProfiles } from '../profiles';
 import { getSchedule, getSettings } from '../settings';
 import type { NormalizedJob } from '../types';
 import { deliverHeldAlerts } from './alert-delivery';
@@ -34,7 +34,7 @@ export async function runImportJob(source: { id: number; name: string }, jobs: N
   const startedAt = new Date();
   try {
     const settings = await getSettings();
-    const profiles = await listActiveProfiles();
+    const profiles = await listAllActiveProfiles();
     if (profiles.length === 0) {
       logger.warn({ source: source.name }, 'import-job: no active search; nothing imported');
       return { stats: { aborted: 1, reason: 'no-active-profile', source: source.name } };

@@ -126,6 +126,7 @@ import {
   setProfileActive,
   updateProfile,
 } from '../../profiles';
+import { currentUser } from '../current-user';
 import { runReclassifyAll } from '../../jobs/reclassify-job';
 import { recordCronRun } from '../../jobs/cron-run';
 import { parseTagList, toStringArray } from '../../text-utils';
@@ -261,8 +262,8 @@ async function loadSettingsProps() {
     await Promise.all([
       getSettings(),
       listNotificationTargets(),
-      listProfiles(),
-      getActiveProfile(),
+      listProfiles(currentUser().id),
+      getActiveProfile(currentUser().id),
       listResumes(),
       probeAiProviders(aiKeys),
       prisma.job.groupBy({
@@ -460,7 +461,7 @@ settingsRoute.get('/settings', async (c) => {
   // and must be editable before activation.
   const profileParam = idParam(c.req.query('profile'));
   if (Number.isFinite(profileParam)) {
-    const editorProfile = await getProfile(profileParam);
+    const editorProfile = await getProfile(currentUser().id, profileParam);
     if (editorProfile) props.activeProfile = editorProfile;
   }
   const fill = idParam(c.req.query('fill'));
@@ -482,7 +483,7 @@ settingsRoute.post('/settings/fetching-toggle', async (c) => {
   if (!enabling) {
     return flashRedirect(back, 'warn', t('settingsRoute.fetching.paused'));
   }
-  const profile = await getActiveProfile();
+  const profile = await getActiveProfile(currentUser().id);
   const gateEmpty =
     !profile || (profile.stackRequired.length === 0 && profile.roleTypes.length === 0);
   if (gateEmpty) {
@@ -1217,7 +1218,7 @@ settingsRoute.post('/settings/targets/:id/test', async (c) => {
 // --- Profiles ---------------------------------------------------------------
 
 settingsRoute.post('/settings/profiles/new', async (c) => {
-  const profile = await createProfile(blankProfileInput());
+  const profile = await createProfile(currentUser().id, blankProfileInput());
   // Born inactive (issue #50): a blank profile must never become the
   // scoring profile. The first save with real content activates it.
   return flashRedirect(
@@ -1236,7 +1237,7 @@ settingsRoute.post('/settings/profiles/active', async (c) => {
   if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', t(UNKNOWN_SEARCH));
   // Server-side half of the gate (issue #50): a search with nothing to match
   // on would admit every posting and score it on vibes.
-  const target = await getProfile(id);
+  const target = await getProfile(currentUser().id, id);
   if (want && target && isBlankProfile(target)) {
     return flashRedirect(
       `/settings?tab=profile&profile=${id}`,
@@ -1245,7 +1246,7 @@ settingsRoute.post('/settings/profiles/active', async (c) => {
     );
   }
   try {
-    await setProfileActive(id, want);
+    await setProfileActive(currentUser().id, id, want);
   } catch (err) {
     return flashRedirect(
       '/settings?tab=profile',
@@ -1266,7 +1267,7 @@ settingsRoute.post('/settings/profiles/activate', async (c) => {
   if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', t(UNKNOWN_SEARCH));
   // Server-side half of the activation gate (issue #50) — the disabled
   // Activate button is advisory only.
-  const target = await getProfile(id);
+  const target = await getProfile(currentUser().id, id);
   if (target && isBlankProfile(target)) {
     return flashRedirect(
       `/settings?tab=profile&profile=${id}`,
@@ -1275,7 +1276,7 @@ settingsRoute.post('/settings/profiles/activate', async (c) => {
     );
   }
   try {
-    await setActiveProfile(id);
+    await setActiveProfile(currentUser().id, id);
   } catch (err) {
     return flashRedirect(
       '/settings?tab=profile',
@@ -1295,7 +1296,7 @@ settingsRoute.post('/settings/profiles/delete', async (c) => {
   const id = idParam(form.id);
   if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', t(UNKNOWN_SEARCH));
   try {
-    await deleteProfile(id);
+    await deleteProfile(currentUser().id, id);
   } catch (err) {
     return flashRedirect(
       '/settings?tab=profile',
@@ -1309,7 +1310,7 @@ settingsRoute.post('/settings/profiles/delete', async (c) => {
 settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const before = await getProfile(id);
+  const before = await getProfile(currentUser().id, id);
   if (!before) {
     return flashRedirect('/settings?tab=profile', 'err', t(SEARCH_GONE));
   }
@@ -1387,7 +1388,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     resumeId,
     priorityRules,
   };
-  const saved = await updateProfile(id, input);
+  const saved = await updateProfile(currentUser().id, id, input);
 
   // The second half of "born inactive" (issue #50): the first save that gives
   // a blank search real content starts it running. Since ADR 0028 that no
@@ -1396,11 +1397,11 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   let isActive = before.active;
   let activated = false;
   if (!isActive && isBlankProfile(before) && !isBlankProfile(input)) {
-    await setProfileActive(id, true);
+    await setProfileActive(currentUser().id, id, true);
     isActive = true;
     activated = true;
   }
-  const active = await getActiveProfile();
+  const active = await getActiveProfile(currentUser().id);
   const editorUrl =
     active?.id === id ? '/settings?tab=profile' : `/settings?tab=profile&profile=${id}`;
   // Plan §4.3: a running search that names Ukraine, Germany or the UK has
@@ -1461,7 +1462,7 @@ settingsRoute.post(
   async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const profile = await getProfile(id);
+  const profile = await getProfile(currentUser().id, id);
   if (!profile) return flashRedirect('/settings?tab=profile', 'err', t(SEARCH_GONE));
   const form = await c.req.parseBody();
   let resume;

@@ -19,6 +19,7 @@ import {
 import { autoPackUnwanted, type Unwanted } from '../pack/trigger';
 import { packNoticeLines, type PackEdits, type PackNotice } from '../pack/view';
 import { getActiveProfile } from '../profiles';
+import { DEFAULT_USER_ID } from '../users/identity';
 import { readCoverAngles } from '../resume/prompts';
 import { getPackSettings, getSchedule, getSettings } from '../settings';
 import { shouldDeliverHeld } from '../user-schedule';
@@ -118,7 +119,7 @@ async function runOne(packId: number, jobId: number): Promise<'ready' | 'stopped
     return 'failed';
   };
   // Read per pack, not per beat: a setting changed while the queue runs applies to the next pack (gotcha 9).
-  const [pack, settings, primary] = await Promise.all([getPackSettings(), getSettings(), getActiveProfile()]);
+  const [pack, settings, primary] = await Promise.all([getPackSettings(), getSettings(), getActiveProfile(DEFAULT_USER_ID)]);
   const inputs = await loadPackInputs(jobId, primary?.resumeId ?? null);
   if (!inputs) return fail(t('pack.why.postingGone'));
   const { posting, resume } = inputs;

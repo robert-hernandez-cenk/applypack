@@ -15,6 +15,7 @@ import {
   setTelegramEnabled,
 } from './settings';
 import { createProfile, listProfiles, setActiveProfile } from './profiles';
+import { DEFAULT_USER_ID } from './users/identity';
 
 export async function init(): Promise<void> {
   applySchema();
@@ -63,10 +64,10 @@ async function failInterruptedCronRuns(): Promise<void> {
  * "Fill from a resume". After this, the /settings page is the source of truth.
  */
 async function bootstrapDefaultProfile(): Promise<void> {
-  const existing = await listProfiles();
+  const existing = await listProfiles(DEFAULT_USER_ID);
   if (existing.length > 0) return;
 
-  const profile = await createProfile({
+  const profile = await createProfile(DEFAULT_USER_ID, {
     name: 'My profile',
     stackRequired: [],
     roleTypes: [],
@@ -93,7 +94,7 @@ async function bootstrapDefaultProfile(): Promise<void> {
     notificationTargetId: null,
     priorityRules: [],
   });
-  await setActiveProfile(profile.id);
+  await setActiveProfile(DEFAULT_USER_ID, profile.id);
   logger.info(
     { profileId: profile.id, name: profile.name },
     'init: bootstrapped default profile; manage via /settings',

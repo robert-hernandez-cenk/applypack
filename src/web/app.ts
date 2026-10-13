@@ -17,6 +17,7 @@ import { markSignInEnabled } from './oidc/enabled';
 import { signInRoutes } from './oidc/routes';
 import { withCurrentUser } from './current-user';
 import { loadUser, provisionOidcUser } from '../users/store';
+import { ensurePrimaryProfile } from '../profiles';
 import { overviewRoute } from './routes/overview';
 import { jobsRoute } from './routes/jobs';
 import { packRoute } from './routes/pack';
@@ -176,7 +177,14 @@ app.use('*', async (c, next) =>
 app.use('*', withCurrentUser(loadUser));
 
 // After the language middleware, so the pages it draws read in the person's language.
-if (signIn) app.route('/', signInRoutes(signIn, provisionOidcUser));
+// A new member starts with a blank primary search of their own (ADR 0066); a known user keeps theirs.
+if (signIn) {
+  app.route('/', signInRoutes(signIn, async (identity) => {
+    const id = await provisionOidcUser(identity);
+    await ensurePrimaryProfile(id);
+    return id;
+  }));
+}
 
 app.route('/', overviewRoute);
 app.route('/', welcomeRoute);

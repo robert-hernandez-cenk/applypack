@@ -27,7 +27,7 @@ import { createMatch, createResume } from '../resume/store';
 import { parseMatchResponse, PROMPT_VERSION } from '../resume/prompts';
 import { scoreMatch } from '../resume/score';
 import { getPackSettings, getSettings, setAiBudgetCents, setEmployerMode, setFetchingEnabled } from '../settings';
-import { blankProfileInput, listActiveProfiles } from '../profiles';
+import { blankProfileInput, listAllActiveProfiles } from '../profiles';
 import { recordAiCall } from '../ai-ledger';
 import { NO_USAGE } from '../ai-usage';
 import { createApplicants, createScreening } from '../screening/store';
@@ -898,7 +898,7 @@ async function importChecks(): Promise<Check[]> {
   const wasFetching = (await getSettings()).fetchingEnabled;
   await setFetchingEnabled(false);
   // A migrated database with nothing seeded has no search, and an import with none running stores nothing.
-  if ((await listActiveProfiles()).length === 0) {
+  if ((await listAllActiveProfiles()).length === 0) {
     await prisma.profile.create({ data: { ...blankProfileInput(), name: 'Smoke search', active: true } });
   }
   const upload = (): Promise<Response> => {

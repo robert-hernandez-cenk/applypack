@@ -6,7 +6,7 @@ import { createLimiter } from '../concurrency';
 import { classifyJob } from '../classifier';
 import { anyBaseFilterReason, passesAnyBaseFilter } from '../filter';
 import { DISMISS_KEY, FILTER_KEY } from '../funnel';
-import { getActiveProfile, listActiveProfiles } from '../profiles';
+import { getActiveProfile, listAllActiveProfiles } from '../profiles';
 import { getSettings } from '../settings';
 import { isBlankProfile } from '../profile-guards';
 import { buildVerdicts, mergeVerdicts } from './verdict-merge';
@@ -50,13 +50,13 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
  * how many a second press would take.
  */
 export async function runScoreUnscored(
-  opts: Pick<ReclassifyOptions, 'onProgress'> & { limit?: number } = {},
+  opts: Pick<ReclassifyOptions, 'onProgress'> & { limit?: number; userId: number },
 ): Promise<{ stats: CronStats }> {
-  const profiles = (await listActiveProfiles()).filter((p) => !isBlankProfile(p));
+  const profiles = (await listAllActiveProfiles()).filter((p) => !isBlankProfile(p));
   if (profiles.length === 0) return { stats: { aborted: 1, reason: 'no-active-profile' } };
   // The wizard reads the most promising ten, and "promising" needs one
   // yardstick — the primary's, falling back to the first running search.
-  const primary = (await getActiveProfile()) ?? profiles[0]!;
+  const primary = (await getActiveProfile(opts.userId)) ?? profiles[0]!;
   const ranker = isBlankProfile(primary) ? profiles[0]! : primary;
 
   const unscored = await prisma.job.findMany({
@@ -111,7 +111,7 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
   // Issue #50: re-scoring against a blank search would overwrite real scores
   // with vibes-based ones and demote most of the inbox, so blank rows are
   // dropped from the roster rather than aborting the pass.
-  const profiles = (await listActiveProfiles()).filter((p) => !isBlankProfile(p));
+  const profiles = (await listAllActiveProfiles()).filter((p) => !isBlankProfile(p));
   if (profiles.length === 0) {
     logger.warn('reclassify-all: no usable active search');
     return { stats: { aborted: 1, reason: 'no-active-profile' } };

@@ -190,7 +190,12 @@
   touches `users`. The dashboard reads `currentUser()` (`web/current-user.ts`);
   the worker has no request, so code that works on a person's data takes
   `userId: number` and its caller says whose. The job catalog is shared; a
-  table becomes per-user only in its own slice of issue #5.
+  table becomes per-user only in its own slice of issue #5. Searches are
+  (ADR 0066): `profiles.ts` takes the `userId` first (a foreign id reads as
+  "search gone"), `User.primaryProfileId` is the primary, the cap is per
+  person, and the worker scores against `listAllActiveProfiles()` — every
+  running search of every person in ONE call; `Job.fitScore` stays the
+  global best-of until the per-user job state slice.
 - `src/starter-packs/` is the curated-pack module: `catalog.json` (data),
   `catalog.ts` and `resolve.ts` are pure (tested), `probe.ts` calls
   `probeAts`. Web-only — the worker never imports it. Every catalog entry
