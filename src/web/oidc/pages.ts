@@ -3,6 +3,7 @@ import type { HtmlEscapedString } from 'hono/utils/html';
 import { APP_VERSION } from '../../app-version';
 import { currentLocale } from '../../i18n/locale';
 import { t } from '../../i18n/t';
+import { currentTheme, themeAttr } from '../theme';
 import { rootBlock } from '../tokens';
 
 /*
@@ -16,9 +17,15 @@ import { rootBlock } from '../tokens';
 const BUTTON_CLASS =
   'inline-flex min-h-[36px] cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md bg-accent-strong px-3.5 py-1.5 text-sm font-medium text-on-accent shadow-sm transition-colors duration-150 hover:bg-accent-deep';
 
+/** The page's forced look, as an attribute; nothing for System. The value is one of two words, never text from a request. */
+function themeAttribute(): string {
+  const theme = themeAttr(currentTheme());
+  return theme ? ` data-theme="${theme}"` : '';
+}
+
 function notice(title: string, body: string, href: string, action: string): HtmlEscapedString | Promise<HtmlEscapedString> {
   return html`${raw('<!DOCTYPE html>')}
-    <html lang="${currentLocale()}">
+    <html lang="${currentLocale()}"${raw(themeAttribute())}>
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />

@@ -9,6 +9,8 @@ import { LIGHT_TOKENS as TOKENS, chevronDeclaration, hex, rootBlock } from './to
 import { currentLocale } from '../i18n/locale';
 import { t } from '../i18n/t';
 import { LanguageInvite, LanguageMenu } from './language-menu';
+import { ThemeSwitch } from './theme-switch';
+import { currentTheme, themeAttr } from './theme';
 import { browserMessagesJson } from './browser-messages';
 import { signInEnabled } from './oidc/enabled';
 
@@ -211,7 +213,7 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
         every <form> grew a 1em bottom margin, which is what put a form-wrapped
         button below its bare neighbour (#153). */}
     {raw('<!DOCTYPE html>')}
-    <html lang={currentLocale()}>
+    <html lang={currentLocale()} data-theme={themeAttr(currentTheme())}>
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -373,6 +375,7 @@ const Sidebar: FC<{ active?: NavKey }> = ({ active }) => (
       <NavLink item={SETTINGS_ITEM} active={active} />
       {signInEnabled() && <SignOut />}
       <LanguageMenu variant="sidebar" />
+      <ThemeSwitch variant="sidebar" />
       <LanguageInvite place="sidebar" />
       <p class="px-3 text-meta leading-4 text-ink-faint md:hidden lg:block">
         {t('layout.local')}
