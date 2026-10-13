@@ -147,7 +147,15 @@ export async function getActiveProfile(userId: number): Promise<Profile | null> 
   return owner?.primaryProfile ?? null;
 }
 
+/** A search hunts with its owner's resume only (ADR 0068, 0070): a route that forgets to check cannot link another person's. */
+async function assertResumeOwner(userId: number, resumeId: number | null): Promise<void> {
+  if (resumeId === null) return;
+  const owned = await prisma.resume.count({ where: { id: resumeId, userId } });
+  if (owned === 0) throw new Error(t('profile.links.resumeGone'));
+}
+
 export async function createProfile(userId: number, input: ProfileInput): Promise<Profile> {
+  await assertResumeOwner(userId, input.resumeId);
   return prisma.profile.create({ data: { ...input, userId } });
 }
 
@@ -156,6 +164,7 @@ export async function updateProfile(
   id: number,
   input: ProfileInput,
 ): Promise<Profile> {
+  await assertResumeOwner(userId, input.resumeId);
   const { count } = await prisma.profile.updateMany({ where: { id, userId }, data: input });
   if (count === 0) throw searchGone();
   return prisma.profile.findUniqueOrThrow({ where: { id } });

@@ -7,6 +7,7 @@ import { clearFlashCookie, parseFlashCookie } from '../flash';
 import { activeFetchRun } from '../fetch-runs';
 import { loadWelcomeContext } from '../welcome-facts';
 import { currentStep, needsWelcome } from '../welcome-steps';
+import { isAdmin } from '../../users/admin-policy';
 import { OverviewPage } from '../pages/overview';
 import { loadHeldLine, loadNextCheck } from '../schedule-view';
 import { companyForPage, withoutMuted } from '../../employer';
@@ -45,7 +46,8 @@ overviewRoute.get('/', async (c) => {
   // A fresh install is walked through setup first (docs/onboarding-plan.md §2);
   // every other page keeps working meanwhile.
   const { facts, settings } = await loadWelcomeContext();
-  if (needsWelcome(settings)) return c.redirect('/welcome', 303);
+  // The wizard sets up the install, so only an administrator is walked through it (ADR 0070).
+  if (needsWelcome(settings) && isAdmin(currentUser())) return c.redirect('/welcome', 303);
 
   // The chart's range and technology ride in the URL; anything else reads as the default.
   const rangeParam = c.req.query('range');

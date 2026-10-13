@@ -27,7 +27,8 @@ import {
   allowedAttempt,
   keyOf,
 } from '../../starter-packs/resolve';
-import { CompaniesPage } from '../pages/companies';
+import { CompaniesMemberPage, CompaniesPage } from '../pages/companies';
+import { isAdmin } from '../../users/admin-policy';
 import type { WatchedRow } from '../pages/watchlist';
 import {
   StarterPackPreviewPage,
@@ -84,6 +85,12 @@ interface CompanyTally {
 }
 
 companiesRoute.get('/companies', async (c) => {
+  // The sources are an administrator's; a member keeps the list of companies they muted (ADR 0070).
+  if (!isAdmin(currentUser())) {
+    return c.html(<CompaniesMemberPage muted={await listMutes(currentUser().id)} flash={parseFlashCookie(c.req.header('cookie'))} />, 200, {
+      'Set-Cookie': clearFlashCookie(),
+    });
+  }
   const companies = await prisma.company.findMany({
     // A pasted job's row and an imported file's (managed on /jobs/import) are not sources the tick reads.
     where: { atsType: { notIn: [AtsType.MANUAL, AtsType.IMPORT] } },

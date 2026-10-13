@@ -53,6 +53,8 @@ import { formatNumber } from '../../i18n/format';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
 import { unscoredRun } from '../runs-summary';
+import { currentUser } from '../current-user';
+import { isAdmin } from '../../users/admin-policy';
 
 interface JobRow {
   id: number;
@@ -164,7 +166,7 @@ export const OverviewPage: FC<OverviewProps> = ({
         }
         actions={
           <>
-            {finishSetup && (
+            {finishSetup && isAdmin(currentUser()) && (
               <a href="/welcome" class="inline-flex" title={t('overview.someSetupStepsAreStill')}>
                 <Badge tone="warn" size="md">
                   {t('overview.finishSetup')}
@@ -178,13 +180,15 @@ export const OverviewPage: FC<OverviewProps> = ({
             </Badge>
             <FetchNowButton run={fetchRun} />
             {/* Quick master switch — same toggle as Settings → General. */}
-            <form method="post" action="/settings/fetching-toggle" class="flex">
-              <input type="hidden" name="back" value="/" />
-              <Button variant="secondary">
-                <Icon name={fetchingEnabled ? 'pause' : 'play'} size={16} />
-                {fetchingEnabled ? t('overview.pause') : t('overview.resume')}
-              </Button>
-            </form>
+            {isAdmin(currentUser()) && (
+              <form method="post" action="/settings/fetching-toggle" class="flex">
+                <input type="hidden" name="back" value="/" />
+                <Button variant="secondary">
+                  <Icon name={fetchingEnabled ? 'pause' : 'play'} size={16} />
+                  {fetchingEnabled ? t('overview.pause') : t('overview.resume')}
+                </Button>
+              </form>
+            )}
           </>
         }
       >

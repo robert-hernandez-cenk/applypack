@@ -6,7 +6,8 @@ decisions lean on.
 
 ## What this is
 
-A self-hosted job-search operations console for one person. A cron worker fetches
+A self-hosted job-search operations console for one person, or for a few who share a server
+and sign in. A cron worker fetches
 postings from ATS boards and aggregators, an AI classifier scores them against the
 user's profile, Telegram or Discord delivers alerts, and a local web dashboard (this
 design's surface) is where everything is read and acted on: triage jobs, track
@@ -17,7 +18,7 @@ when it is off.
 
 ## Audience and scene
 
-- Mostly one user: the self-hosting engineer running their own job search. An install can have several people who sign in (ADR 0065); without sign-in it is one implicit user.
+- Mostly one user: the self-hosting engineer running their own job search. An install can have several people who sign in (ADR 0065-0070): the first is its administrator and runs sources, fetching and the AI engine; everyone else is a member with a private workspace over the shared job catalog. Without sign-in it is one implicit administrator.
 - Checked briefly a few times a day, mostly on a desktop browser at 1440–1920px,
   occasionally on a phone. Daylight, indoor work light — a light theme suits the scene.
 - The user is technical; density and precision beat hand-holding.
@@ -63,6 +64,6 @@ the priority.
   second theme is a token swap, not a component rewrite.
 - Primitives live in `src/web/ui.tsx`; pages compose them and never hand-roll
   Tailwind for shared patterns.
-- Dashboard is localhost-only, single user — no marketing surfaces, no auth UI
-  beyond optional basic-auth. The first run is a five-step setup (`/welcome`,
+- Dashboard is localhost-only by default — no marketing surfaces, no auth UI
+  of its own (sign-in is the identity provider's, and the only account page is the administrators' users list). The first run is a five-step setup (`/welcome`,
   derived from data, skippable), not a funnel.

@@ -550,7 +550,13 @@ src/
     priority-rules-dryrun.ts    ← npm run priority:dryrun: which stored jobs a profile's priorityRules match
     dead-exports.ts             ← npm run exports:audit: exported symbols nobody imports; a CI gate
 
+  users/                        ← who uses the install (ADR 0065, 0070)
+    identity.ts                 ← pure: the default user, CurrentUser, the first-sign-in decision
+    admin-policy.ts             ← pure: every route as administrators' or personal; routeAccess, classesOf
+    rules.ts                    ← pure: what an administrator may do to a user (the last administrator stays)
+    store.ts                    ← the only file that touches users: sign-in provisioning, summaries, changeUser
   web/                          ← the dashboard: its own process (Hono), read-mostly
+    admin-guard.tsx             ← 403 for a member on an administrators' route, before any handler (ADR 0070)
     server.ts                   ← listens on WEB_HOST:WEB_PORT and stops on a signal; the app is app.ts
     app.ts                      ← the Hono app: secure headers, basicAuth, originGuard, body limits,
                                   /static files, every route, the error handler

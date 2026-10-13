@@ -34,3 +34,13 @@
 
 {"event":"artifact_drift_detected","timestamp":"2026-10-13T02:16:22.9779720Z","actor":"claude","feature_directory":"specs/011-per-user-notifications","drifted_artifacts":[{"path":"tasks.md","old_sha256":"f600c106503f34fe6bcb32357716f9408426f4a4648abbbfff5ccc2264b360b6","new_sha256":"7302fb9ca74b509568c11c7d20d47e37b23ce68209c3060a1c2225ce3bedc12b"}]}
 
+{"timestamp":"2026-10-13T02:21:30.7826103Z","action":"handoff","status":"ready","feature_directory":"specs/011-per-user-notifications","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261013T0221307340331Z-ready"}
+
+{"timestamp":"2026-10-13T02:21:42.3583423Z","action":"handoff","status":"executing","feature_directory":"specs/012-admin-users-isolation","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261013T0221423142429Z-executing"}
+
+{"timestamp":"2026-10-13T02:21:43.0778884Z","action":"guard","status":"allow","feature_directory":"specs/012-admin-users-isolation","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
+
+{"timestamp":"2026-10-13T02:42:56.8919024Z","action":"handoff","status":"complete","feature_directory":"specs/012-admin-users-isolation","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261013T0242568411077Z-complete"}
+
+{"event":"artifact_drift_detected","timestamp":"2026-10-13T02:42:56.8981229Z","actor":"claude","feature_directory":"specs/012-admin-users-isolation","drifted_artifacts":[{"path":"spec.md","old_sha256":"34ffcdbb0dcf1a911f2a191f0f3f68d38eb66ae60fcc27527e3fd7dd5b395776","new_sha256":"023738ee80316d4e3843884a3fdd336c5270693e4442f7a1dc650b8342cd29cb"},{"path":"tasks.md","old_sha256":"58bb10d00658dac4602f330a343f1216b7a7cbbdccaaab9f4cd8602e4a1c2849","new_sha256":"6a856b8ed063f33b6acb6378dd528b67ff78864bce51e15eb504b712de975dd7"}]}
+

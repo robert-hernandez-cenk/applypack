@@ -131,6 +131,7 @@ import {
   updateProfile,
 } from '../../profiles';
 import { currentUser } from '../current-user';
+import { isAdmin } from '../../users/admin-policy';
 import { runReclassifyAll } from '../../jobs/reclassify-job';
 import { recordCronRun } from '../../jobs/cron-run';
 import { parseTagList, toStringArray } from '../../text-utils';
@@ -148,7 +149,7 @@ import { isBlankProfile } from '../../profile-guards';
 import { filterChanged } from '../../filter';
 import { foldersReadOnceHint } from '../folder-words-io';
 import type { Profile } from '@prisma/client';
-import { isSettingsTab, SettingsPage, type EngineServer, type SourceKeyRow } from '../pages/settings';
+import { SettingsPage, tabFor, type EngineServer, type SourceKeyRow } from '../pages/settings';
 import { packSettingsFromForm, parsePackSettings, switchedOn } from '../../pack/settings';
 import { cancelQueuedAutoPacks } from '../../pack/store';
 import { sourceLabel } from '../source-names';
@@ -383,6 +384,7 @@ async function loadSettingsProps() {
   };
   const aiBudget = { cents: settings.aiBudgetCents, billedThisMonthMicro: billedMonth };
   return {
+    admin: isAdmin(currentUser()),
     telegramEnabled: own.telegramEnabled,
     classifierMode: settings.classifierMode,
     applicationTrackingEnabled: own.applicationTrackingEnabled,
@@ -463,7 +465,7 @@ async function loadSettingsProps() {
 settingsRoute.get('/settings', async (c) => {
   const props = await loadSettingsProps();
   const tabParam = c.req.query('tab');
-  const activeTab = isSettingsTab(tabParam) ? tabParam : 'profile';
+  const activeTab = tabFor(tabParam, props.admin);
   // ?profile= points the editor at a specific (possibly inactive) profile.
   // "+ New profile" lands here: new profiles are born inactive (issue #50)
   // and must be editable before activation.

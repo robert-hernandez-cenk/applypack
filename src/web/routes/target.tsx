@@ -17,7 +17,7 @@ import { idParam } from '../params';
 import { TargetStartPage } from '../pages/target-start';
 import { TargetRunPage, type RunLanes } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { claimRun, getRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
+import { claimRun, getOwnRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
 import { listResumeOptions, resolveResumeSource, ResumeSourceFields } from '../resume-source';
 import { resumeUploadLimit } from '../upload';
 import { t } from '../../i18n/t';
@@ -59,7 +59,7 @@ targetRoute.get('/target', async (c) => {
 
 /** Polled by the progress page; terminal states reload into the redirect below. */
 targetRoute.get('/target/runs/:id/state', (c) => {
-  const run = getRun(c.req.param('id'));
+  const run = getOwnRun(c.req.param('id'));
   if (!run) return c.json({ gone: true }, 404);
   return c.json({
     stage: run.stage,
@@ -77,7 +77,7 @@ targetRoute.get('/target/runs/:id/state', (c) => {
 
 /** The progress page: target-run.mjs polls the state route until the chain resolves. */
 targetRoute.get('/target/runs/:id', async (c) => {
-  const run = getRun(c.req.param('id'));
+  const run = getOwnRun(c.req.param('id'));
   if (!run) {
     return flashRedirect('/target', 'err', t('target.flash.runGone'));
   }

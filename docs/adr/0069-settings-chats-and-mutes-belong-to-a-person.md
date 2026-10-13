@@ -81,6 +81,8 @@ keys, fetching pause, employer mode, update check, wizard), as it was; only the 
 schedule is gated, because the split made the form ambiguous. #12 puts the role UI and the gating
 on the rest. Operator notices already follow the `ADMIN` role.
 
+Done in [0070](./0070-administrators-run-the-install-members-work-in-their-own-space.md).
+
 ## Consequences
 
 - A new person starts with alerts on, instant mode, packs off, English, the install's zone and no

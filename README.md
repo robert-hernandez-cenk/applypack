@@ -178,6 +178,16 @@ Every page of the dashboard, backups, the worker's schedule, your own
 Postgres, development and hosting for other people:
 [docs/operations.md](./docs/operations.md).
 
+## Several people on one server
+
+By default ApplyPack is for one person. On a server, [sign in through your identity
+provider](./docs/oidc-login.md) and each person who signs in gets a private workspace over one shared job
+catalog: their own searches, job list, resumes, alerts and mutes. The **first person to sign in is the
+administrator** and keeps everything the install already held; everyone after is a **member**. Administrators
+run what is shared (sources, fetching, the AI engine and its keys, employer mode) and manage people on
+the **Users** page; members never see or change those. Restrict the client at your provider: anyone it signs in
+becomes a member. See [ADR 0070](./docs/adr/0070-administrators-run-the-install-members-work-in-their-own-space.md).
+
 ## What it costs
 
 Nothing, except the AI you choose. MIT license, no hosted version, no

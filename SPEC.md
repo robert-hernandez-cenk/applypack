@@ -5,7 +5,8 @@
 
 ## Goal
 
-Single-user, locally hosted job-search assistant. Pulls listings from
+Locally hosted job-search assistant for one person, or for several who sign in to one server
+(ADR 0065-0070). Pulls listings from
 33 kinds of public source (twelve ATS vendors, twenty aggregators, any
 RSS/Atom feed), classifies each through the AI engine chain (five
 backends, ADR 0013/0014) against every running **search profile** the
@@ -488,6 +489,29 @@ refusal. The sitemap + JSON-LD rung the plan called stage B was measured and
 ## Settings, chats and mutes (ADR 0069)
 
 What runs the install (fetching and its schedule, sources, the AI engine and its keys, employer mode) is one set for everybody. What a person is told and how their own dashboard behaves is theirs: the Alerts switch and the timing of alerts, the recap and stale-nudge hours, their Telegram and Discord destinations, the mute list and the re-apply window, cover angles, board columns, application-pack settings, language and time zone. A search with no chosen destination sends to its owner's destinations; the AI budget warning, a changed careers page and the failing-source line go to administrators. An install without sign-in is one person and behaves as before.
+
+## Users and roles (ADR 0065, 0070)
+
+An install has users. One without sign-in is a single implicit user, the default user, who is an
+administrator: nothing is refused. With OpenID Connect sign-in (ADR 0064) every person the provider
+authenticates becomes a user on first sight; the first takes over the default user (and so everything
+the install held) as its administrator, everyone after is a **member**. The job catalog (companies,
+postings, their company checks) is shared; searches, job state, resumes, comparisons, letters, facts,
+packs, alert settings, destinations and mutes are each person's, and another person's id reads as
+"not found".
+
+**Administrators run the install; members work in their own space.** Sources and companies, discovery,
+the watchlist, folders, imports, starter packs, the fetch schedule, pause and "Fetch now", the AI engine,
+keys, budget and usage, source keys, classifier mode, update check, employer mode with its screenings and
+the setup wizard are administrators' only: a member gets a 403 page, the menu hides them, and the
+settings page shows a member only the personal sections. `/companies` shows a member their muted
+companies; `/runs` shows them the install's runs, funnel and their own recaps, read-only. The route
+table that decides this is `src/users/admin-policy.ts`; the route smoke refuses an unclassified route.
+
+**The users page** (`/users`, administrators): who is on the install, their role, when they joined and
+were last active, what they hold. Promote a member, demote another administrator, remove a user (the
+confirm names what goes with them; the catalog stays). Nobody demotes or removes themselves, and the
+last administrator is never demoted or removed.
 
 ## Resumes (Phase 8.1)
 

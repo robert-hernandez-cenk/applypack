@@ -82,3 +82,13 @@ test('a pack the tick queued is asked again when the runner takes it', () => {
   assert.equal(autoPackUnwanted({ ...wanted, applied: true }), 'applied');
   assert.equal(autoPackUnwanted({ ...wanted, muted: true }), 'muted');
 });
+
+test('each person is asked with their own settings and their own day count (ADR 0069, 0070)', () => {
+  const ada = parsePackSettings({ enabled: true, minFit: 80, dailyLimit: 1 });
+  const bob = parsePackSettings(null);
+  // The same posting, scored 85 for both: only the person who switched packs on queues one.
+  assert.equal(ask({ settings: ada, fit: 85 }), 'queue');
+  assert.equal(ask({ settings: bob, fit: 85 }), 'off');
+  // Ada's limit is her own count: Bob's packs today do not use it up.
+  assert.equal(ask({ settings: ada, fit: 85, queuedToday: 1 }), 'limit');
+});
