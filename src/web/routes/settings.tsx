@@ -1,5 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
+import { deleteCookie, setCookie } from 'hono/cookie';
+import { THEMES, THEME_COOKIE, THEME_COOKIE_MAX_AGE, parseTheme } from '../theme';
 import { idParam } from '../params';
 import { onceGuard } from '../once-guard';
 import { AtsType } from '@prisma/client';
@@ -1010,6 +1012,27 @@ settingsRoute.post('/settings/update-check-toggle', async (c) => {
         ? t('settingsRoute.updates.newer', { latest, current: APP_VERSION })
         : t('settingsRoute.updates.latest', { current: APP_VERSION }),
   );
+});
+
+/**
+ * The look of the dashboard in this browser (a cookie, theme.ts): Light and Dark
+ * set it, System removes it, and anything else changes nothing. No flash — the
+ * page coming back in the new look is the answer.
+ */
+settingsRoute.post('/settings/theme', async (c) => {
+  const form = await c.req.parseBody();
+  const back = safeBack(form.back, '/');
+  // A value the switch does not offer changes nothing; "system" is the one that clears the choice.
+  if (typeof form.theme === 'string' && (THEMES as readonly string[]).includes(form.theme)) {
+    const theme = parseTheme(form.theme);
+    if (theme === 'system') deleteCookie(c, THEME_COOKIE, { path: '/' });
+    else {
+      // Behind a proxy that ends TLS the request reads http: — the forwarded protocol says what the browser used.
+      const https = c.req.header('x-forwarded-proto') === 'https' || new URL(c.req.url).protocol === 'https:';
+      setCookie(c, THEME_COOKIE, theme, { path: '/', maxAge: THEME_COOKIE_MAX_AGE, sameSite: 'Lax', httpOnly: true, secure: https });
+    }
+  }
+  return c.redirect(back, 303);
 });
 
 /**

@@ -2824,7 +2824,9 @@ it moves. Stage 0 carries no tag; the others are a minor each.
   (`web/chart-svg.ts`, `web/overview-stats.ts`); the same release replaced
   stage 4's metric strip with four status cards and refreshed the tokens,
   the type ladder and the shapes (DESIGN.md).
-- Dark theme as a second value set in `tokens.ts` — when the owner asks.
+- ~~Dark theme as a second value set in `tokens.ts` — when the owner asks.~~
+  Shipped in v2.57.0 (#4): `DARK_TOKENS`, the `theme` cookie, the System / Light
+  / Dark switch (DESIGN.md → Dark).
 - A drawer, a richer combobox — when a page, a `?tab=`, a `<details>` or a
   native `<dialog>` cannot do the job.
 - §20's `first-run-follow-through` card lands after `overview-and-runs`, on

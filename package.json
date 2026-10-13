@@ -1,6 +1,6 @@
 {
   "name": "applypack",
-  "version": "2.56.0",
+  "version": "2.57.0",
   "private": true,
   "description": "Runs on your own computer with npm start: an AI console for the whole job search that finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. 33 sources, 7 swappable AI backends, your data in a Postgres of its own, Docker on a VPS if you like.",
   "license": "MIT",
@@ -49,7 +49,7 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:db:push": "prisma db push",
     "lint:types": "tsc --noEmit",
-    "test": "tsx --test $(find src -name '*.test.ts')",
+    "test": "tsx --test \"src/**/*.test.ts\"",
     "postinstall": "prisma generate"
   },
   "overrides": {

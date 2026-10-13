@@ -146,9 +146,11 @@ row of them lines up without thought.
 
 Two looks are refused: the dark hacker dashboard (glowing terminals,
 neon-on-black) and the decorated admin template (glassmorphism, animated
-gradients, hover-lift, a chart for its own sake). Only a light theme is
-implemented; every colour flows through semantic CSS-variable tokens, so a
-dark theme later is a second set of values, not a component rewrite.
+gradients, hover-lift, a chart for its own sake). The dashboard has a light and
+a dark look (since 2.57.0); every colour flows through semantic CSS-variable
+tokens, so the dark look is a second set of values, not a component rewrite —
+the same layout, the same status vocabulary, quieter ground. It is not the
+refused look: no glow, no neon, no pure black, no coloured shadow.
 
 **Key Characteristics:**
 - Canvas ground (#F3F5F4), white cards and a white menu, a subtle third
@@ -190,6 +192,38 @@ five-tone status vocabulary. Every value is declared once as an RGB triplet in
 `rgb(var(--token) / alpha)` through `tailwind.config.js` — components never
 hard-code hex. `tokens.test.ts` holds every text colour to its floor on every
 surface it can sit on; a value that fails does not ship.
+
+### Dark
+
+`DARK_TOKENS` in `src/web/tokens.ts` names the same colours as the light set
+(a missing name fails the build) and `tokens.test.ts` runs the same floors over
+both. How it is applied: `rootBlock()` puts the light set on `:root`, the dark
+set on `:root[data-theme="dark"]`, and again under
+`@media (prefers-color-scheme: dark)` for a page that says nothing
+(`:root:not([data-theme="light"])`); `color-scheme` rides with each, so
+scrollbars and native controls follow.
+
+- **Ground:** the canvas is the darkest step (#0F1312), a card one step lighter
+  (#181E1C), a well lighter again (#212926) — depth reads as light, not as
+  shadow. Ink is off-white (#E8EDEB), never pure white.
+- **Emerald** is lifted (#34D399) because on a dark ground the accent is the
+  text and the fill at once; **`on-accent`** is the text drawn on a solid
+  accent or warn fill — white in the light set (#FFFFFF), near-black in the
+  dark one (#041E16). Use `text-on-accent`, never `text-white`, on a fill.
+- **Status tones** are the same five hues lifted until each clears AA on every
+  dark surface and on its own 12 % pill; they stay apart from each other.
+- **Shadows and the menu's scrim** read `--shadow-ink` and `--scrim` (the ink in
+  light, black in dark). A popover's `::backdrop` stays a literal tint: older
+  browsers do not pass custom properties into it, and a missing variable would
+  drop the dimming altogether.
+- **Stays white on purpose:** the resume and posting document pane (it is a
+  page, as a printed one is) and the AP mark's white-on-green tile in the
+  favicon. A toggle's knob is `surface-raised`, so it reads on the lifted accent
+  track in dark.
+- **Chosen by:** System (default), Light or Dark — the three icons at the foot
+  of the menu and Settings → General → Appearance. A `theme` cookie holds it
+  (`theme.ts`); the server writes it onto `<html data-theme>` so the first paint
+  is already right. System is no cookie at all.
 
 ### Primary
 - **Emerald** (#059669): the one brand accent. Focus rings (2px outline, 2px
@@ -657,9 +691,10 @@ not done.
 
 ### Do:
 - **Do** route every colour through the semantic tokens (`surface` / `line` /
-  `ink` / `accent` / status tones) as `rgb(var(--token) / alpha)`; a future dark
-  theme must be a token swap, not a component edit. A chart's strokes and
-  fills use the same variables.
+  `ink` / `accent` / status tones) as `rgb(var(--token) / alpha)`; the dark look
+  is a token swap, so a literal colour is the same in both looks and is a bug in
+  one of them. A chart's strokes and fills use the same variables. A new token
+  goes in both `LIGHT_TOKENS` and `DARK_TOKENS`.
 - **Do** keep the 4px spacing grid: 20px card padding, 12×16px table cells,
   16px card gaps, one control height.
 - **Do** set `tabular-nums` on every numeric readout (stats, counts, scores,
@@ -700,5 +735,7 @@ not done.
   dashboard draws everything it shows.
 - **Don't** set prose, labels, or headings in monospace — mono is machine
   values only.
-- **Don't** go dark ad hoc: no dark-styled components or pages until the token
-  layer itself grows a dark value set.
+- **Don't** style the dark look per component: no `dark:` utilities, no
+  `[data-theme]` selector in a page. The dark look lives in `DARK_TOKENS`; a
+  colour that cannot be a token (a data-URI) is built from the set the way
+  `chevronDeclaration` builds the select's chevron.

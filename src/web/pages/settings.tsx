@@ -64,6 +64,7 @@ import { weekdayName } from '../../i18n/format';
 import { countryChip, placeName, workplaceName } from '../../i18n/places';
 import { t } from '../../i18n/t';
 import { LanguageSettings } from '../language-menu';
+import { ThemeSwitch } from '../theme-switch';
 import type { ProfileLine } from '../profile-line';
 import { tRich } from '../rich';
 
@@ -1409,6 +1410,12 @@ export const SettingsPage: FC<SettingsProps> = ({
         </form>
       </Section>
       </>
+      )}
+
+      {activeTab === 'general' && (
+      <Section id="appearance" title={t('theme.label')} desc={t('theme.hint')}>
+        <ThemeSwitch variant="settings" />
+      </Section>
       )}
 
       {activeTab === 'general' && (

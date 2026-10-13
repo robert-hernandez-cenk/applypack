@@ -49,6 +49,7 @@ module.exports = {
           strong: 'rgb(var(--accent-strong) / <alpha-value>)',
           deep: 'rgb(var(--accent-deep) / <alpha-value>)',
         },
+        'on-accent': 'rgb(var(--on-accent) / <alpha-value>)',
         ok: 'rgb(var(--ok) / <alpha-value>)',
         warn: 'rgb(var(--warn) / <alpha-value>)',
         danger: 'rgb(var(--danger) / <alpha-value>)',
@@ -71,12 +72,12 @@ module.exports = {
         md: '8px',
         lg: '12px',
       },
-      // Tinted with the ink, never black: sm sits under a control, card under
+      // Tinted with the ink (--shadow-ink: black in the dark set), never a flat black: sm sits under a control, card under
       // a raised surface, pop under what floats (a menu, a tooltip, a popover).
       boxShadow: {
-        sm: '0 1px 2px 0 rgb(13 20 33 / 0.06)',
-        card: '0 1px 2px 0 rgb(13 20 33 / 0.04), 0 2px 8px -2px rgb(13 20 33 / 0.06)',
-        pop: '0 4px 8px -2px rgb(13 20 33 / 0.08), 0 16px 32px -8px rgb(13 20 33 / 0.16)',
+        sm: '0 1px 2px 0 rgb(var(--shadow-ink) / 0.06)',
+        card: '0 1px 2px 0 rgb(var(--shadow-ink) / 0.04), 0 2px 8px -2px rgb(var(--shadow-ink) / 0.06)',
+        pop: '0 4px 8px -2px rgb(var(--shadow-ink) / 0.08), 0 16px 32px -8px rgb(var(--shadow-ink) / 0.16)',
       },
       fontFamily: {
         // Noto Sans Devanagari stands in for the script Inter does not draw (src/web/tailwind.css).
