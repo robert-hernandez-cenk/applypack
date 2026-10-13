@@ -942,6 +942,7 @@
   "settingsRoute.schedule.notSaved": "Schedule not saved ({issue}). The stored schedule is unchanged; fix that field and save again.",
   "settingsRoute.schedule.saved": "Schedule saved — {schedule}.",
   "settingsRoute.schedule.alertsSaved": "Alert timing saved.",
+  "settingsRoute.schedule.adminOnly": "Only an administrator changes when the search runs.",
   "settingsRoute.schedule.zoneSaved": "Time zone saved: {zone}.",
   "settingsRoute.alerts.enabled": "Alerts enabled on every channel.",
   "settingsRoute.alerts.disabled": "Alerts disabled on every channel. What is found meanwhile waits, and arrives in one message per chat when you switch them back on.",

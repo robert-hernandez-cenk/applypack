@@ -25,6 +25,8 @@ export const HELD_LIST_MAX = 20;
 
 export interface HeldRow {
   id: number;
+  /** Whose match it is: a message never mixes two people's rows (ADR 0069). */
+  userId: number;
   /**
    * The winning search's chat, or null to broadcast — the same routing an
    * instant alert would have taken, recomputed from the stored verdicts so a
@@ -35,6 +37,7 @@ export interface HeldRow {
 }
 
 export interface HeldGroup {
+  userId: number;
   targetId: number | null;
   /** Listed in the message, and marked ALERTED once it is out. */
   ids: number[];
@@ -44,22 +47,24 @@ export interface HeldGroup {
 }
 
 /**
- * One message per chat, in the order the rows came in (best first — the
- * caller reads them by fit), the first `max` listed. A broadcast group
+ * One message per person and chat, in the order the rows came in (best first
+ * — the caller reads them by fit), the first `max` listed. A broadcast group
  * (targetId null) is kept apart from the routed ones: merging it into a
- * chat's message would send that chat somebody else's search twice.
+ * chat's message would send that chat somebody else's search twice. Two
+ * people's rows are never in one group, whatever their targets are.
  */
 export function groupHeldByTarget(rows: readonly HeldRow[], max = HELD_LIST_MAX): HeldGroup[] {
-  const groups = new Map<number | null, HeldGroup>();
+  const groups = new Map<string, HeldGroup>();
   for (const row of rows) {
-    const group = groups.get(row.targetId) ?? { targetId: row.targetId, ids: [], alerts: [], unlisted: [] };
+    const key = `${row.userId}:${row.targetId ?? ''}`;
+    const group = groups.get(key) ?? { userId: row.userId, targetId: row.targetId, ids: [], alerts: [], unlisted: [] };
     if (group.ids.length < max) {
       group.ids.push(row.id);
       group.alerts.push(row.alert);
     } else {
       group.unlisted.push(row.id);
     }
-    groups.set(row.targetId, group);
+    groups.set(key, group);
   }
   return [...groups.values()];
 }

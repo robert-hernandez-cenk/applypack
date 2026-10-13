@@ -15,7 +15,7 @@ import { originGuard } from './origin-guard';
 import { authLock, planAuth, signInRuntime } from './oidc/mount';
 import { markSignInEnabled } from './oidc/enabled';
 import { signInRoutes } from './oidc/routes';
-import { withCurrentUser } from './current-user';
+import { currentUser, isUserless, withCurrentUser } from './current-user';
 import { requireHeldJob } from './job-guard';
 import { loadUser, provisionOidcUser } from '../users/store';
 import { ensurePrimaryProfile } from '../profiles';
@@ -127,6 +127,11 @@ app.use('/static/*', async (c, next) => {
 // cannot turn a stylesheet into a 500.
 app.use('/static/*', serveStatic({ root: './src/web/public', rewriteRequestPath: (p) => p.replace(/^\/static/, '') }));
 
+// Who the request acts as (ADR 0065): after the lock has read the session, before
+// any route — and before the display settings below, whose zone and language
+// are the person's own (ADR 0069).
+app.use('*', withCurrentUser(loadUser));
+
 // Tiny request log; also loads the employer-mode switch once, for the sidebar
 // (ADR 0049), the zone every date on the page is written in, and the language
 // the page is worded in (ADR 0061).
@@ -139,7 +144,9 @@ app.use('*', async (c, next) => {
   try {
     await ensureEmployerMode();
     await ensureUpdateNotice();
-    display = await getDisplaySettings();
+    display = await getDisplaySettings(currentUser().id);
+    // A page nobody is signed in to (the sign-in pages) is not worded in a user's language.
+    if (isUserless(c.req.path)) display = { ...display, locale: null };
   } catch (err) {
     logger.warn({ err, path: c.req.path }, 'web: employer mode unknown — database unreachable');
   }
@@ -174,8 +181,6 @@ app.use('*', async (c, next) =>
     : bodyLimit({ maxSize: DEFAULT_BODY_BYTES, onError: (ctx) => ctx.text(t('http.tooLarge'), 413) })(c, next),
 );
 
-// Who the request acts as (ADR 0065): after the lock has read the session, before any route.
-app.use('*', withCurrentUser(loadUser));
 // A posting the person does not hold is not found, on every /jobs/<id> route (ADR 0067).
 app.use('/jobs/*', requireHeldJob());
 

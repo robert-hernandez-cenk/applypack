@@ -3,7 +3,7 @@ import { companyForMessage } from '../employer';
 import { logger } from '../logger';
 import { sendDigest } from '../notifier';
 import { t } from '../i18n/t';
-import { getSettings } from '../settings';
+import { getUserSettings } from '../settings';
 import { daysSince } from '../text-utils';
 import { appliedWithLabel } from './applied-with';
 import {
@@ -20,18 +20,17 @@ export { formatStaleMessage, type StaleApplicationItem } from './stale-applicati
 /**
  * Daily cron: find APPLIED jobs that have sat in 'applied' stage for more
  * than 14 days with no recruiter contact, and send a Telegram nudge. One
- * person's applications (ADR 0067); until chats belong to a person (#11) the
- * worker asks for the default user's.
+ * person's applications (ADR 0067), their toggles and their chats (ADR 0069).
  */
 export async function runStaleApplicationsJob(userId: number): Promise<{ stats: CronStats }> {
-  const settings = await getSettings();
+  const settings = await getUserSettings(userId);
   if (!settings.applicationTrackingEnabled) {
-    logger.info('stale-applications: skipped (tracking disabled)');
-    return { stats: { skipped: 1, reason: 'tracking-disabled' } };
+    logger.info({ userId }, 'stale-applications: skipped (tracking disabled)');
+    return { stats: { userId, skipped: 1, reason: 'tracking-disabled' } };
   }
   if (!settings.staleApplicationsDigestEnabled) {
-    logger.info('stale-applications: skipped (digest disabled)');
-    return { stats: { skipped: 1, reason: 'digest-disabled' } };
+    logger.info({ userId }, 'stale-applications: skipped (digest disabled)');
+    return { stats: { userId, skipped: 1, reason: 'digest-disabled' } };
   }
 
   const cutoff = new Date(Date.now() - STALE_APPLICATION_DAYS * DAY_MS);
@@ -63,8 +62,8 @@ export async function runStaleApplicationsJob(userId: number): Promise<{ stats: 
   }));
 
   if (items.length === 0) {
-    logger.info('stale-applications: no stale applications to report');
-    return { stats: { found: 0 } };
+    logger.info({ userId }, 'stale-applications: no stale applications to report');
+    return { stats: { userId, found: 0 } };
   }
 
   // One synthetic AlertJob whose summary IS the message body: the nudge's
@@ -72,6 +71,7 @@ export async function runStaleApplicationsJob(userId: number): Promise<{ stats: 
   // sendDigest's and worth reusing. An empty list is never passed — that
   // branch prints the recap's "no new matches" placeholder.
   const delivery = await sendDigest(
+    userId,
     [
       {
         title: t('stale.title', { n: items.length }),
@@ -90,9 +90,9 @@ export async function runStaleApplicationsJob(userId: number): Promise<{ stats: 
 
   // A snapshot of a standing state: tomorrow's first digest hour asks again.
   if (delivery.skipped !== null) {
-    logger.info({ found: items.length, reason: delivery.skipped }, 'stale-applications: nothing sent');
-    return { stats: { skipped: 1, reason: delivery.skipped, found: items.length } };
+    logger.info({ userId, found: items.length, reason: delivery.skipped }, 'stale-applications: nothing sent');
+    return { stats: { userId, skipped: 1, reason: delivery.skipped, found: items.length } };
   }
-  logger.info({ found: items.length }, 'stale-applications: digest sent');
-  return { stats: { found: items.length } };
+  logger.info({ userId, found: items.length }, 'stale-applications: digest sent');
+  return { stats: { userId, found: items.length } };
 }

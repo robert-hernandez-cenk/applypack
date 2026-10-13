@@ -17,7 +17,7 @@ export function currentUser(): CurrentUser {
 }
 
 /** Paths that answer without a person: nothing here may need the database. */
-function isUserless(path: string): boolean {
+export function isUserless(path: string): boolean {
   return path === '/health' || path.startsWith('/auth/') || path.startsWith('/static/');
 }
 

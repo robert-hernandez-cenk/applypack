@@ -80,7 +80,7 @@ packRoute.get('/jobs/:id/pack/resume.pdf', (c) => sendPackFile(c, 'pdf'));
 
 /** Everything the job page's pack tab shows, read from what the pack stored. */
 export async function loadPackView(jobId: number, url: string): Promise<ApplicationPackProps> {
-  const [pack, files, settings, kept] = await Promise.all([getPack(currentUser().id, jobId), packFiles(currentUser().id, jobId), getPackSettings(), packIsKept(currentUser().id, jobId)]);
+  const [pack, files, settings, kept] = await Promise.all([getPack(currentUser().id, jobId), packFiles(currentUser().id, jobId), getPackSettings(currentUser().id), packIsKept(currentUser().id, jobId)]);
   const [verification, match] = await Promise.all([
     pack?.verificationId
       ? prisma.jobVerification.findUnique({

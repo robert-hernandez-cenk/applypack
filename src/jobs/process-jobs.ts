@@ -4,9 +4,9 @@ import { config } from '../config';
 import { logger } from '../logger';
 import { createLimiter } from '../concurrency';
 import { anyBaseFilterReason } from '../filter';
-import { COMPANY_NOT_NAMED, employerGate, fetchedHiringName, hiringKey } from '../employer';
+import { COMPANY_NOT_NAMED, employerGates, fetchedHiringName, hiringKey, type EmployerGate } from '../employer';
 import { t } from '../i18n/t';
-import { loadEmployerRules } from './employer-store';
+import { loadEmployerRulesFor } from './employer-store';
 import { DISMISS_KEY, FILTER_KEY } from '../funnel';
 import { withApplyLinkFlags } from '../apply-link';
 import { validDate } from '../fetchers/dates';
@@ -20,12 +20,13 @@ import { listUserIds } from '../users/store';
 import { mergeAiLocation, type StoredPlace } from './location-merge';
 import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
 import { alertChannel, sendAlert, type Delivery } from '../notifier';
+import { inRunLocale } from '../run-locale';
 import { packsOnSince } from '../pack/settings';
 import { autoPacksToday, queuePack, sameRole } from '../pack/store';
 import { autoPack, copyPack } from '../pack/trigger';
 import { sourceLine } from '../web/pages/attribution';
-import { getPackSettings, type ClassifierMode } from '../settings';
-import { canAlertNow, type Schedule } from '../user-schedule';
+import { getAlertSchedule, getPackSettings, type ClassifierMode } from '../settings';
+import { canAlertNow } from '../user-schedule';
 import { alertsEveryPosting, starred, type WatchRules } from '../watchlist/interval';
 import {
   findCrossListing,
@@ -57,6 +58,10 @@ interface Candidate extends FetchResult {
   place: StoredPlace;
   /** employer.ts:hiringKey — the aggregator's employer, else the source; null when nobody said (ADR 0056). */
   employerKey: string | null;
+  /** The people who turn this posting away (they muted the employer, or applied inside their window): they get no row (ADR 0069). */
+  away: ReadonlySet<number>;
+  /** Why, for the funnel, of the first of them. */
+  awayReason: EmployerGate | null;
 }
 
 export interface ProcessStats {
@@ -155,12 +160,11 @@ export interface ProcessOptions {
   classify?: boolean;
   isCancelled?: () => Promise<boolean>;
   /**
-   * When alerts may leave (TASKS §16). Read once per tick by the caller, so
-   * every posting of one run is judged against the same instant. Absent =
-   * send on the spot, which is what every caller did before the schedule
-   * existed.
+   * Alerts wait for each person's own hours (TASKS §16, ADR 0069): the run
+   * reads each person's schedule once, so every posting of one run is judged
+   * against the same instant. Absent = send on the spot.
    */
-  schedule?: Schedule;
+  respectAlertHours?: boolean;
   /**
    * true = no match is sent on the spot: each is held, and the caller sends
    * the run's matches as one grouped message (alert-delivery.ts). An import
@@ -196,8 +200,23 @@ export async function processNormalizedJobs(
   stats: ProcessStats,
   opts: ProcessOptions,
 ): Promise<void> {
-  const { classifierMode, classify = true, isCancelled, schedule, groupAlerts = false } = opts;
-  const mayAlert = schedule === undefined || canAlertNow(new Date(), schedule);
+  const { classifierMode, classify = true, isCancelled, respectAlertHours = false, groupAlerts = false } = opts;
+  // Each person's own answers, read the first time they are needed and kept for the tick.
+  const memo = <T>(read: (userId: number) => Promise<T>): ((userId: number) => Promise<T>) => {
+    const known = new Map<number, Promise<T>>();
+    return (userId) => {
+      let value = known.get(userId);
+      if (value === undefined) {
+        value = read(userId);
+        known.set(userId, value);
+      }
+      return value;
+    };
+  };
+  const tickNow = new Date();
+  const mayAlertFor = memo(async (userId: number) => !respectAlertHours || canAlertNow(tickNow, await getAlertSchedule(userId)));
+  const channelOf = memo(alertChannel);
+  const packsOf = memo(getPackSettings);
 
   // Issue #50: a search with no required stack and no role types has nothing
   // to gate on — the filter admits everything and the classifier scores on
@@ -230,9 +249,16 @@ export async function processNormalizedJobs(
   // round trips on a cold tick were spent asking "is this stored?" one
   // (companyId, externalId) at a time (audit 2026-09-10, DATA-4).
   const stored = await storedKeys(items.map((i) => i.job));
-  // Read once per tick, like the schedule: whom the user muted, and — with
-  // the re-apply window on — where they applied inside it (ADR 0056).
-  const employers = await loadEmployerRules();
+  // Who a posting could reach: the import's owner, the owners of the running
+  // searches, or — for rows stored unscored — everyone.
+  const recipients = opts.ownerId !== undefined
+    ? [opts.ownerId]
+    : classify
+      ? [...new Set(profiles.map((p) => p.userId))]
+      : await listUserIds();
+  // Read once per tick, like the schedule: each person's mutes and — with
+  // their re-apply window on — where they applied inside it (ADR 0056, 0069).
+  const employers = await loadEmployerRulesFor(recipients);
   for (const item of items) {
     if (isCancelled && (await isCancelled())) {
       cancelled = true;
@@ -269,7 +295,10 @@ export async function processNormalizedJobs(
     // re-apply window, is turned away like a filter reject — no row, no call.
     // Reversible: after an unmute the next tick meets the posting as new.
     const employerKey = hiringKey(item.job.employer, item.companyName, item.job.employer !== undefined);
-    const turnedAway = rejected ?? (chosen ? null : employerGate(employerKey, employers, alertsEveryPosting(item.watch)));
+    // Turned away before any AI only when every person it could reach turns it
+    // away; otherwise it goes on and those who do get no row.
+    const gates = chosen ? null : employerGates(employerKey, employers, recipients, alertsEveryPosting(item.watch));
+    const turnedAway = rejected ?? gates?.all ?? null;
     if (turnedAway !== null) {
       stats.filterRejected++;
       stats[FILTER_KEY[turnedAway]]++;
@@ -281,7 +310,7 @@ export async function processNormalizedJobs(
       continue;
     }
     seen.add(key);
-    candidates.push({ ...item, place, employerKey });
+    candidates.push({ ...item, place, employerKey, away: gates?.away ?? new Set(), awayReason: gates === null || gates.away.size === 0 ? null : (employerGates(employerKey, employers, [...gates.away], alertsEveryPosting(item.watch)).all) });
   }
   if (cancelled) {
     stats.abortedMidRun = 1;
@@ -297,23 +326,20 @@ export async function processNormalizedJobs(
     recentFingerprints: candidates.length > 0 ? await loadRecentFingerprints() : [],
   };
 
-  // Unscored, a posting is every person's to see (or only the owner's).
-  const everyone = opts.ownerId !== undefined ? [opts.ownerId] : await listUserIds();
+  // Unscored, a posting is every person's to see (or only the owner's), save those who turn it away.
+  const keepingIt = (item: Candidate): number[] => recipients.filter((userId) => !item.away.has(userId));
 
   if (!classify) {
     for (const item of candidates) {
-      await persistJob(item, null, unscoredRows(item, everyone, JobStatus.NEW), batch);
+      await persistJob(item, null, unscoredRows(item, keepingIt(item), JobStatus.NEW), batch);
     }
     return;
   }
 
-  // Read once, like the schedule: Alerts off with a chat to send to means a
-  // match waits for them; no chat at all means there is nothing to wait for.
-  const channel = await alertChannel();
-  // Read once as well: whether a strong new match gets an application pack
-  // (ADR 0063), and how many today's limit has left for each person (ADR 0068):
-  // read the first time a person's pack is considered, then counted up here.
-  const packs = await getPackSettings();
+  // Whether a strong new match gets an application pack (ADR 0063) is each
+  // person's own switch (`packsOf`), and how many today's limit has left for
+  // each person (ADR 0068): read the first time a person's pack is
+  // considered, then counted up here.
   const packsToday = new Map<number, number>();
   const packsTodayFor = async (userId: number): Promise<number> => {
     const known = packsToday.get(userId);
@@ -378,7 +404,7 @@ export async function processNormalizedJobs(
       await persistJob(
         placed,
         null,
-        unscoredRows(placed, everyone, job.handPicked === true ? JobStatus.SAVED : JobStatus.DISMISSED, {
+        unscoredRows(placed, keepingIt(placed), job.handPicked === true ? JobStatus.SAVED : JobStatus.DISMISSED, {
           summary: prefilterReason ? `Set aside by the prefilter: ${prefilterReason}` : 'Set aside by the prefilter.',
         }),
         batch,
@@ -415,6 +441,8 @@ export async function processNormalizedJobs(
     const people: PersonPlan[] = [];
     for (const [userId, m] of mergeVerdictsByUser(verdicts)) {
       if (opts.ownerId !== undefined && userId !== opts.ownerId) continue;
+      // They muted this employer (or applied inside their window): no row, no alert.
+      if (item.away.has(userId)) continue;
       const keeps = m.kept || policyKeeps;
       // A score produced without a required stack never alerts, whatever the
       // threshold or priority boosts say (issue #50). A watched company on
@@ -425,11 +453,18 @@ export async function processNormalizedJobs(
       // are off — is known before the row exists, so the held stamp is written
       // WITH the row: a second statement could leave a NEW match with no stamp,
       // which nothing would ever send (audit 2026-09-10, DATA-3).
-      const holds = keeps && !skipsAlert && item.quiet !== true && channel !== 'no-targets' && (!mayAlert || channel === 'alerts-off' || groupAlerts);
+      const channel = await channelOf(userId);
+      const holds = keeps && !skipsAlert && item.quiet !== true && channel !== 'no-targets' && (!(await mayAlertFor(userId)) || channel === 'alerts-off' || groupAlerts);
       // A posting the user saved is theirs to keep whatever the score says: Saved, as a paste is,
       // with the verdicts that explain it — never Dismissed, which is deleted after a month.
       const status = keeps ? JobStatus.NEW : job.handPicked === true ? JobStatus.SAVED : JobStatus.DISMISSED;
       people.push({ userId, merged: m, keeps, skipsAlert, status, alertHeldAt: holds ? new Date() : null });
+    }
+    if (people.length === 0) {
+      // Every person with a verdict turns it away.
+      stats.filterRejected++;
+      if (item.awayReason !== null) stats[FILTER_KEY[item.awayReason]]++;
+      continue;
     }
     const rows: UserJobRow[] = people.map((p) => ({
       userId: p.userId,
@@ -469,6 +504,7 @@ export async function processNormalizedJobs(
     // A pack is a person's own (ADR 0068): one for each person who keeps the posting, from their verdict,
     // against their own daily limit, prepared later with their resume.
     for (const person of keepers) {
+      const packs = await packsOf(person.userId);
       if (person.skipsAlert || item.quiet === true || !packs.enabled) continue;
       const packFit = person.merged.winner.classification.fit_score;
       if (packFit < 0) continue;
@@ -507,6 +543,7 @@ export async function processNormalizedJobs(
       // No chat to send to: the row stays NEW on the dashboard, which is where
       // an install without notifications reads its matches. Nothing is held,
       // so adding a chat later does not replay the backlog.
+      const channel = await channelOf(person.userId);
       if (channel === 'no-targets') {
         stats.alertNoTarget++;
         continue;
@@ -527,7 +564,8 @@ export async function processNormalizedJobs(
       const several = mine.scoreLine.includes(' · ');
       let delivery: Delivery;
       try {
-        delivery = await sendAlert(
+        delivery = await inRunLocale(async () => sendAlert(
+          person.userId,
           {
             title: created.title,
             companyName: starred(fetchedHiringName(job.employer, companyName) ?? t('notify.companyNotNamed'), item.watch),
@@ -555,9 +593,9 @@ export async function processNormalizedJobs(
             matchedProfile: several ? mine.winner.profileName : null,
             profileScores: several ? mine.scoreLine : null,
           },
-          // Routed to the winning search's chat; null still broadcasts.
+          // Routed to the winning search's chat; null still broadcasts to this person's chats.
           mine.winner.notificationTargetId,
-        );
+        ), person.userId);
       } catch (err) {
         // Every chat refused it. Held, so the next heartbeat sends it with the
         // others in one grouped message instead of never.

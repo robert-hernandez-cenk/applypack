@@ -4,7 +4,9 @@ import { prisma } from '../db';
 import { logger } from '../logger';
 import { alertChannel, sendDigest, type Delivery } from '../notifier';
 import { sourceLine } from '../web/pages/attribution';
-import { shouldDeliverHeld, type Schedule } from '../user-schedule';
+import { shouldDeliverHeld } from '../user-schedule';
+import { getAlertSchedule } from '../settings';
+import { inRunLocale } from '../run-locale';
 import { starred, watchRules } from '../watchlist/interval';
 import { groupHeldByTarget, heldTitle, type HeldRow } from './held-alerts';
 import type { AlertJob } from '../types';
@@ -14,8 +16,9 @@ import type { AlertJob } from '../types';
  * outside the alert window (TASKS §16), found while Alerts were switched off,
  * or refused by every chat. Held rows stay NEW with `alertHeldAt` set and
  * their verdicts already in job_score; this sends them as one grouped message
- * per chat on the first heartbeat the schedule allows — with Alerts on and a
- * chat to send to — and only then marks them ALERTED.
+ * per person and chat on the first heartbeat THAT PERSON'S schedule allows —
+ * with their Alerts on and a chat of theirs to send to (ADR 0069) — and only
+ * then marks them ALERTED.
  *
  * It is called from the top of the fetch tick, above the pause and above the
  * schedule gate: these are matches this app has already found and already
@@ -39,11 +42,11 @@ export interface HeldDelivery {
 
 export async function deliverHeldAlerts(
   now: Date,
-  schedule: Schedule,
   only?: { companyId: number; title: string },
+  /** One person's rows only (an import is its adder's alone); absent = everyone's. */
+  forUser?: number,
 ): Promise<HeldDelivery> {
   const nothing: HeldDelivery = { delivered: 0, messages: 0, counted: 0, failed: 0 };
-  if (!shouldDeliverHeld(now, schedule)) return nothing;
 
   // A match can be dismissed, saved or applied to from the dashboard while it
   // waits — the row is on /jobs the whole time. Acting on it settles it: the
@@ -54,16 +57,26 @@ export async function deliverHeldAlerts(
     data: { alertHeldAt: null },
   });
 
-  // Alerts switched off, or no chat to send to: the rows keep waiting, as
-  // they wait for the window. Asked before the rows are read, so an install
-  // with Alerts off does not build the messages every hour to discard them.
-  if ((await alertChannel()) !== 'open') return nothing;
+  // Whose rows may leave now: their schedule lets a held message out, their
+  // Alerts are on and they have a chat. Asked before the rows are read, so an
+  // install with Alerts off does not build the messages every hour to discard them.
+  const holders = await prisma.userJob.findMany({
+    where: { alertHeldAt: { not: null }, status: JobStatus.NEW, ...(forUser !== undefined && { userId: forUser }), ...(only && { job: { companyId: only.companyId } }) },
+    distinct: ['userId'],
+    select: { userId: true },
+  });
+  const mayDeliver: number[] = [];
+  for (const { userId } of holders) {
+    if (!shouldDeliverHeld(now, await getAlertSchedule(userId))) continue;
+    if ((await alertChannel(userId)) !== 'open') continue;
+    mayDeliver.push(userId);
+  }
+  if (mayDeliver.length === 0) return nothing;
 
-  // Every person's held rows: the chats are the install's until notifications
-  // belong to a person (ADR 0067), and a row waits for its owner's own
-  // verdicts, so the search that routes it is read among theirs.
+  // Those people's held rows; a row waits for its owner's own verdicts, so the
+  // search that routes it is read among theirs.
   const userJobs = await prisma.userJob.findMany({
-    where: { alertHeldAt: { not: null }, status: JobStatus.NEW, ...(only && { job: { companyId: only.companyId } }) },
+    where: { userId: { in: mayDeliver }, alertHeldAt: { not: null }, status: JobStatus.NEW, ...(only && { job: { companyId: only.companyId } }) },
     // The message's fields only (DATA-5).
     select: {
       id: true,
@@ -105,6 +118,7 @@ export async function deliverHeldAlerts(
     const scores = j.scores.filter((s) => s.profile.userId === u.userId);
     return {
     id: u.id,
+    userId: u.userId,
     targetId: scores[0]?.profile.notificationTargetId ?? null,
     alert: {
       title: j.title,
@@ -134,21 +148,25 @@ export async function deliverHeldAlerts(
   let messages = 0;
   let counted = 0;
   let failed = 0;
+  const switchedOff = new Set<number>();
   for (const group of groupHeldByTarget(held)) {
+    // A person whose switch went off or whose last chat went since the check above: the rest of their groups meet the same answer.
+    if (switchedOff.has(group.userId)) continue;
     let delivery: Delivery;
     try {
-      delivery = await sendDigest(group.alerts, group.targetId, [], only?.title ?? heldTitle(), group.unlisted.length);
+      delivery = await inRunLocale(() => sendDigest(group.userId, group.alerts, group.targetId, [], only?.title ?? heldTitle(), group.unlisted.length), group.userId);
     } catch (err) {
       // Every chat refused it. The rows keep alertHeldAt, so the next
       // heartbeat tries again rather than leaving a match the user never
       // hears about.
-      logger.error({ err, targetId: group.targetId, count: group.ids.length }, 'alert-delivery: send failed, keeping the rows held');
+      logger.error({ err, userId: group.userId, targetId: group.targetId, count: group.ids.length }, 'alert-delivery: send failed, keeping the rows held');
       failed += group.ids.length + group.unlisted.length;
       continue;
     }
-    // Switched off, or the last chat removed, since the check above: the
-    // other groups would meet the same answer.
-    if (delivery.skipped !== null) break;
+    if (delivery.skipped !== null) {
+      switchedOff.add(group.userId);
+      continue;
+    }
     const { count } = await prisma.userJob.updateMany({
       // Still NEW: the same guard again, because the send takes seconds and
       // the dashboard is open. A row settled in between keeps the user's

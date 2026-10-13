@@ -402,7 +402,10 @@ model CronRun {
   status       CronRunStatus @default(RUNNING)
   stats        Json?
   errorMessage String?
+  // ADR 0069: whose run (a per-person recap or nudge); null = the install's, and every row before users.
+  userId       Int?
 
+  @@index([name, userId, startedAt])
   @@index([name, startedAt])
   @@index([startedAt])
   @@map("cron_run")
@@ -459,24 +462,20 @@ model AiCall {
 
 // Singleton table — always one row with id=1.
 model AppSettings {
-  id                             Int       @id @default(1)
-  telegramEnabled                Boolean   @default(false)
+  id                     Int       @id @default(1)
   // Classifier mode: 'single' = full classifier only;
   // 'two_stage' = short prefilter prompt, full classifier only on yes.
-  classifierMode                 String    @default("single")
-  // Phase 3.4 toggles
-  applicationTrackingEnabled     Boolean   @default(true)
-  staleApplicationsDigestEnabled Boolean   @default(true)
+  classifierMode         String    @default("single")
   // Phase 3.2 toggle
-  hnParserEnabled                Boolean   @default(false)
+  hnParserEnabled        Boolean   @default(false)
   // Phase 4.1: list of AtsType values to skip in runAllFetchers, e.g.
   // ["LEVER","ARBEITNOW"]. Empty array = all enabled. Coexists with
   // per-Company.active so users can disable a whole source family with
   // one click without flipping each company toggle.
-  disabledSources                String[]  @default([])
+  disabledSources        String[]  @default([])
   // Phase 4.2: discovery toggle (gates auto-creation of CompanyCandidate
   // rows from HN comments and the weekly probe job).
-  discoveryEnabled               Boolean   @default(false)
+  discoveryEnabled       Boolean   @default(false)
   // Phase 7.7: master pause for new-job ingestion. When false, the hourly
   // fetch tick and the monthly HN pull exit early ("fetching-paused" in
   // /runs). Digest, stale nudge, cleanup, discovery probe, and the
@@ -484,95 +483,77 @@ model AppSettings {
   // touching docker" switch. Default FALSE by user choice: deployments
   // (and the existing row, backfilled by the migration) start paused;
   // enable from /settings → "Job fetching" when ready.
-  fetchingEnabled                Boolean   @default(false)
+  fetchingEnabled        Boolean   @default(false)
   // AI engine chain (ADR 0013/0014): { order: [provider ids by priority],
   // models: { <id>: { classifier, resume } } }. The first usable engine
   // serves each call; the rest are automatic fallbacks. NULL = follow .env
   // (AI_PROVIDER seeds a one-engine chain).
-  aiEngine                       Json?
+  aiEngine               Json?
   // Per-engine credentials (ADR 0027): { <provider id>: "<secret>" }, stored
   // in plaintext so the dashboard can take a pasted key instead of a .env
   // edit. NULL / a missing entry = fall back to the .env variable. Read only
   // through settings.ts:getAiKeys — never joined into AppSettingsView, so a
   // secret cannot ride along with an ordinary settings read.
-  aiKeys                         Json?
+  aiKeys                 Json?
   // Stage 3e (ADR 0034): credentials for the keyed job sources (Adzuna,
   // France Travail) — {SOURCE: {field: secret}}, same rules as aiKeys: read
   // only through its accessor, never rendered in full, never logged.
-  sourceKeys                     Json?
+  sourceKeys             Json?
   // Retired in 2.21.0: the per-day run counters the ai_call ledger replaced
   // (ADR 0055). Nothing reads or writes it; the column goes in a later
   // release, so a rollback to 2.20 still finds it.
-  aiUsage                        Json?
+  aiUsage                Json?
   // Tell me when a newer version is out (TASKS N9): off by default — it is
   // one request a week to GitHub's releases API, the only one ApplyPack
   // makes about itself. `latestVersion` is the last release it saw.
-  updateCheck                    Boolean   @default(false)
-  latestVersion                  String?
-  latestCheckedAt                DateTime?
+  updateCheck            Boolean   @default(false)
+  latestVersion          String?
+  latestCheckedAt        DateTime?
   // ADR 0055: a monthly ceiling on BILLED AI money, in cents; null = none.
   // It warns at 80 % and 100 % on the alert channels and never stops a call.
   // `aiBudgetAlerted` is the last warning sent, "YYYY-MM:80" / "YYYY-MM:100".
-  aiBudgetCents                  Int?
-  aiBudgetAlerted                String?
+  aiBudgetCents          Int?
+  aiBudgetAlerted        String?
   // TASKS S1: the OpenAI-compatible engine's server, set on the AI tab; null =
   // OPENAI_BASE_URL from .env (api.openai.com by default). A local server
   // (Ollama, LM Studio, llama.cpp) needs no key and costs nothing (ADR 0055).
-  openAiBaseUrl                  String?
+  openAiBaseUrl          String?
   // ADR 0057: the local engine's Ollama root (null = OLLAMA_URL) and the
   // context window it asks for per call (null = 16 384 tokens).
-  localAiUrl                     String?
-  localContextTokens             Int?
-  // ADR 0056: turn new postings away at a company applied to in the last N
-  // days (30 / 60 / 90 / 180); null = off. `employersFilledAt` is when
-  // init.ts gave the rows stored before Job.employerKey theirs; null = the
-  // next worker boot does it.
-  reapplyDays                    Int?
-  employersFilledAt              DateTime?
+  localAiUrl             String?
+  localContextTokens     Int?
+  // ADR 0056: when init.ts gave the rows stored before Job.employerKey theirs;
+  // null = the next worker boot does it. (The re-apply window is personal, ADR 0069.)
+  employersFilledAt      DateTime?
   // F4 (ADR 0019): one digest line when a source crosses the failure
   // streak. Default TRUE — the alert adds a signal, never suppresses a job.
-  sourceHealthAlerts             Boolean   @default(true)
-  // F8.1: standing angle inputs for the cover-letter card ({ whyCompany,
-  // problem, approach, notes }), saved on every generation so the user
-  // never retypes them. Parse with readCoverAngles (resume/prompts.ts).
-  coverAngles                    Json?
-  // ADR 0025: ordered work columns [{key,label}] between the fixed
-  // 'applied' entry and the fixed rejected/ghosted exits. null = defaults.
-  pipelineStages                 Json?
+  sourceHealthAlerts     Boolean   @default(true)
+  // ADR 0069: the INSTALL's half of the schedule: zone + fetch. Alerts and the
+  // person's zone live in user_settings.schedule.
   // TASKS §16: when the search runs and when alerts arrive, as one JSON
   // object — { timezone, fetch: {every,from,to,days}, alerts:
   // {mode,from,to,days,digestAt} }. NULL means the defaults in
   // src/user-schedule.ts, which are exactly today's behaviour: hourly,
   // around the clock, alerts the moment a match is scored. The cron is
   // untouched; this is read by a pure gate on every heartbeat.
-  schedule                       Json?
+  schedule               Json?
   // First-run wizard (docs/onboarding-plan.md §2): NULL sends `/` to
   // /welcome. Set by the wizard's last step or "Skip setup"; the migration
   // backfills existing deployments so nobody is walked through setup twice.
-  setupCompletedAt               DateTime?
+  setupCompletedAt       DateTime?
   // This install's identity, written once at first boot. Its only job is to
   // seed the cron minute (src/schedule.ts): every deployment ships the same
   // seed data, so without it every install would tick at the same second
   // against the same boards. Never leaves the database.
-  instanceId                     String    @default(uuid())
+  instanceId             String    @default(uuid())
   // TASKS §19 (ADR 0049): employer mode — a Screening section that ranks a
   // folder of resumes against one position. Off by default; the routes and
   // the menu item exist only while it is on, and the worker never reads it.
   // `screeningRetentionDays` is how long a screening and its files are kept
   // before the cleanup cron deletes them (ADR 0048).
-  employerMode                   Boolean   @default(false)
-  screeningRetentionDays         Int       @default(90)
-  // ADR 0061: the language the interface is written in — a code from
-  // src/i18n/locale.ts. NULL = never chosen: English, with the browser's
-  // language offered once (web/language.ts). Interface only; prompts and
-  // what a model writes do not follow it.
-  locale                         String?
-  // ADR 0063: application packs — whether the worker prepares them, for which
-  // postings, how many a day, and what an unattended edit may touch
-  // (src/pack/settings.ts). NULL = off, which is every install until its
-  // owner switches it on.
-  pack                           Json?
-  updatedAt                      DateTime  @updatedAt
+  employerMode           Boolean   @default(false)
+  screeningRetentionDays Int       @default(90)
+  updatedAt              DateTime  @updatedAt
 
   @@map("app_settings")
 }
@@ -583,12 +564,46 @@ model AppSettings {
 // the stored ones on /jobs; it never changes a job's status, and deleting the
 // row undoes both.
 model CompanyMute {
-  key       String   @id
+  // ADR 0069: a mute is a person's own.
+  userId    Int      @default(1)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key       String
   name      String
   reason    String?
   createdAt DateTime @default(now())
 
+  @@id([userId, key])
   @@map("company_mute")
+}
+
+// ADR 0069: what is a person's own in the settings. One row per user, created
+// the first time anything reads it; the classification of every column is
+// src/settings-split.ts, held to this schema by its test.
+model UserSettings {
+  userId                         Int      @id
+  user                           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // The alerts switch (Settings → Notifications): off holds what is found.
+  telegramEnabled                Boolean  @default(true)
+  applicationTrackingEnabled     Boolean  @default(true)
+  staleApplicationsDigestEnabled Boolean  @default(true)
+  // ADR 0056: turn new postings away at a company applied to in the last N
+  // days (30 / 60 / 90 / 180); null = off.
+  reapplyDays                    Int?
+  // F8.1: standing angle inputs for the cover-letter card ({ whyCompany,
+  // problem, approach, notes }). Parse with readCoverAngles.
+  coverAngles                    Json?
+  // ADR 0025: ordered work columns [{key,label}]; null = defaults.
+  pipelineStages                 Json?
+  // The person's zone and their alert timing: { timezone, fetch (ignored), alerts }.
+  // null = the defaults in the install's zone.
+  schedule                       Json?
+  // ADR 0063: application packs (src/pack/settings.ts); null = off.
+  pack                           Json?
+  // ADR 0061: the interface language; null = never chosen.
+  locale                         String?
+  updatedAt                      DateTime @updatedAt
+
+  @@map("user_settings")
 }
 
 model CompanyCandidate {
@@ -633,13 +648,17 @@ model NotificationTarget {
   createdAt  DateTime         @default(now())
   lastUsed   DateTime?
   profiles   Profile[]
+  // ADR 0069: a destination is a person's own.
+  userId     Int              @default(1)
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // One row per destination (ADR 0053): the same bot and chat, or the same
   // webhook, added twice used to be two active rows and every alert twice.
   // NULLs are distinct to Postgres, so a Telegram row never collides with a
   // Discord one.
-  @@unique([botToken, chatId])
-  @@unique([webhookUrl])
+  @@unique([userId, botToken, chatId])
+  @@unique([userId, webhookUrl])
+  @@index([userId])
   @@map("notification_target")
 }
 
@@ -1204,23 +1223,26 @@ enum UserRole {
 // migration creates: the owner of everything that existed before, and the one
 // person an install without sign-in has. The first OIDC sign-in claims it.
 model User {
-  id               Int               @id @default(autoincrement())
+  id                  Int                  @id @default(autoincrement())
   // The identity provider's stable id for the person; NULL until someone
   // signs in as this user (and always for an install without sign-in).
-  oidcSub          String?           @unique
-  name             String
-  role             UserRole          @default(MEMBER)
-  createdAt        DateTime          @default(now())
+  oidcSub             String?              @unique
+  name                String
+  role                UserRole             @default(MEMBER)
+  createdAt           DateTime             @default(now())
   // The person's primary search (ADR 0066): the defaults and preselects for
   // their pages, always running. Was AppSettings.activeProfileId.
-  primaryProfileId Int?              @unique
-  primaryProfile   Profile?          @relation("UserPrimary", fields: [primaryProfileId], references: [id], onDelete: SetNull)
-  profiles         Profile[]         @relation("UserProfiles")
-  jobs             UserJob[]
-  stageEvents      JobStageEvent[]
-  resumes          Resume[]
-  candidateFacts   CandidateFact[]
-  applicationPacks ApplicationPack[]
+  primaryProfileId    Int?                 @unique
+  primaryProfile      Profile?             @relation("UserPrimary", fields: [primaryProfileId], references: [id], onDelete: SetNull)
+  profiles            Profile[]            @relation("UserProfiles")
+  jobs                UserJob[]
+  stageEvents         JobStageEvent[]
+  resumes             Resume[]
+  candidateFacts      CandidateFact[]
+  applicationPacks    ApplicationPack[]
+  settings            UserSettings?
+  notificationTargets NotificationTarget[]
+  companyMutes        CompanyMute[]
 
   @@map("users")
 }

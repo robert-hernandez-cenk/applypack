@@ -584,7 +584,7 @@ async function main(): Promise<void> {
       init: { method: 'POST', headers: { ...ORIGIN, 'content-type': 'application/x-www-form-urlencoded' }, body: 'minFit=40&dailyLimit=3&maxAgeDays=14&coverLetter=asked&maxBullets=1' },
       expect: async (res) => {
         const flash = parseFlashCookie((res.headers.get('set-cookie') ?? '').split(';')[0]);
-        const stored = await getPackSettings();
+        const stored = await getPackSettings(DEFAULT_USER_ID);
         return (
           res.status === 303 &&
           res.headers.get('location') === '/settings?tab=automation#packs' &&
@@ -1065,7 +1065,7 @@ async function packAgainCheck(jobId: number): Promise<Check> {
   const again = await prisma.applicationPack.findUnique({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, select: { trigger: true } });
   const counted = await autoPacksToday(DEFAULT_USER_ID, new Date());
   await prisma.applicationPack.update({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, data: { status: 'stopped' } });
-  const owed = (await listUnnotifiedPacks()).length;
+  const owed = (await listUnnotifiedPacks(DEFAULT_USER_ID)).length;
   await prisma.applicationPack.update({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, data: { status: 'queued' } });
   return {
     route: "POST /jobs/:id/pack on a pack the tick queued (the person's now: no slot of today's limit, no message)",
@@ -1309,8 +1309,8 @@ async function folderChecks(): Promise<Check[]> {
  * `translate="no"`; that is the same work.
  */
 async function pseudoPass(urls: string[]): Promise<{ rows: { route: string; url: string; status: number; ok: boolean }[]; report: string }> {
-  const before = await prisma.appSettings.findUnique({ where: { id: SETTINGS_ID }, select: { locale: true } });
-  await setLocale(PSEUDO_LOCALE);
+  const before = await prisma.userSettings.findUnique({ where: { userId: DEFAULT_USER_ID }, select: { locale: true } });
+  await setLocale(DEFAULT_USER_ID, PSEUDO_LOCALE);
   const rows: { route: string; url: string; status: number; ok: boolean }[] = [];
   const perPage: { url: string; runs: string[] }[] = [];
   try {
@@ -1330,7 +1330,7 @@ async function pseudoPass(urls: string[]): Promise<{ rows: { route: string; url:
       }
     }
   } finally {
-    await prisma.appSettings.update({ where: { id: SETTINGS_ID }, data: { locale: before?.locale ?? null } });
+    await prisma.userSettings.upsert({ where: { userId: DEFAULT_USER_ID }, update: { locale: before?.locale ?? null }, create: { userId: DEFAULT_USER_ID, locale: before?.locale ?? null } });
   }
   const all = perPage.flatMap((p) => p.runs);
   const distinct = new Set(all);

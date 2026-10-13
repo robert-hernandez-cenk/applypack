@@ -51,7 +51,7 @@ overviewRoute.get('/', async (c) => {
   const rangeParam = c.req.query('range');
   const range = isRangeKey(rangeParam) ? rangeParam : DEFAULT_RANGE;
   // The numbers link to /jobs, which hides a muted company's rows (ADR 0056): they count what it shows.
-  const unmuted = withoutMuted(await mutedKeys()) ?? {};
+  const unmuted = withoutMuted(await mutedKeys(currentUser().id)) ?? {};
   const userId = currentUser().id;
   const [countsRows, recentRows, latestRunRows, stats, searches] = await Promise.all([
     // The person's own postings and statuses (ADR 0067).
@@ -89,7 +89,7 @@ overviewRoute.get('/', async (c) => {
     Promise.all(
       CRON_NAMES.map((name) =>
         prisma.cronRun.findFirst({
-          where: { name },
+          where: { name, OR: [{ userId: null }, { userId }] },
           orderBy: { startedAt: 'desc' },
         }),
       ),
@@ -105,7 +105,7 @@ overviewRoute.get('/', async (c) => {
   }));
   // The status pill's third state: the schedule says this hour is not one of
   // the user's, so the next heartbeat that searches is named (TASKS §16).
-  const check = await loadNextCheck(settings.schedule);
+  const check = await loadNextCheck();
   const sleepingUntil = check.dueNow ? '' : check.next;
 
   const latestRuns = CRON_NAMES.map((name, i) => ({

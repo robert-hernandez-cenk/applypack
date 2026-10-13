@@ -942,6 +942,7 @@
   "settingsRoute.schedule.notSaved": "Розклад не збережено ({issue}). Збережений розклад не змінився; виправте це поле й збережіть знову.",
   "settingsRoute.schedule.saved": "Розклад збережено — {schedule}.",
   "settingsRoute.schedule.alertsSaved": "Час сповіщень збережено.",
+  "settingsRoute.schedule.adminOnly": "Лише адміністратор змінює, коли виконується пошук.",
   "settingsRoute.schedule.zoneSaved": "Часовий пояс збережено: {zone}.",
   "settingsRoute.alerts.enabled": "Сповіщення увімкнено в усіх каналах.",
   "settingsRoute.alerts.disabled": "Сповіщення вимкнено в усіх каналах. Знайдене тим часом чекатиме й надійде одним повідомленням у кожен чат, коли ви знову їх увімкнете.",

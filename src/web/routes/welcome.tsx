@@ -82,7 +82,7 @@ const SCORE_RUN_KEY = 'score';
 export const welcomeRoute = new Hono();
 
 welcomeRoute.get('/welcome', async (c) => {
-  const { facts, settings, statuses, profile, suggestions } = await loadWelcomeContext();
+  const { facts, settings, alertsOn, statuses, profile, suggestions } = await loadWelcomeContext();
   const requested = c.req.query('step');
   const current = isWelcomeStep(requested) ? requested : currentStep(facts);
 
@@ -123,7 +123,7 @@ welcomeRoute.get('/welcome', async (c) => {
       current={current}
       setupCompleted={settings.setupCompletedAt !== null}
       fetchingEnabled={settings.fetchingEnabled}
-      telegramEnabled={settings.telegramEnabled}
+      telegramEnabled={alertsOn}
       ai={{
         engines: AI_PROVIDER_IDS.map((id) => ({
           id,
@@ -171,14 +171,14 @@ welcomeRoute.get('/welcome', async (c) => {
 });
 
 welcomeRoute.post('/welcome/skip', async () => {
-  await setSetupCompleted(currentLocale());
+  await setSetupCompleted(currentLocale(), currentUser().id);
   return flashRedirect('/', 'ok', t('welcome.flash.skipped'));
 });
 
 /** Step 5's closing action: the hourly watch starts and the wizard stops greeting. */
 welcomeRoute.post('/welcome/finish', async () => {
   await setFetchingEnabled(true);
-  await setSetupCompleted(currentLocale());
+  await setSetupCompleted(currentLocale(), currentUser().id);
   return flashRedirect('/', 'ok', t('welcome.flash.finished'));
 });
 

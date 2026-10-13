@@ -3,7 +3,7 @@ import { prisma } from '../db';
 import { probeAiProviders, type AiProviderStatus } from '../ai-runtime';
 import { aiEngineOrder, parseAiEngineConfig, type AiProviderId } from '../ai-engine';
 import { config } from '../config';
-import { getSettings, type AppSettingsView } from '../settings';
+import { getSettings, getUserSettings, type AppSettingsView } from '../settings';
 import { getActiveProfile } from '../profiles';
 import { currentUser } from './current-user';
 import { isBlankProfile } from '../profile-guards';
@@ -22,6 +22,8 @@ import { t } from '../i18n/t';
 export interface WelcomeContext {
   facts: WelcomeFacts;
   settings: AppSettingsView;
+  /** The person's Alerts switch (ADR 0069). */
+  alertsOn: boolean;
   statuses: Record<AiProviderId, AiProviderStatus>;
   profile: Profile | null;
   /** What the sources step lists (#148). */
@@ -29,8 +31,9 @@ export interface WelcomeContext {
 }
 
 export async function loadWelcomeContext(): Promise<WelcomeContext> {
-  const [settings, probed, profile, jobCount, scoredCount, suggestions] = await Promise.all([
+  const [settings, own, probed, profile, jobCount, scoredCount, suggestions] = await Promise.all([
     getSettings(),
+    getUserSettings(currentUser().id),
     probeAiProviders(),
     getActiveProfile(currentUser().id),
     // The person's own postings: a teammate's scored jobs say nothing about this person's setup (ADR 0067).
@@ -48,6 +51,7 @@ export async function loadWelcomeContext(): Promise<WelcomeContext> {
       : probed;
   return {
     settings,
+    alertsOn: own.telegramEnabled,
     statuses,
     profile,
     suggestions,

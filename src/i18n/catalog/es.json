@@ -942,6 +942,7 @@
   "settingsRoute.schedule.notSaved": "Horario no guardado ({issue}). El horario guardado no cambia; corrige ese campo y guarda de nuevo.",
   "settingsRoute.schedule.saved": "Horario guardado — {schedule}.",
   "settingsRoute.schedule.alertsSaved": "Horario de alertas guardado.",
+  "settingsRoute.schedule.adminOnly": "Solo un administrador cambia cuándo se ejecuta la búsqueda.",
   "settingsRoute.schedule.zoneSaved": "Zona horaria guardada: {zone}.",
   "settingsRoute.alerts.enabled": "Alertas activadas en todos los canales.",
   "settingsRoute.alerts.disabled": "Alertas desactivadas en todos los canales. Lo que se encuentre mientras tanto espera, y llega en un solo mensaje por chat cuando las vuelvas a activar.",

@@ -242,7 +242,7 @@ src/
   user-schedule.ts             ← pure: the user's own schedule — when the search runs,
                                  when alerts may leave, which hours are digest hours
   seed.ts                      ← SEED_COMPANIES list + OBSOLETE_TOKENS cleanup
-  settings.ts                  ← AppSettings + NotificationTarget CRUD, the key accessors, maskToken re-export
+  settings.ts                  ← AppSettings (the install's) + UserSettings (a person's, settings-split.ts) + NotificationTarget CRUD, the key accessors, maskToken re-export
   profiles.ts                  ← Profile CRUD scoped to a user (ADR 0066), listAllActiveProfiles (the worker), getActiveProfile / setActiveProfile (the primary), setProfileActive, ensurePrimaryProfile
   profile-guards.ts            ← pure: the blank-profile guards (issue #50) and MAX_ACTIVE_PROFILES
   priority-rules.ts            ← pure: parsePriorityRules, the score floors a search sets
@@ -802,6 +802,9 @@ erDiagram
   User ||--o{ Profile : "userId (Cascade), whose search it is"
   Profile |o--o| User : "primaryProfileId, the primary (SetNull)"
   NotificationTarget |o--o{ Profile : "notificationTargetId (SetNull)"
+  User ||--o{ NotificationTarget : "userId (Cascade), whose destination it is"
+  User ||--o| UserSettings : "userId (Cascade), the person's own settings"
+  User ||--o{ CompanyMute : "userId (Cascade), whose mute it is"
   Resume |o--o{ Profile : "resumeId (SetNull)"
   Profile ||--o{ JobScore : "profileId (Cascade)"
   Job ||--o{ JobScore : "jobId (Cascade)"
@@ -827,10 +830,7 @@ erDiagram
 
   AppSettings {
     Int id PK "always 1"
-    Boolean telegramEnabled "the Alerts switch, every channel"
     String classifierMode "single or two_stage"
-    Boolean applicationTrackingEnabled
-    Boolean staleApplicationsDigestEnabled
     Boolean hnParserEnabled
     String[] disabledSources
     Boolean discoveryEnabled
@@ -846,16 +846,26 @@ erDiagram
     String latestVersion "the last release the check saw"
     Int aiBudgetCents "monthly ceiling on billed AI money, NULL = none (ADR 0055)"
     String aiBudgetAlerted "the last budget warning sent, YYYY-MM:080 / :100"
-    Int reapplyDays "the re-apply window, NULL = off (ADR 0056)"
     DateTime employersFilledAt "the one-time fill of older rows' employer keys"
     Boolean sourceHealthAlerts
-    Json coverAngles
-    Json pipelineStages "user-named funnel columns (ADR 0025)"
-    Json schedule "when the search runs and alerts arrive, NULL = hourly"
+    Json schedule "the install's half: zone + when the search runs, NULL = hourly (ADR 0069)"
     DateTime setupCompletedAt "NULL = / redirects to /welcome"
     String instanceId "seeds this install's cron minute"
     Boolean employerMode "the Screening section exists while on (ADR 0049)"
     Int screeningRetentionDays "90 by default (ADR 0048)"
+  }
+
+  UserSettings {
+    Int userId PK "one row per person (ADR 0069)"
+    Boolean telegramEnabled "the Alerts switch, every channel"
+    Boolean applicationTrackingEnabled
+    Boolean staleApplicationsDigestEnabled
+    Int reapplyDays "the re-apply window, NULL = off (ADR 0056)"
+    Json coverAngles
+    Json pipelineStages "user-named funnel columns (ADR 0025)"
+    Json schedule "the person's zone and alert timing, NULL = defaults"
+    Json pack "application packs (ADR 0063)"
+    String locale "the interface language, NULL = never chosen"
   }
 
   Profile {
@@ -883,6 +893,7 @@ erDiagram
 
   NotificationTarget {
     Int id PK
+    Int userId FK "whose destination it is (ADR 0069)"
     NotificationKind kind "TELEGRAM or DISCORD"
     String name
     String botToken "Telegram"
@@ -1040,6 +1051,7 @@ erDiagram
   }
 
   CompanyMute {
+    Int userId PK "whose mute it is (ADR 0069)"
     String key PK "employer.ts:employerKey of the name"
     String name "as the user saw it"
     String reason

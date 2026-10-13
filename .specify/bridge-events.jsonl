@@ -18,3 +18,15 @@
 
 {"event":"artifact_drift_detected","timestamp":"2026-10-13T01:51:18.5116384Z","actor":"claude","feature_directory":"specs/010-per-user-resumes","drifted_artifacts":[{"path":"tasks.md","old_sha256":"842d412b540468c4c0006ba27185588c7565b13f2fa9272c3abeb6eabf26fa0f","new_sha256":"63da86bfc411ae5e0fa80861ce4ba2f3ec0c8c496d1d548984d00f9716cac4cf"}]}
 
+{"timestamp":"2026-10-13T01:56:33.4123143Z","action":"guard","status":"allow","feature_directory":"specs/010-per-user-resumes","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.plan"}
+
+{"timestamp":"2026-10-13T01:57:47.7707223Z","action":"guard","status":"allow","feature_directory":"specs/010-per-user-resumes","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.tasks"}
+
+{"timestamp":"2026-10-13T01:58:09.2312365Z","action":"handoff","status":"ready","feature_directory":"specs/010-per-user-resumes","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261013T0158092006705Z-ready"}
+
+{"timestamp":"2026-10-13T01:58:14.9152930Z","action":"guard","status":"allow","feature_directory":"specs/010-per-user-resumes","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
+
+{"timestamp":"2026-10-13T01:58:19.0384723Z","action":"handoff","status":"executing","feature_directory":"specs/010-per-user-resumes","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261013T0158189985501Z-executing"}
+
+{"timestamp":"2026-10-13T01:58:28.3922746Z","action":"handoff","status":"executing","feature_directory":"specs/011-per-user-notifications","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261013T0158283500757Z-executing"}
+
