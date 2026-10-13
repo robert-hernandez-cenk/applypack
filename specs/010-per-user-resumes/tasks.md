@@ -3,11 +3,11 @@
 Format: `- [ ] Tnn [P?] [USn] description (file)`.
 
 ## Phase 1: Setup
-- [ ] T001 Scratch Postgres via `npm run db` with a throwaway `APPLYPACK_DATA_DIR`; baseline `lint:types` and tests (no files)
+- [x] T001 Scratch Postgres via `npm run db` with a throwaway `APPLYPACK_DATA_DIR`; baseline `lint:types` and tests (no files)
 
 ## Phase 2: Foundational (blocks all stories)
-- [ ] T002 Schema: `Resume.userId Int @default(1)` (cascade, index), `CandidateFact.userId` + `@@unique([userId, term])` replacing `@unique term`, `ApplicationPack.userId` + `@@unique([userId, jobId])` replacing `jobId @unique` + `@@index([userId, status])`, `User` back-relations (prisma/schema.prisma)
-- [ ] T003 Hand-written migration; seed old-shape data (resume, match, review, fact, letter, pack, applied link) and verify; `prisma migrate diff` empty (prisma/migrations/)
+- [x] T002 Schema: `Resume.userId Int @default(1)` (cascade, index), `CandidateFact.userId` + `@@unique([userId, term])` replacing `@unique term`, `ApplicationPack.userId` + `@@unique([userId, jobId])` replacing `jobId @unique` + `@@index([userId, status])`, `User` back-relations (prisma/schema.prisma)
+- [x] T003 Hand-written migration; seed old-shape data (resume, match, review, fact, letter, pack, applied link) and verify; `prisma migrate diff` empty (prisma/migrations/)
 - [ ] T004 `resume/store.ts`: `userId` first parameter on every id lookup, list, count, default, scratch, memo and fact function; matches/letters/reviews read through `resume: { userId }`
 
 ## Phase 3: US1 resumes are mine
