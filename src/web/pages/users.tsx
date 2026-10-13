@@ -31,6 +31,7 @@ export const UsersPage: FC<UsersPageProps> = ({ users, selfId, signIn, flash }) 
     <div class="space-y-4">
       {!signIn && <Notice tone="warn">{t('users.noSignIn')}</Notice>}
       <Card flush>
+        <div class="overflow-x-auto">
         <Table
           caption={t('users.caption')}
           hideBelow={['', '', 'md', 'sm', 'lg', '']}
@@ -85,6 +86,7 @@ export const UsersPage: FC<UsersPageProps> = ({ users, selfId, signIn, flash }) 
             );
           })}
         </Table>
+        </div>
       </Card>
     </div>
   </Layout>

@@ -36,4 +36,4 @@ Format: `- [ ] Tnn [P?] [USn] description (file)`.
 - [x] T019 [US5] CHANGELOG 2.57.0 + compare link, package.json and lock version (no tag) (CHANGELOG.md, package.json, package-lock.json)
 
 ## Phase 8: Polish and verification
-- [ ] T020 Full verification: lint:types, tests, exports:audit, build, route smoke on a fresh scratch database, screenshots of /users at 375 and 1280 px (no files)
+- [x] T020 Full verification: lint:types, tests, exports:audit, build, route smoke on a fresh scratch database, screenshots of /users at 375 and 1280 px (no files)
