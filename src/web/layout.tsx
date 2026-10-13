@@ -168,8 +168,8 @@ const TOKENS_CSS = `
 
 /** Direction contract — audited at the finish review; keep in sync with DESIGN.md. */
 const DIRECTION_CONTRACT = `<!--
-THESIS: A job-search console read twice a day: clear, crisp, light. The numbers lead, the chrome stays out of the way.
-OWN-WORLD: Canvas ground (${hex(TOKENS.surface)}), white cards and a white menu, a subtle third surface (${hex(TOKENS['surface-overlay'])}) for table headers and wells, ${hex(TOKENS.line)} outlines; a type ladder of title / kpi / section / entity / body / label / meta; Inter for UI, mono reserved for machine values; emerald is the one brand accent; status speaks in tinted pills and icon tiles (blue/amber/emerald/violet/gray).
+THESIS: A job-search console read twice a day: clear, crisp, in a light or a dark look. The numbers lead, the chrome stays out of the way.
+OWN-WORLD: Canvas ground (${hex(TOKENS.surface)}), white cards and a white menu (a near-black canvas and one step lighter cards in the dark look), a subtle third surface (${hex(TOKENS['surface-overlay'])}) for table headers and wells, ${hex(TOKENS.line)} outlines; a type ladder of title / kpi / section / entity / body / label / meta; Inter for UI, mono reserved for machine values; emerald is the one brand accent; status speaks in tinted pills and icon tiles (blue/amber/emerald/violet/gray).
 STORY: The user opens Overview, reads four numbers and the trend, scans the newest alerts, drills into a job, acts - apply, save, verify, compare - without ceremony.
 FIRST VIEWPORT: 240px menu left; content fills the rest: title row, four KPI cards with their sparklines, the matches chart beside pipeline health and recent activity.
 FORM: Brief-pinned light ops console (Linear density, Stripe forms, GitHub tables); the brief pins the world, no seed roll.

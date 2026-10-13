@@ -73,18 +73,18 @@ All paths are relative to the worktree root. `src/web/public/tailwind.css` is ge
 
 **Independent Test**: every page in dark at both widths; status tones distinct; document pane white.
 
-- [ ] T019 [US3] Review `src/web/pages/target.tsx` document-pane CSS (`#doc-pane` rules, `.doc-page-guide`) and `src/web/public/doc-pane.mjs` (`background: #fff`): confirm the page stays white and its surrounding well/labels use tokens; fix only what shows wrong in dark.
-- [ ] T020 [US3] Walk every page listed by `src/scripts/route-smoke.ts` in dark (desktop + phone): `matches-chart.tsx`, status pills, tables, forms, popovers, toasts/flash, the progress bar, the sign-in page. Fix literal or low-contrast spots at the token level where possible; page-level only when a token cannot express it.
-- [ ] T021 [US3] If any text/surface pairing that the walk shows is not covered by `tokens.test.ts`, add it to the test.
-- [ ] T022 [US3] Run `npm run css`, `npm run lint:types && npm test`; commit "dark theme polish across pages (#4, US3)"; push.
+- [x] T019 [US3] Review `src/web/pages/target.tsx` document-pane CSS (`#doc-pane` rules, `.doc-page-guide`) and `src/web/public/doc-pane.mjs` (`background: #fff`): confirm the page stays white and its surrounding well/labels use tokens; fix only what shows wrong in dark.
+- [x] T020 [US3] Walk every page listed by `src/scripts/route-smoke.ts` in dark (desktop + phone): `matches-chart.tsx`, status pills, tables, forms, popovers, toasts/flash, the progress bar, the sign-in page. Fix literal or low-contrast spots at the token level where possible; page-level only when a token cannot express it.
+- [x] T021 [US3] If any text/surface pairing that the walk shows is not covered by `tokens.test.ts`, add it to the test.
+- [x] T022 [US3] Run `npm run css`, `npm run lint:types && npm test`; commit "dark theme polish across pages (#4, US3)"; push.
 
 ---
 
 ## Phase 6: Polish & cross-cutting
 
-- [ ] T023 Update `DESIGN.md`: replace "Only a light theme…" (§ around line 147–151) and the "Don't go dark ad hoc" rule with the dark token set and how it is chosen; add the dark values to the colour tables; update `DIRECTION_CONTRACT` wording in `src/web/layout.tsx` if it still says light-only; add a `CHANGELOG.md` entry in the repo's style.
-- [ ] T024 Mark `quickstart.md` scenarios 1–7 run (or list which could not be); `npm run exports:audit`; `npm run lint:types && npm test`.
-- [ ] T025 Commit "documented the dark theme (#4)"; push.
+- [x] T023 Update `DESIGN.md`: replace "Only a light theme…" (§ around line 147–151) and the "Don't go dark ad hoc" rule with the dark token set and how it is chosen; add the dark values to the colour tables; update `DIRECTION_CONTRACT` wording in `src/web/layout.tsx` if it still says light-only; add a `CHANGELOG.md` entry in the repo's style.
+- [x] T024 Mark `quickstart.md` scenarios 1–7 run (or list which could not be); `npm run exports:audit`; `npm run lint:types && npm test`.
+- [x] T025 Commit "documented the dark theme (#4)"; push.
 
 ---
 

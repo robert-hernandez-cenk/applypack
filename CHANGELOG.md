@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.57.0] — 2026-10-12
+
+### Added
+- **A dark look for the dashboard.** The page follows your device's light or
+  dark setting by default, and three icons at the foot of the menu (also
+  Settings → General → Appearance) let you choose **System**, **Light** or
+  **Dark** for this browser. The choice is a cookie, so the first paint already
+  has it and nothing is stored with your data. The resume and posting preview
+  stays a white page inside the dark frame. The light look is unchanged
+  (DESIGN.md → Dark, #4).
+
 ## [2.56.0] — 2026-10-12
 
 ### Added
