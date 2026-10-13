@@ -19,7 +19,7 @@ All paths are relative to the worktree root. `src/web/public/tailwind.css` is ge
 
 ## Phase 1: Setup
 
-- [ ] T001 Record the baseline: run `npm run lint:types && npm test` in the worktree and note any pre-existing failures (so later failures can be told apart).
+- [x] T001 Record the baseline: run `npm run lint:types && npm test` in the worktree and note any pre-existing failures (so later failures can be told apart).
 
 ---
 
@@ -27,9 +27,9 @@ All paths are relative to the worktree root. `src/web/public/tailwind.css` is ge
 
 **Purpose**: the second token set and its emission. Every story depends on it.
 
-- [ ] T002 Write failing tests in `src/web/tokens.test.ts`: (a) `LIGHT_TOKENS` and `DARK_TOKENS` have identical key sets; (b) the existing text-on-surface AA matrix (`ink`, `ink-muted`, `ink-faint` at 5:1, `accent-strong` at 4.5:1 on all four surfaces, the row hover, and each status tone) runs over both sets, with the pill tint blended over the active set's `surface-raised` instead of the fixed `WHITE`; (c) `rootBlock()` emits `:root {…}` (light), `:root[data-theme="dark"] {…}` and `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {…} }`, each with `color-scheme`.
-- [ ] T003 Implement in `src/web/tokens.ts`: export `LIGHT_TOKENS` (the current `TOKENS`, keep `TOKENS` as an alias used by the rest of the code) and `DARK_TOKENS` `satisfies Record<TokenName, Rgb>`; add the non-colour tokens the plan needs (`shadow-ink`, `scrim`) to both; rewrite `rootBlock()` to emit the three rules. Choose dark values until T002 passes (canvas near-black, raised surfaces one step lighter, off-white ink, lifted accent and status tones). Existing callers of `rootBlock()` keep working.
-- [ ] T004 Make `src/web/layout.tsx` `TOKENS_CSS` drop the fixed `html { color-scheme: light; }` (now in `rootBlock()`), and make the shadow/scrim literals read tokens: sidebar shadow, `.nav-backdrop`, `#page-progress` glow. Update `tailwind.config.js` `boxShadow` to `rgb(var(--shadow-ink) / …)`.
+- [x] T002 Write failing tests in `src/web/tokens.test.ts`: (a) `LIGHT_TOKENS` and `DARK_TOKENS` have identical key sets; (b) the existing text-on-surface AA matrix (`ink`, `ink-muted`, `ink-faint` at 5:1, `accent-strong` at 4.5:1 on all four surfaces, the row hover, and each status tone) runs over both sets, with the pill tint blended over the active set's `surface-raised` instead of the fixed `WHITE`; (c) `rootBlock()` emits `:root {…}` (light), `:root[data-theme="dark"] {…}` and `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {…} }`, each with `color-scheme`.
+- [x] T003 Implement in `src/web/tokens.ts`: export `LIGHT_TOKENS` (the current `TOKENS`, keep `TOKENS` as an alias used by the rest of the code) and `DARK_TOKENS` `satisfies Record<TokenName, Rgb>`; add the non-colour tokens the plan needs (`shadow-ink`, `scrim`) to both; rewrite `rootBlock()` to emit the three rules. Choose dark values until T002 passes (canvas near-black, raised surfaces one step lighter, off-white ink, lifted accent and status tones). Existing callers of `rootBlock()` keep working.
+- [x] T004 Make `src/web/layout.tsx` `TOKENS_CSS` drop the fixed `html { color-scheme: light; }` (now in `rootBlock()`), and make the shadow/scrim literals read tokens: sidebar shadow, `.nav-backdrop`, `#page-progress` glow. Update `tailwind.config.js` `boxShadow` to `rgb(var(--shadow-ink) / …)`.
 
 **Checkpoint**: `npm run lint:types && npm test` green; light pages unchanged.
 
@@ -41,10 +41,10 @@ All paths are relative to the worktree root. `src/web/public/tailwind.css` is ge
 
 **Independent Test**: OS dark, no cookie: `/`, `/jobs`, a job, `/settings` render dark with no flash.
 
-- [ ] T005 [US1] Convert the remaining theme-blind literals to tokens: popover backdrops `backdrop:bg-[rgb(13_20_33/0.25)]` in `src/web/ui.tsx` and `src/web/language-menu.tsx` → `backdrop:bg-[rgb(var(--scrim)/…)]`; check `ui.tsx` toggle knob (`bg-white`) against the dark track.
-- [ ] T006 [US1] Add `on-accent` handling if the dark `accent-strong` cannot carry white text at AA: new token `on-accent` in `tokens.ts` + `tailwind.config.js`, used by the `text-white` on `bg-accent-strong` sites (`src/web/layout.tsx` skip link, `src/web/oidc/pages.ts`, `src/web/ui.tsx` primary button); add the AA assertion to `tokens.test.ts`. Skip, and say so in the commit, if `accent-strong` keeps white at 4.5:1.
-- [ ] T007 [US1] Run `npm run css`; boot a scratch instance (`APPLYPACK_DATA_DIR`, `WEB_PORT=4848`, see quickstart) and screenshot Overview, Jobs, a job, Settings in dark and light at 1280 px and 390 px; fix any light-only box found (SC-004).
-- [ ] T008 [US1] `npm run lint:types && npm test`; commit "dark theme tokens and system follow (#4, US1)" including the regenerated `src/web/public/tailwind.css`; push.
+- [x] T005 [US1] Convert the remaining theme-blind literals to tokens: popover backdrops `backdrop:bg-[rgb(13_20_33/0.25)]` in `src/web/ui.tsx` and `src/web/language-menu.tsx` → `backdrop:bg-[rgb(var(--scrim)/…)]`; check `ui.tsx` toggle knob (`bg-white`) against the dark track.
+- [x] T006 [US1] Add `on-accent` handling if the dark `accent-strong` cannot carry white text at AA: new token `on-accent` in `tokens.ts` + `tailwind.config.js`, used by the `text-white` on `bg-accent-strong` sites (`src/web/layout.tsx` skip link, `src/web/oidc/pages.ts`, `src/web/ui.tsx` primary button); add the AA assertion to `tokens.test.ts`. Skip, and say so in the commit, if `accent-strong` keeps white at 4.5:1.
+- [x] T007 [US1] Run `npm run css`; boot a scratch instance (`APPLYPACK_DATA_DIR`, `WEB_PORT=4848`, see quickstart) and screenshot Overview, Jobs, a job, Settings in dark and light at 1280 px and 390 px; fix any light-only box found (SC-004).
+- [x] T008 [US1] `npm run lint:types && npm test`; commit "dark theme tokens and system follow (#4, US1)" including the regenerated `src/web/public/tailwind.css`; push.
 
 ---
 

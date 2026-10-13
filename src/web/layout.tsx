@@ -5,7 +5,7 @@ import { APP_VERSION } from '../app-version';
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import { raw } from 'hono/html';
 import { Icon, type IconName } from './icons';
-import { TOKENS, hex, rootBlock } from './tokens';
+import { LIGHT_TOKENS as TOKENS, chevronDeclaration, hex, rootBlock } from './tokens';
 import { currentLocale } from '../i18n/locale';
 import { t } from '../i18n/t';
 import { LanguageInvite, LanguageMenu } from './language-menu';
@@ -95,8 +95,7 @@ const NAV_GROUPS: { key: 'work' | 'tools' | 'research' | 'system'; items: NavIte
  * component rewrite. See src/web/ui.tsx for primitives.
  */
 const TOKENS_CSS = `
-  ${rootBlock()}
-  html { color-scheme: light; }
+  ${rootBlock(chevronDeclaration)}
   html, body { background-color: rgb(var(--surface)); }
   /* App shell: every scroll lives inside a pane (main, board columns).
      The window itself never scrolls — content browser extensions append
@@ -151,10 +150,10 @@ const TOKENS_CSS = `
     .app-sidebar {
       position: fixed; top: 0; bottom: 0; left: 0; z-index: 40; width: 16rem;
       transform: translateX(-100%); transition: transform 200ms ease;
-      box-shadow: 0 8px 30px rgb(16 24 40 / 0.12);
+      box-shadow: 0 8px 30px rgb(var(--shadow-ink) / 0.12);
     }
     html[data-nav-open] .app-sidebar { transform: none; }
-    .nav-backdrop { display: none; position: fixed; inset: 0; z-index: 30; background: rgb(16 24 40 / 0.4); }
+    .nav-backdrop { display: none; position: fixed; inset: 0; z-index: 30; background: rgb(var(--scrim) / 0.4); }
     html[data-nav-open] .nav-backdrop { display: block; }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -241,7 +240,7 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
       <div id="page-progress" aria-hidden="true" hidden></div>
       <a
         href="#main"
-        class="skip-link rounded-md bg-accent-strong px-3 py-1.5 text-sm font-medium text-white"
+        class="skip-link rounded-md bg-accent-strong px-3 py-1.5 text-sm font-medium text-on-accent"
       >
         {t('layout.skip')}
       </a>
@@ -296,7 +295,7 @@ const NAV_ICON: Record<NavKey, IconName> = {
 
 /** The AP mark: the one solid emerald square on a page. */
 const BrandMark: FC<{ class?: string }> = ({ class: className = 'h-8 w-8' }) => (
-  <span translate="no" class={`grid shrink-0 place-items-center rounded-md bg-accent text-label font-bold tracking-tight text-white shadow-sm ${className}`}>
+  <span translate="no" class={`grid shrink-0 place-items-center rounded-md bg-accent text-label font-bold tracking-tight text-on-accent shadow-sm ${className}`}>
     AP
   </span>
 );

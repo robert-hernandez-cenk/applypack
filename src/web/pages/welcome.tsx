@@ -213,7 +213,7 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
                   state === 'done'
                     ? 'bg-ok/10 text-ok'
                     : state === 'active'
-                      ? 'bg-accent text-white'
+                      ? 'bg-accent text-on-accent'
                       : 'bg-surface-overlay text-ink-faint'
                 }`}
                 aria-hidden="true"

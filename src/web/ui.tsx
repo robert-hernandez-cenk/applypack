@@ -6,7 +6,6 @@ import type { FlashKind, FlashMessage } from './flash';
 import { hideCellsClass, hideHeaderClass, type HideBelow } from './table-hide';
 import { barHeights } from './chart-svg';
 import { Icon, type IconName } from './icons';
-import { TOKENS, hex } from './tokens';
 import { hashShortId } from '../text-utils';
 import { formatNumber } from '../i18n/format';
 import { t } from '../i18n/t';
@@ -783,9 +782,7 @@ export const Input: FC<Record<string, unknown> & { mono?: boolean }> = ({
   ...rest
 }) => <input class={`${CONTROL} ${mono ? 'font-mono text-meta' : ''} ${className}`} {...rest} />;
 
-/* Drawn chevron so selects match the themed controls instead of browser chrome. */
-const SELECT_CHEVRON = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23${hex(TOKENS['ink-faint']).slice(1)}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`;
-
+/* The drawn chevron is a custom property per theme (tokens.ts:chevronDeclaration), so selects match the themed controls instead of browser chrome. */
 export const Select: FC<PropsWithChildren<Record<string, unknown>>> = ({
   children,
   class: className = '',
@@ -793,7 +790,7 @@ export const Select: FC<PropsWithChildren<Record<string, unknown>>> = ({
 }) => (
   <select
     class={`${CONTROL} appearance-none bg-[length:14px_14px] bg-[position:right_0.6rem_center] bg-no-repeat pr-8 ${className}`}
-    style={`background-image:${SELECT_CHEVRON}`}
+    style="background-image:var(--select-chevron)"
     {...rest}
   >
     {children}
@@ -851,11 +848,11 @@ export const Radio: FC<PropsWithChildren<Record<string, unknown> & { title: Chil
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'warn' | 'violet' | 'ghost';
 
 const BUTTON_VARIANT: Record<ButtonVariant, string> = {
-  primary: 'bg-accent-strong text-white shadow-sm hover:bg-accent-deep',
+  primary: 'bg-accent-strong text-on-accent shadow-sm hover:bg-accent-deep',
   secondary: 'border border-line-strong bg-surface-raised text-ink shadow-sm hover:bg-surface-overlay',
   // The word is red; the outline is any control's, so a column of Deletes does not shout.
   danger: 'border border-line-strong bg-surface-raised text-danger shadow-sm hover:border-danger/40 hover:bg-danger/5',
-  warn: 'bg-warn text-white shadow-sm hover:bg-warn/90',
+  warn: 'bg-warn text-on-accent shadow-sm hover:bg-warn/90',
   violet: 'border border-violet/30 bg-violet/5 text-violet hover:bg-violet/10',
   ghost: 'text-ink-muted hover:bg-surface-overlay hover:text-ink',
 };
@@ -912,7 +909,7 @@ export const ConfirmAction: FC<{
         popover="auto"
         role="dialog"
         aria-label={ariaLabel ?? label}
-        class="m-auto w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-surface-raised p-4 text-left text-note leading-5 text-ink shadow-pop backdrop:bg-[rgb(13_20_33/0.25)]"
+        class="m-auto w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-surface-raised p-4 text-left text-note leading-5 text-ink shadow-pop backdrop:bg-[rgb(var(--scrim)/0.25)]"
       >
         <p>{confirm}</p>
         <form method="post" action={action} class="mt-3 flex justify-end gap-2">

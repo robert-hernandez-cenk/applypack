@@ -14,7 +14,7 @@ import { rootBlock } from '../tokens';
  */
 
 const BUTTON_CLASS =
-  'inline-flex min-h-[36px] cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md bg-accent-strong px-3.5 py-1.5 text-sm font-medium text-white shadow-sm transition-colors duration-150 hover:bg-accent-deep';
+  'inline-flex min-h-[36px] cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md bg-accent-strong px-3.5 py-1.5 text-sm font-medium text-on-accent shadow-sm transition-colors duration-150 hover:bg-accent-deep';
 
 function notice(title: string, body: string, href: string, action: string): HtmlEscapedString | Promise<HtmlEscapedString> {
   return html`${raw('<!DOCTYPE html>')}
