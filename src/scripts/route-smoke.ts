@@ -72,7 +72,9 @@ import { tryFetchLock } from '../jobs/fetch-lock';
 import { addToFunnel } from '../jobs/funnel-store';
 import { autoPacksToday, listUnnotifiedPacks, loadPackInputs } from '../pack/store';
 import { getFetchRun } from '../web/fetch-runs';
-import { getRun } from '../web/target-runs';
+import { claimRun, getRun } from '../web/target-runs';
+import { classesOf } from '../users/admin-policy';
+import { changeUser } from '../users/store';
 import { parseFlashCookie } from '../web/flash';
 import { writeFileSync } from 'node:fs';
 import { PSEUDO_LOCALE } from '../i18n/locale';
@@ -793,6 +795,7 @@ async function main(): Promise<void> {
   rows.push(...(await isolationChecks(f.jobId)));
   rows.push(...(await resumeIsolationChecks(f.resumeId)));
   rows.push(...(await notificationIsolationChecks()));
+  rows.push(...(await roleSweep(f)));
   rows.push(...(await folderChecks()));
   rows.push(await packAgainCheck(f.jobId));
   rows.push(await packCancelCheck(f.jobId));
@@ -1622,3 +1625,276 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
+
+/**
+ * Roles and isolation across the whole dashboard (ADR 0070). The real app, signed in as a
+ * person: a session in front of it, as the sign-in would set. Every registered route is held
+ * to one list or the other (admin-policy.ts); a member is then sent to each of them.
+ */
+function asUser(user: { id: number; name: string }): Hono {
+  const w = new Hono();
+  w.use('*', async (c, next) => {
+    c.set('session', { sub: `smoke-user-${user.id}`, name: user.name, uid: user.id, exp: 9_999_999_999 });
+    return next();
+  });
+  w.route('/', app);
+  return w;
+}
+
+/** A pattern with every parameter filled: the fixtures where they name one, otherwise a stand-in. */
+function concrete(pattern: string, f: Fixtures, ids: Record<string, string> = {}): string {
+  const given = Object.entries(ids).find(([prefix]) => pattern.startsWith(prefix));
+  const filled = given ? pattern.replace(':id', given[1]) : fill(pattern, f);
+  return filled.replace(/:[A-Za-z]+/g, '1');
+}
+
+/** What the install runs on: a member's requests must leave all of it as it was. */
+async function installFingerprint(): Promise<string> {
+  const [settings, companies, users, screenings] = await Promise.all([
+    prisma.appSettings.findFirst({
+      select: {
+        fetchingEnabled: true,
+        disabledSources: true,
+        hnParserEnabled: true,
+        discoveryEnabled: true,
+        sourceKeys: true,
+        classifierMode: true,
+        aiEngine: true,
+        aiKeys: true,
+        openAiBaseUrl: true,
+        localAiUrl: true,
+        aiBudgetCents: true,
+        updateCheck: true,
+        employerMode: true,
+        screeningRetentionDays: true,
+        sourceHealthAlerts: true,
+        schedule: true,
+        setupCompletedAt: true,
+      },
+    }),
+    prisma.company.findMany({ select: { id: true, name: true, active: true, watched: true }, orderBy: { id: 'asc' } }),
+    prisma.user.findMany({ select: { id: true, role: true }, orderBy: { id: 'asc' } }),
+    prisma.screening.count(),
+  ]);
+  return JSON.stringify({ settings, companies, users, screenings });
+}
+
+/** What the owner holds: a member's requests with the owner's ids must leave all of it as it was. */
+async function ownerFingerprint(): Promise<string> {
+  const own = { userId: DEFAULT_USER_ID };
+  const [resumes, jobs, profiles, targets, mutes, facts, packs, settings] = await Promise.all([
+    prisma.resume.findMany({ where: own, select: { id: true, name: true, isDefault: true, version: true }, orderBy: { id: 'asc' } }),
+    prisma.userJob.findMany({ where: own, select: { id: true, status: true, pipelineStage: true, applicationNotes: true }, orderBy: { id: 'asc' } }),
+    prisma.profile.findMany({ where: own, select: { id: true, name: true, active: true, resumeId: true }, orderBy: { id: 'asc' } }),
+    prisma.notificationTarget.findMany({ where: own, select: { id: true, active: true }, orderBy: { id: 'asc' } }),
+    prisma.companyMute.count({ where: own }),
+    prisma.candidateFact.count({ where: own }),
+    prisma.applicationPack.count({ where: own }),
+    prisma.userSettings.findUnique({ where: { userId: DEFAULT_USER_ID } }),
+  ]);
+  const { updatedAt: _stamp, ...kept } = settings ?? { updatedAt: null };
+  return JSON.stringify({ resumes, jobs, profiles, targets, mutes, facts, packs, settings: kept });
+}
+
+/** Words that only the owner's rows carry. */
+const OWNER_WORDS = ['Smoke resume', 'Smoke upload', 'Smoke Co', 'Smoke Two', 'Backend Engineer', 'Platform Engineer', 'Smoke Stats'];
+
+/** Fields a hostile form could send to any route: none of them may change the owner's data. */
+function hostileForm(f: Fixtures, ownerProfileId: number): RequestInit {
+  return form({
+    status: 'DISMISSED',
+    name: 'Hacked',
+    title: 'Hacked',
+    text: 'Hacked',
+    stage: 'applied',
+    pipelineStage: 'applied',
+    key: 'applied',
+    on: '1',
+    role: 'ADMIN',
+    back: '/',
+    resumeId: String(f.resumeId),
+    jobId: String(f.jobId),
+    profileId: String(ownerProfileId),
+    id: String(f.resumeId),
+  });
+}
+
+async function roleSweep(f: Fixtures): Promise<Check[]> {
+  const out: Check[] = [];
+  const add = (route: string, url: string, status: number, ok: boolean): void => {
+    out.push({ route, url, status, ok });
+  };
+  const member = await prisma.user.create({ data: { oidcSub: 'smoke-member', name: 'Smoke member', role: 'MEMBER' } });
+  await ensurePrimaryProfile(member.id);
+  const asMember = asUser(member);
+
+  // 1. Every registered route is in exactly one list (admin-policy.ts).
+  const registered = [
+    ...new Map(
+      app.routes.filter((r) => r.method !== 'ALL' && !r.path.includes('*')).map((r) => [`${r.method} ${r.path}`, { method: r.method, path: r.path }]),
+    ).values(),
+  ];
+  const unclassified = registered.filter((r) => classesOf(r.method, r.path).length !== 1);
+  add(
+    `every route is classified administrators-only or personal (${registered.length} routes)`,
+    unclassified.map((r) => `${r.method} ${r.path}`).join(', ') || '(none missing)',
+    unclassified.length === 0 ? 200 : 500,
+    unclassified.length === 0,
+  );
+
+  // 2. A member is refused every administrators' route, and nothing the install runs on moves.
+  const installBefore = await installFingerprint();
+  const adminRoutes = registered.filter((r) => classesOf(r.method, r.path)[0] === 'admin');
+  for (const r of adminRoutes) {
+    const url = concrete(r.path, f);
+    const res = await asMember.request(url, r.method === 'GET' ? { headers: ORIGIN } : form({}));
+    const wizard = r.method === 'GET' && r.path === '/welcome';
+    const ok = wizard ? res.status === 303 && res.headers.get('location') === '/' : res.status === 403;
+    add(`member ${r.method} ${r.path} (administrators only)`, url, res.status, ok);
+  }
+  const forbidden = await (await asMember.request('/settings/ai/key', form({}))).text();
+  add('the refusal is a page in the member\'s language, not a bare error', '/settings/ai/key', 403, forbidden.includes('Administrators only') && forbidden.includes('Smoke member') === false);
+  add('administrators\' routes left the install as it was', '(database)', 200, (await installFingerprint()) === installBefore);
+
+  // 3. The pages a member does use hold none of the owner's rows and none of the install's controls.
+  const personalGets = registered.filter((r) => r.method === 'GET' && classesOf(r.method, r.path)[0] === 'personal' && !r.path.includes(':'));
+  for (const r of personalGets) {
+    const res = await asMember.request(r.path, { headers: ORIGIN });
+    const body = res.status === 200 ? await res.text() : '';
+    const leaked = OWNER_WORDS.filter((w) => body.includes(w));
+    add(`member GET ${r.path} (their own page, none of the owner's rows)`, r.path, res.status, ACCEPT.has(res.status) && leaked.length === 0);
+  }
+  const controls: [string, string][] = [
+    ['/', 'action="/runs/fetch-now"'],
+    ['/', 'action="/settings/fetching-toggle"'],
+    ['/settings', 'action="/settings/fetching-toggle"'],
+    ['/settings?tab=general', 'action="/settings/update-check-toggle"'],
+    ['/settings?tab=ai', 'action="/settings/ai/key"'],
+    ['/settings?tab=sources', 'action="/settings/sources"'],
+    ['/settings?tab=screening', 'action="/settings/employer-mode-toggle"'],
+    ['/runs', 'action="/runs/fetch-now"'],
+    ['/companies', 'action="/companies/new"'],
+  ];
+  for (const [url, control] of controls) {
+    const res = await asMember.request(url, { headers: ORIGIN });
+    const html = await res.text();
+    add(`member GET ${url} draws no ${control}`, url, res.status, res.status === 200 && !html.includes(control));
+  }
+  const menu = await (await asMember.request('/', { headers: ORIGIN })).text();
+  add(
+    "the member's menu has no Discovery, AI usage, Users or Screening",
+    '/',
+    200,
+    ['href="/discovery"', 'href="/ai"', 'href="/users"', 'href="/screen"', 'href="/welcome"'].every((h) => !menu.includes(h)) && menu.includes('href="/jobs"'),
+  );
+  const adminMenu = await (await app.request('/jobs', { headers: ORIGIN })).text();
+  add("the administrator's menu has Discovery, AI usage and Users", '/', 200, ['href="/discovery"', 'href="/ai"', 'href="/users"'].every((h) => adminMenu.includes(h)));
+
+  // 4. The owner's ids on every personal route that takes one: not found, and nothing of the owner's moves.
+  const ownerProfile = await prisma.profile.findFirstOrThrow({ where: { userId: DEFAULT_USER_ID }, select: { id: true } });
+  const ownerTarget = await addNotificationTarget(DEFAULT_USER_ID, { kind: 'TELEGRAM', name: 'Sweep chat', botToken: 'sweep-token', chatId: 'sweep-chat' });
+  const ownerRun = claimRun('smoke-sweep-owner-run', { steps: ['match'], jobTitle: 'Backend Engineer', resumeName: 'Smoke resume' }).run;
+  const ids = {
+    '/target/runs/:id': ownerRun.id,
+    '/settings/targets/:id': String(ownerTarget?.id ?? 0),
+    '/settings/profiles/:id': String(ownerProfile.id),
+  };
+  const ownerBefore = await ownerFingerprint();
+  const personalWithId = registered.filter(
+    (r) =>
+      classesOf(r.method, r.path)[0] === 'personal' &&
+      /^\/(jobs|resumes|target\/runs|settings\/targets|settings\/profiles)\/:id/.test(r.path),
+  );
+  for (const r of personalWithId) {
+    const url = concrete(r.path, f, ids);
+    const res = await asMember.request(url, r.method === 'GET' ? { headers: ORIGIN } : hostileForm(f, ownerProfile.id));
+    const body = res.status === 200 ? await res.text() : '';
+    const leaked = OWNER_WORDS.filter((w) => body.includes(w));
+    add(`member ${r.method} ${r.path} with the owner's id (not found)`, url, res.status, res.status !== 200 && res.status < 500 && leaked.length === 0);
+  }
+  add("the owner's rows are as they were after the member's requests", '(database)', 200, (await ownerFingerprint()) === ownerBefore);
+  const ownRun = await app.request(`/target/runs/${ownerRun.id}/state`, { headers: ORIGIN });
+  add('GET /target/runs/:id/state by the person who started the run (found)', `/target/runs/${ownerRun.id}/state`, ownRun.status, ownRun.status === 200);
+  const otherRun = await asMember.request(`/target/runs/${ownerRun.id}/state`, { headers: ORIGIN });
+  add('GET /target/runs/:id/state by someone else (gone)', `/target/runs/${ownerRun.id}/state`, otherRun.status, otherRun.status === 404);
+  if (ownerTarget) await deleteNotificationTarget(DEFAULT_USER_ID, ownerTarget.id);
+
+  out.push(...(await userPageChecks(f, member)));
+  return out;
+}
+
+/** The users page (ADR 0070): roles, the rules that keep an administrator, removal with everything of the person's. */
+async function userPageChecks(f: Fixtures, member: { id: number; name: string }): Promise<Check[]> {
+  const out: Check[] = [];
+  const add = (route: string, url: string, status: number, ok: boolean): void => {
+    out.push({ route, url, status, ok });
+  };
+  const roleOf = async (id: number) => (await prisma.user.findUnique({ where: { id }, select: { role: true } }))?.role ?? null;
+
+  const page = await app.request('/users', { headers: ORIGIN });
+  const html = await page.text();
+  add('GET /users (the administrator sees everyone)', '/users', page.status, page.status === 200 && html.includes('Smoke member') && html.includes('Default user'));
+
+  // Nobody changes their own account here, whoever else is around.
+  const self = await app.request(`/users/${DEFAULT_USER_ID}/role`, form({ role: 'MEMBER' }));
+  add('POST /users/:id/role on yourself (refused)', `/users/${DEFAULT_USER_ID}/role`, self.status, self.status === 303 && flashOf(self).includes('your own account') && (await roleOf(DEFAULT_USER_ID)) === 'ADMIN');
+  const selfRemove = await app.request(`/users/${DEFAULT_USER_ID}/delete`, form({}));
+  add('POST /users/:id/delete on yourself (refused)', `/users/${DEFAULT_USER_ID}/delete`, selfRemove.status, selfRemove.status === 303 && (await roleOf(DEFAULT_USER_ID)) === 'ADMIN');
+
+  const promoted = await app.request(`/users/${member.id}/role`, form({ role: 'ADMIN' }));
+  add('POST /users/:id/role promotes a member', `/users/${member.id}/role`, promoted.status, promoted.status === 303 && (await roleOf(member.id)) === 'ADMIN');
+  // Now an administrator, that person runs the page too: they demote the default user, who is then refused the page.
+  const asNewAdmin = asUser(member);
+  const demoted = await asNewAdmin.request(`/users/${DEFAULT_USER_ID}/role`, form({ role: 'MEMBER' }));
+  add('POST /users/:id/role by a second administrator demotes the first', `/users/${DEFAULT_USER_ID}/role`, demoted.status, demoted.status === 303 && (await roleOf(DEFAULT_USER_ID)) === 'MEMBER');
+  const lockedOut = await app.request(`/users/${member.id}/role`, form({ role: 'MEMBER' }));
+  add('a demoted administrator is refused the users page', `/users/${member.id}/role`, lockedOut.status, lockedOut.status === 403 && (await roleOf(member.id)) === 'ADMIN');
+  const back = await asNewAdmin.request(`/users/${DEFAULT_USER_ID}/role`, form({ role: 'ADMIN' }));
+  add('POST /users/:id/role promotes the default user again', `/users/${DEFAULT_USER_ID}/role`, back.status, back.status === 303 && (await roleOf(DEFAULT_USER_ID)) === 'ADMIN');
+  const noChange = await app.request(`/users/${member.id}/role`, form({ role: 'ADMIN' }));
+  add('POST /users/:id/role to the role a user already has (nothing changes)', `/users/${member.id}/role`, noChange.status, noChange.status === 303 && flashOf(noChange).includes('already has that role'));
+  const gone = await app.request('/users/999999/delete', form({}));
+  add('POST /users/:id/delete of nobody (not found)', '/users/999999/delete', gone.status, gone.status === 303 && flashOf(gone).includes('no longer exists'));
+  await prisma.user.update({ where: { id: member.id }, data: { role: 'MEMBER' } });
+
+  // The last administrator stays, and two administrators acting at once cannot take both.
+  const second = await prisma.user.create({ data: { oidcSub: 'smoke-second-admin', name: 'Second admin', role: 'MEMBER' } });
+  const last = await changeUser({ actorId: second.id, targetId: DEFAULT_USER_ID, change: 'demote' });
+  add('the store: the last administrator cannot be demoted', '(store)', 200, !last.ok && last.reason === 'last-admin' && (await roleOf(DEFAULT_USER_ID)) === 'ADMIN');
+  const lastRemove = await changeUser({ actorId: second.id, targetId: DEFAULT_USER_ID, change: 'remove' });
+  add('the store: the last administrator cannot be removed', '(store)', 200, !lastRemove.ok && lastRemove.reason === 'last-admin' && (await roleOf(DEFAULT_USER_ID)) === 'ADMIN');
+  await prisma.user.update({ where: { id: second.id }, data: { role: 'ADMIN' } });
+  const raced = await Promise.all([
+    changeUser({ actorId: DEFAULT_USER_ID, targetId: second.id, change: 'demote' }),
+    changeUser({ actorId: second.id, targetId: DEFAULT_USER_ID, change: 'demote' }),
+  ]);
+  const admins = await prisma.user.count({ where: { role: 'ADMIN' } });
+  add('the store: two administrators demoting each other at once leave one', '(store)', 200, raced.filter((r) => r.ok).length === 1 && admins === 1);
+  await prisma.user.update({ where: { id: DEFAULT_USER_ID }, data: { role: 'ADMIN' } });
+  await prisma.user.update({ where: { id: second.id }, data: { role: 'MEMBER' } });
+
+  // Removal takes the person and everything of theirs; the shared catalog stays.
+  const leaver = await prisma.user.create({ data: { oidcSub: 'smoke-leaver', name: 'Smoke leaver', role: 'MEMBER' } });
+  await ensurePrimaryProfile(leaver.id);
+  const leaverResume = await createResume(leaver.id, { name: 'Leaver resume', sourceFilename: 'l.txt', mimeType: 'text/plain', original: Buffer.from(RESUME), text: RESUME });
+  await prisma.userJob.create({ data: { userId: leaver.id, jobId: f.jobId, status: 'SAVED' } });
+  await prisma.cronRun.create({ data: { name: 'digest', userId: leaver.id, status: 'OK' } });
+  await addNotificationTarget(leaver.id, { kind: 'TELEGRAM', name: 'Leaver chat', botToken: 'leaver-token', chatId: 'leaver-chat' });
+  const withData = await (await app.request('/users', { headers: ORIGIN })).text();
+  add('GET /users names what removing a person would take (the confirm)', '/users', 200, withData.includes('Remove Smoke leaver?') && withData.includes('1 resume'));
+  const removed = await app.request(`/users/${leaver.id}/delete`, form({}));
+  const left = await Promise.all([
+    prisma.user.count({ where: { id: leaver.id } }),
+    prisma.resume.count({ where: { id: leaverResume.id } }),
+    prisma.userJob.count({ where: { userId: leaver.id } }),
+    prisma.profile.count({ where: { userId: leaver.id } }),
+    prisma.notificationTarget.count({ where: { userId: leaver.id } }),
+    prisma.userSettings.count({ where: { userId: leaver.id } }),
+    prisma.cronRun.count({ where: { userId: leaver.id } }),
+    prisma.job.count({ where: { id: f.jobId } }),
+  ]);
+  add('POST /users/:id/delete removes the person and all of theirs, not the shared catalog', `/users/${leaver.id}/delete`, removed.status, removed.status === 303 && left.slice(0, 7).every((n) => n === 0) && left[7] === 1);
+  const stale = await asUser(leaver).request('/', { headers: ORIGIN });
+  add("a removed person's next request is a sign-in again (401)", '/', stale.status, stale.status === 401);
+  return out;
+}

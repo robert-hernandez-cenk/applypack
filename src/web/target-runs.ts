@@ -3,6 +3,7 @@ import { logger } from '../logger';
 import type { MatchMode } from '../resume/match-mode';
 import type { MessageKey } from '../i18n/catalog';
 import { t } from '../i18n/t';
+import { currentUser } from './current-user';
 
 /*
  * In-memory registry for long compare runs (extract → scan → match). The
@@ -37,6 +38,8 @@ export function matchStep(mode: MatchMode): RunStep {
 
 export interface TargetRun {
   id: string;
+  /** Who started it (ADR 0070): only they read its progress, and a second person's identical request starts a run of their own. */
+  userId: number;
   steps: RunStep[];
   stage: RunStage;
   startedAt: number;
@@ -98,6 +101,7 @@ function createRun(
   prune();
   const run: TargetRun = {
     id: randomUUID(),
+    userId: currentUser().id,
     keys: [],
     stage: fields.steps[0] ?? 'match',
     startedAt: Date.now(),
@@ -146,8 +150,9 @@ export function claimRun(
 
 /** The unfinished run answering to `key`, if one is in flight. */
 export function findLiveRun(key: string): TargetRun | null {
+  const userId = currentUser().id;
   for (const run of runs.values()) {
-    if (run.keys.includes(key) && run.stage !== 'done' && run.stage !== 'error') return run;
+    if (run.userId === userId && run.keys.includes(key) && run.stage !== 'done' && run.stage !== 'error') return run;
   }
   return null;
 }
@@ -183,6 +188,17 @@ export function updateRun(id: string, patch: Partial<Omit<TargetRun, 'id' | 'key
 
 export function getRun(id: string): TargetRun | null {
   return runs.get(id) ?? null;
+}
+
+/** Whether this person started the run; the progress pages answer "gone" to anyone else (ADR 0070). */
+export function ownsRun(run: Pick<TargetRun, 'userId'>, userId: number): boolean {
+  return run.userId === userId;
+}
+
+/** The run, when the signed-in person started it. */
+export function getOwnRun(id: string): TargetRun | null {
+  const run = runs.get(id);
+  return run && ownsRun(run, currentUser().id) ? run : null;
 }
 
 /** The engine came back with no letter (the fact gate's refusal has its own sentence). A catalog key, worded where it is shown. */

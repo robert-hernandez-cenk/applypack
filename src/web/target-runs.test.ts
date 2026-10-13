@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { alsoClaims, claimRun, findLiveRun, getRun, startRun, updateRun } from './target-runs';
+import { alsoClaims, claimRun, findLiveRun, getRun, ownsRun, startRun, updateRun } from './target-runs';
 import { runFailure } from './run-failure';
 
 /*
@@ -156,4 +156,10 @@ test('a failure line says what failed, why when the engine said, and what to do 
     runFailure('Could not rewrite that suggestion', '', next),
     'Could not rewrite that suggestion. The old wording stays; press Rewrite again. The web log has the detail.',
   );
+});
+
+test('only the person who started a run reads it (ADR 0070)', () => {
+  const { run } = claimRun(`owned:${Date.now()}`, { steps: ['match'], jobTitle: 'Role', resumeName: 'CV' });
+  assert.equal(ownsRun(run, run.userId), true);
+  assert.equal(ownsRun(run, run.userId + 1), false);
 });

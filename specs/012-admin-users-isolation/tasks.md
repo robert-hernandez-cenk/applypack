@@ -24,12 +24,12 @@ Format: `- [ ] Tnn [P?] [USn] description (file)`.
 - [x] T013 [US2] i18n keys for the users page in every catalog (src/i18n/catalog/*.json)
 
 ## Phase 5: US4 guards from #11
-- [ ] T014 [US4] `profiles.ts` resume-owner guard in `createProfile`/`updateProfile` (src/profiles.ts)
-- [ ] T015 [US4] Target runs carry their starter; `/target/runs/:id` and `/state` answer not found for anyone else; pure `ownsRun` + test (src/web/target-runs.ts, src/web/target-runs.test.ts, src/web/routes/target.tsx)
-- [ ] T016 [US4] Pack trigger test with two people's settings (src/pack/trigger.test.ts)
+- [x] T014 [US4] `profiles.ts` resume-owner guard in `createProfile`/`updateProfile` (src/profiles.ts)
+- [x] T015 [US4] Target runs carry their starter; `/target/runs/:id` and `/state` answer not found for anyone else; pure `ownsRun` + test (src/web/target-runs.ts, src/web/target-runs.test.ts, src/web/routes/target.tsx)
+- [x] T016 [US4] Pack trigger test with two people's settings (src/pack/trigger.test.ts)
 
 ## Phase 6: US3 isolation sweep
-- [ ] T017 [US3] Route smoke: registered-routes classification check; member sweep over admin routes (403, no change) and personal routes with the administrator's ids (not found, no foreign text); users-page rule checks; removed-user 401 (src/scripts/route-smoke.ts)
+- [x] T017 [US3] Route smoke: registered-routes classification check; member sweep over admin routes (403, no change) and personal routes with the administrator's ids (not found, no foreign text); users-page rule checks; removed-user 401 (src/scripts/route-smoke.ts)
 
 ## Phase 7: US5 docs and release
 - [ ] T018 [US5] ADR 0070 + ADR README row; SPEC.md, PRODUCT.md, README, docs/oidc-login.md multi-user section, docs/where-to-look.md, CLAUDE.md bullet, ADR 0066-0069 "forced for slice 6" notes closed (docs/, *.md)
