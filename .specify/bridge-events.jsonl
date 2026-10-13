@@ -4,3 +4,5 @@
 
 {"timestamp":"2026-10-13T01:14:16.4895848Z","action":"guard","status":"allow","feature_directory":"specs/009-user-job-state","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
 
+{"timestamp":"2026-10-13T01:38:35.4911675Z","action":"guard","status":"allow","feature_directory":"specs/009-user-job-state","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.plan"}
+
