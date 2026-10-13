@@ -51,6 +51,8 @@ export interface PackPosting {
 
 export interface PackResume {
   id: number;
+  /** Whose resume it is (ADR 0068): every comparison and letter written for it is theirs. */
+  userId: number;
   name: string;
   text: string;
   version: number;
@@ -117,8 +119,8 @@ const VERIFICATION_FRESH_MS = 14 * 24 * 60 * 60 * 1000;
  * row read: here the company check comes after the comparison, and judging
  * the same text again because of it would only pay twice.
  */
-async function storedComparison(jobId: number, resumeId: number, text: string): Promise<ResumeMatch | null> {
-  const rows = await listMatchesForText(jobId, resumeId, text, STORED_CANDIDATES, await getPostingRefreshedAt(jobId));
+async function storedComparison(userId: number, jobId: number, resumeId: number, text: string): Promise<ResumeMatch | null> {
+  const rows = await listMatchesForText(userId, jobId, resumeId, text, STORED_CANDIDATES, await getPostingRefreshedAt(jobId));
   const usable = (r: ResumeMatch): boolean =>
     readMatchMode(r.breakdown) === 'full' && readPromptVersion(r.breakdown) === PROMPT_VERSION && readMatchEvidence(r.breakdown) === 'own';
   return rows.find(usable) ?? null;
@@ -163,8 +165,8 @@ export async function preparePosting(posting: PackPosting, resume: PackResume, o
   out.stop = livenessStop({ liveness: live.liveness, label: livenessCodeLabel(live.code) ?? live.code });
   if (out.stop || cut()) return out;
 
-  const me = { id: resume.id, name: resume.name, version: resume.version };
-  out.match = await storedComparison(posting.id, resume.id, resume.text);
+  const me = { id: resume.id, userId: resume.userId, name: resume.name, version: resume.version };
+  out.match = await storedComparison(resume.userId, posting.id, resume.id, resume.text);
   out.matchReused = out.match !== null;
   if (!out.match) {
     const briefed = await timed('brief', () => briefForPosting(posting, { onError }));
@@ -225,12 +227,12 @@ export async function preparePosting(posting: PackPosting, resume: PackResume, o
   let tailored: ResumeMatch | null = null;
   if (opts.rejudge && text !== row.resumeText) {
     tailored =
-      (await storedComparison(posting.id, resume.id, text)) ??
+      (await storedComparison(resume.userId, posting.id, resume.id, text)) ??
       (await timed('rejudge', () => matchResumeToJob({ ...me, text }, posting, { mode: 'full', draft: true, onError })));
   }
 
   const document = await timed('document', async () => {
-    const file = await getResumeOriginal(resume.id);
+    const file = await getResumeOriginal(resume.userId, resume.id);
     const style = await resumeStyle(resume, { sourceFilename: file?.sourceFilename ?? '', original: file?.original ?? new Uint8Array() });
     const input: DraftInput = {
       sourceFilename: file?.sourceFilename ?? '',

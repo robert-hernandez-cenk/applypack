@@ -32,6 +32,7 @@ import { getLatestMatchForJob, getLatestVerificationContext, getResumeIndustries
  * never the resume's current one. Null on AI failure.
  */
 export async function suggestForMatch(
+  userId: number,
   match: ResumeMatch,
   job: MatchJobInput & { id: number },
   onError?: (reason: string) => void,
@@ -40,15 +41,15 @@ export async function suggestForMatch(
 ): Promise<ResumeMatch | null> {
   const [facts, verification, briefed, previous, matcher, industries] = await Promise.all([
     // A comparison judged on its text alone keeps its suggestions to it too (TASKS R1).
-    readMatchEvidence(match.breakdown) === 'own' ? listFacts() : [],
+    readMatchEvidence(match.breakdown) === 'own' ? listFacts(userId) : [],
     getLatestVerificationContext(job.id),
     // Written by the comparison this row came from, so this is normally a
     // stored read: who this employer is and what its first reader scans for.
     briefForPosting(job),
     // The report before this row: what it proposed and the text took is done (applied.ts).
-    getLatestMatchForJob(job.id, match.id),
+    getLatestMatchForJob(userId, job.id, match.id),
     loadKeywordMatcher(),
-    getResumeIndustries(match.resumeId),
+    getResumeIndustries(userId, match.resumeId),
   ]);
   const applied = previous ? appliedWording(readActions(previous.actions), match.resumeText, matcher.locateQuote) : [];
   const prompt = buildSuggestionsPrompt(match.resumeText, job, {
@@ -116,7 +117,7 @@ export async function suggestForMatch(
     },
     'resume: suggestions added',
   );
-  return rewriteRefusedLeads(row, job);
+  return rewriteRefusedLeads(userId, row, job);
 }
 
 function isEmpty(s: MatchSuggestions): boolean {

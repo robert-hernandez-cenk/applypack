@@ -154,7 +154,7 @@ async function fixtures(): Promise<Fixtures> {
     DEFAULT_USER_ID,
     { classify: false },
   );
-  const resume = await createResume({
+  const resume = await createResume(DEFAULT_USER_ID, {
     name: 'Smoke resume',
     sourceFilename: 'smoke.txt',
     mimeType: 'text/plain',
@@ -926,8 +926,8 @@ async function packCancelCheck(jobId: number): Promise<Check> {
   const url = `/jobs/${jobId}/pack/cancel`;
   const res = await app.request(url, form({}));
   // Under `npm start` the worker may have taken the pack first: then it is no longer queued, which is all Cancel promises.
-  const left = await prisma.applicationPack.findUnique({ where: { jobId }, select: { status: true } });
-  if (!left) await prisma.applicationPack.create({ data: { jobId, trigger: 'manual' } });
+  const left = await prisma.applicationPack.findUnique({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, select: { status: true } });
+  if (!left) await prisma.applicationPack.create({ data: { userId: DEFAULT_USER_ID, jobId, trigger: 'manual' } });
   return { route: 'POST /jobs/:id/pack/cancel (a pack in the queue is taken out)', url, status: res.status, ok: res.status === 303 && left?.status !== 'queued' };
 }
 
@@ -940,14 +940,14 @@ async function packAgainCheck(jobId: number): Promise<Check> {
   const url = `/jobs/${jobId}/pack`;
   const yesterday = new Date(Date.now() - DAY_MS);
   // As the worker leaves a pack it queued on its own: finished, and carried by a message.
-  await prisma.applicationPack.update({ where: { jobId }, data: { trigger: 'auto', status: 'stopped', queuedAt: yesterday, finishedAt: yesterday, notifiedAt: yesterday } });
+  await prisma.applicationPack.update({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, data: { trigger: 'auto', status: 'stopped', queuedAt: yesterday, finishedAt: yesterday, notifiedAt: yesterday } });
   const res = await app.request(url, form({}));
   // Only the trigger is asked: under `npm start` the worker may have taken the pack already.
-  const again = await prisma.applicationPack.findUnique({ where: { jobId }, select: { trigger: true } });
-  const counted = await autoPacksToday(new Date());
-  await prisma.applicationPack.update({ where: { jobId }, data: { status: 'stopped' } });
+  const again = await prisma.applicationPack.findUnique({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, select: { trigger: true } });
+  const counted = await autoPacksToday(DEFAULT_USER_ID, new Date());
+  await prisma.applicationPack.update({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, data: { status: 'stopped' } });
   const owed = (await listUnnotifiedPacks()).length;
-  await prisma.applicationPack.update({ where: { jobId }, data: { status: 'queued' } });
+  await prisma.applicationPack.update({ where: { userId_jobId: { userId: DEFAULT_USER_ID, jobId } }, data: { status: 'queued' } });
   return {
     route: "POST /jobs/:id/pack on a pack the tick queued (the person's now: no slot of today's limit, no message)",
     url,

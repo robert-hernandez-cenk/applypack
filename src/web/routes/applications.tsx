@@ -260,12 +260,12 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
 
   const choice = readAppliedResumeChoice(parsed.data.appliedResumeId);
   // "The application pack's file" (ADR 0063): its text is what went out, and the pack is frozen once this is written.
-  const sentPack = choice.kind === 'pack' ? packAsShown(await getPack(id), choice.at) : null;
+  const sentPack = choice.kind === 'pack' ? packAsShown(await getPack(currentUser().id, id), choice.at) : null;
   if (choice.kind === 'pack' && !sentPack) return flashRedirect(jobHref(id, 'pack'), 'err', t('pack.flash.changed'));
   // The resume already recorded, sent back by a form that changed something else, is not recorded again:
   // the text kept is the one that went out, and the resume may have a newer version by now.
   const unchanged = choice.kind === 'keep' || (choice.kind === 'set' && choice.id === current.appliedResumeId);
-  const picked = sentPack ? await getResume(sentPack.resumeId) : choice.kind === 'set' && !unchanged ? await getResume(choice.id) : null;
+  const picked = sentPack ? await getResume(currentUser().id, sentPack.resumeId) : choice.kind === 'set' && !unchanged ? await getResume(currentUser().id, choice.id) : null;
   const appliedResume = unchanged ? null : appliedResumeColumns(picked && sentPack ? { ...picked, text: sentPack.text } : picked);
 
   const stageValue =
@@ -312,7 +312,7 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
   } else {
     await update;
   }
-  if (sentPack) await markPackSent(id, new Date());
+  if (sentPack) await markPackSent(currentUser().id, id, new Date());
 
   // Back to the tab the rail was used on; read through the resolver, so only a known tab reaches the redirect.
   return c.redirect(jobHref(id, resolveJobTab({ tab: typeof form.tab === 'string' ? form.tab : null })), 303);

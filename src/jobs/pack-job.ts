@@ -19,7 +19,6 @@ import {
 import { autoPackUnwanted, type Unwanted } from '../pack/trigger';
 import { packNoticeLines, type PackEdits, type PackNotice } from '../pack/view';
 import { getActiveProfile } from '../profiles';
-import { DEFAULT_USER_ID } from '../users/identity';
 import { readCoverAngles } from '../resume/prompts';
 import { getPackSettings, getSchedule, getSettings } from '../settings';
 import { shouldDeliverHeld } from '../user-schedule';
@@ -80,19 +79,19 @@ export async function runPackJob(): Promise<{ stats: CronStats }> {
   try {
     stats.requeued = await requeueOrphans();
     for (let next = stopping ? null : await claimNextPack(); next; next = stopping ? null : await claimNextPack()) {
-      const { id, jobId } = next;
+      const { id, userId, jobId } = next;
       // The tick queued it hours ago, perhaps: asked again before anything is spent on it.
-      const unwanted = next.trigger === 'auto' ? await noLongerWanted(jobId) : null;
+      const unwanted = next.trigger === 'auto' ? await noLongerWanted(userId, jobId) : null;
       if (unwanted) {
         await dropAutoPack(id);
-        logger.info({ packId: id, jobId, unwanted }, 'pack: no longer wanted; taken out of the queue');
+        logger.info({ packId: id, userId, jobId, unwanted }, 'pack: no longer wanted; taken out of the queue');
         stats.dropped++;
         continue;
       }
       // Whatever goes wrong with one pack ends with that pack: left `running`
       // it would be re-queued and tried again on every beat.
-      const outcome = await runOne(id, jobId).catch(async (err: unknown) => {
-        logger.error({ err, packId: id, jobId }, 'pack: failed outside its own steps');
+      const outcome = await runOne(id, userId, jobId).catch(async (err: unknown) => {
+        logger.error({ err, packId: id, userId, jobId }, 'pack: failed outside its own steps');
         await finishPack(id, { status: 'failed', why: err instanceof Error ? err.message : String(err) }).catch(() => undefined);
         return 'failed' as const;
       });
@@ -106,21 +105,22 @@ export async function runPackJob(): Promise<{ stats: CronStats }> {
 }
 
 /** Why a pack the tick queued should not be prepared now (trigger.ts), or null. Read per pack: the settings and the job are the person's to change while the queue runs. */
-async function noLongerWanted(jobId: number): Promise<Unwanted | null> {
-  const [pack, job, muted] = await Promise.all([getPackSettings(), packJobState(DEFAULT_USER_ID, jobId), mutedKeys()]);
+async function noLongerWanted(userId: number, jobId: number): Promise<Unwanted | null> {
+  const [pack, job, muted] = await Promise.all([getPackSettings(), packJobState(userId, jobId), mutedKeys()]);
   // A job that is gone fails in runOne, with its own sentence.
   if (!job) return null;
   return autoPackUnwanted({ enabled: pack.enabled, status: job.status, applied: job.applied, muted: job.employerKey !== null && muted.includes(job.employerKey) });
 }
 
-async function runOne(packId: number, jobId: number): Promise<'ready' | 'stopped' | 'failed' | 'requeued'> {
+/** One pack, prepared as its owner (ADR 0068): their primary search, their resumes, their rows. */
+async function runOne(packId: number, userId: number, jobId: number): Promise<'ready' | 'stopped' | 'failed' | 'requeued'> {
   const fail = async (why: string): Promise<'failed'> => {
     await finishPack(packId, { status: 'failed', why });
     return 'failed';
   };
   // Read per pack, not per beat: a setting changed while the queue runs applies to the next pack (gotcha 9).
-  const [pack, settings, primary] = await Promise.all([getPackSettings(), getSettings(), getActiveProfile(DEFAULT_USER_ID)]);
-  const inputs = await loadPackInputs(jobId, primary?.resumeId ?? null);
+  const [pack, settings, primary] = await Promise.all([getPackSettings(), getSettings(), getActiveProfile(userId)]);
+  const inputs = await loadPackInputs(userId, jobId, primary?.resumeId ?? null);
   if (!inputs) return fail(t('pack.why.postingGone'));
   const { posting, resume } = inputs;
   if (!resume) {

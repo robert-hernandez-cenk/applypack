@@ -459,10 +459,10 @@ jobsRoute.get('/jobs/:id', async (c) => {
       include: { appliedResume: { select: { name: true } } },
     }),
     getSettings(),
-    listResumes(),
-    listMatchesForJob(id),
+    listResumes(currentUser().id),
+    listMatchesForJob(currentUser().id, id),
     listVerificationsForJob(id),
-    listCoverLettersForJob(id),
+    listCoverLettersForJob(currentUser().id, id),
     getActiveProfile(currentUser().id),
     // What the AI spent here, and what the three expensive buttons usually
     // cost — read off the ledger, no call spent (ADR 0055).
@@ -639,12 +639,12 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
     // picker: what went out is the pack's text, not the resume's as it stands
     // — and the pack is frozen below, once the status is written.
     if (choice.kind === 'pack') {
-      sentPack = packAsShown(await getPack(id), choice.at);
+      sentPack = packAsShown(await getPack(currentUser().id, id), choice.at);
       // Prepared again since the page was drawn, or not ready: its file is not the one the person looked at.
       if (!sentPack) return flashRedirect(jobHref(id, 'pack'), 'err', t('pack.flash.changed'));
     }
     const requested = sentPack?.resumeId ?? parsed.data.appliedResumeId;
-    const picked = requested ? await getResume(requested) : null;
+    const picked = requested ? await getResume(currentUser().id, requested) : null;
     const columns = appliedResumeColumns(picked && sentPack ? { ...picked, text: sentPack.text } : picked);
     data.appliedResume = columns.appliedResumeId
       ? { connect: { id: columns.appliedResumeId } }
@@ -659,7 +659,7 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
   } else {
     await update;
   }
-  if (sentPack) await markPackSent(id, new Date());
+  if (sentPack) await markPackSent(currentUser().id, id, new Date());
   return c.redirect(jobHref(id, formTab(form.tab)), 303);
 });
 
@@ -849,8 +849,8 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
   const baseId = idParam(form.matchId);
   const [job, row, base] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
-    getResume(resumeId),
-    Number.isFinite(baseId) ? getMatch(baseId) : null,
+    getResume(currentUser().id, resumeId),
+    Number.isFinite(baseId) ? getMatch(currentUser().id, baseId) : null,
   ]);
   if (!job || !row) return c.text(t('http.notFound'), 404);
   // The comparison a re-run starts from (the editor's form and Rebuild keywords
@@ -892,10 +892,10 @@ jobsRoute.post('/jobs/:id/matches/:matchId/suggestions', async (c) => {
   const form = await c.req.parseBody();
   const [job, match] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
-    getMatch(matchId),
+    getMatch(currentUser().id, matchId),
   ]);
   if (!job || !match || match.jobId !== id) return c.text(t('http.notFound'), 404);
-  const resume = await getResume(match.resumeId);
+  const resume = await getResume(currentUser().id, match.resumeId);
   if (!resume) return c.text(t('http.notFound'), 404);
   const resultUrl =
     form.next === 'target'
@@ -909,7 +909,7 @@ jobsRoute.post('/jobs/:id/matches/:matchId/suggestions', async (c) => {
   if (form.rewrite !== '1' && readMatchMode(match.breakdown) === 'full') {
     return flashRedirect(resultUrl, 'warn', t('jobRoute.suggestions.already'));
   }
-  return c.redirect(startSuggestionsRun({ match, job: postingForPrompt(job), resumeName: resume.name, resultUrl }), 303);
+  return c.redirect(startSuggestionsRun({ userId: currentUser().id, match, job: postingForPrompt(job), resumeName: resume.name, resultUrl }), 303);
 });
 
 /**
@@ -930,7 +930,7 @@ jobsRoute.post(
   }
   const [job, match] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
-    getMatch(matchId),
+    getMatch(currentUser().id, matchId),
   ]);
   if (!job || !match || match.jobId !== id) return c.text(t('http.notFound'), 404);
   const form = await c.req.parseBody();
@@ -938,6 +938,7 @@ jobsRoute.post(
 
   let reason = '';
   const row = await rewriteAction(
+    currentUser().id,
     match,
     postingForPrompt(job),
     index,
@@ -987,7 +988,7 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
 
   const [job, resume] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
-    getResume(resumeId),
+    getResume(currentUser().id, resumeId),
   ]);
   if (!job || !resume) return c.text(t('http.notFound'), 404);
 
@@ -1004,7 +1005,7 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
     const outcome = await generateCoverLetter(
-      { id: resume.id, text: resume.text, version: resume.version, hidden: resume.hidden },
+      { id: resume.id, userId: resume.userId, text: resume.text, version: resume.version, hidden: resume.hidden },
       // The letter goes to an employer: never addressed to a folder's or a feed's own name (#401).
       { id: job.id, title: job.title, companyName: companyForPrompt(job.employer, job.company), location: job.location, description: job.description },
       { tone, angles, addressee },
@@ -1035,7 +1036,7 @@ jobsRoute.get('/jobs/:id/cover/:letterId/file/:fmt', async (c) => {
   const fmt = c.req.param('fmt');
   if (!Number.isFinite(id) || !Number.isFinite(letterId)) return c.text(t('http.badId'), 400);
   if (fmt !== 'pdf' && fmt !== 'docx') return c.text(t('http.badFormat'), 400);
-  const letter = await getCoverLetter(letterId);
+  const letter = await getCoverLetter(currentUser().id, letterId);
   if (!letter || letter.jobId !== id) return c.text(t('http.notFound'), 404);
   const job = await prisma.job.findUnique({
     where: { id },
@@ -1073,12 +1074,12 @@ jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
       : flashRedirect(`/jobs/${id}?letter=${letterId}#cover-letter`, 'err', t('jobRoute.cover.tooLong', { max: MAX_LETTER_CHARS }));
   }
 
-  const letter = await getCoverLetter(letterId);
+  const letter = await getCoverLetter(currentUser().id, letterId);
   if (!letter || letter.jobId !== id) return c.text(t('http.notFound'), 404);
   const [job, resume, facts, snapshot] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
-    getResume(letter.resumeId),
-    listFacts(),
+    getResume(currentUser().id, letter.resumeId),
+    listFacts(currentUser().id),
     getLatestCompanySnapshot(id),
   ]);
   if (!job || !resume) return c.text(t('http.notFound'), 404);
@@ -1097,7 +1098,7 @@ jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
     addressee: job.employer ?? job.company.name,
   });
   const reverted = text === letter.text;
-  await updateCoverLetterEdit(letter.id, {
+  await updateCoverLetterEdit(currentUser().id, letter.id, {
     editedText: reverted ? null : text,
     gateVerdict: gate.verdict,
     gateNotes: gate.reasons,
@@ -1117,7 +1118,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const [job, matches, verifications] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
-    listMatchesForJob(id),
+    listMatchesForJob(currentUser().id, id),
     listVerificationsForJob(id),
   ]);
   if (!job) return c.text(t('http.notFound'), 404);
@@ -1126,7 +1127,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   if (!match) {
     return flashRedirect(jobHref(id, 'match', {}, 'resume-match'), 'err', t('jobRoute.target.needsComparison'));
   }
-  const resume = await getResume(match.resumeId);
+  const resume = await getResume(currentUser().id, match.resumeId);
   if (!resume) return c.text(t('http.notFound'), 404);
   const jobInput = { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description };
   // What the posting itself carried (§17): with little to go on, the page says
@@ -1169,8 +1170,8 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   const baseId = idParam(form.matchId);
   const [job, resume, base] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
-    getResume(resumeId),
-    Number.isFinite(baseId) ? getMatch(baseId) : null,
+    getResume(currentUser().id, resumeId),
+    Number.isFinite(baseId) ? getMatch(currentUser().id, baseId) : null,
   ]);
   if (!job || !resume) return c.text(t('http.notFound'), 404);
   const upload = await readResumeUpload(form);
@@ -1240,7 +1241,7 @@ async function describeResumeFile(resume: { id: number; sourceFilename: string; 
     return { verdict: t('jobRoute.file.oneOff'), clean: false };
   }
   if (/\.docx$/i.test(resume.sourceFilename)) {
-    const row = await getResumeOriginal(resume.id);
+    const row = await getResumeOriginal(currentUser().id, resume.id);
     if (row) {
       const structure = docxStructure(Buffer.from(row.original));
       return { verdict: describeStructure(structure), clean: structure.kind !== 'flow' };

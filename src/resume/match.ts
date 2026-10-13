@@ -66,7 +66,7 @@ const REUSE_CANDIDATES = 4;
  */
 export async function matchResumeToJob(
   /** `name` is stored with the row: the name of the text judged (match-name.ts). */
-  resume: { id: number; name: string; text: string; version: number },
+  resume: { id: number; userId: number; name: string; text: string; version: number },
   job: MatchJobInput & { id: number },
   opts: {
     draft?: boolean;
@@ -91,16 +91,16 @@ export async function matchResumeToJob(
   // is not fatal — without it the call derives the frame itself, as before.
   const briefed = opts.brief !== undefined ? opts.brief : await briefForPosting(job, { onError: opts.onError });
   const [facts, otherSkills, previousMatch, matcher, verification, refreshedAt, industries] = await Promise.all([
-    judgedOn === 'own' ? listFacts() : [],
-    judgedOn === 'own' ? listOtherResumeSkills(resume.id) : [],
-    getLatestMatchForJob(job.id),
+    judgedOn === 'own' ? listFacts(resume.userId) : [],
+    judgedOn === 'own' ? listOtherResumeSkills(resume.userId, resume.id) : [],
+    getLatestMatchForJob(resume.userId, job.id),
     loadKeywordMatcher(),
     // The full analysis reads what the verifier learned about the company as
     // context; the quick check never does (ADR 0042).
     mode === 'full' ? getLatestVerificationContext(job.id) : null,
     getPostingRefreshedAt(job.id),
     // The sectors the scan read off this resume, for the domain verdict (ADR 0046).
-    getResumeIndustries(resume.id),
+    getResumeIndustries(resume.userId, resume.id),
   ]);
   // A frame read from a description this posting no longer shows is not
   // inherited (ADR 0043); the user's own keyword edits still are.
@@ -232,11 +232,11 @@ export async function matchResumeToJob(
     const gaps = floorGaps({ keywords, alignment: reply.alignment, actions: gate.actions, breakdown });
     if (gaps.length > 0) {
       logger.info({ matchId: row.id, jobId: job.id, gaps }, 'resume: suggestions missed the floor, asking again');
-      filled = (await suggestForMatch(row, job, undefined, floorDemand(gaps, unwrittenMusts({ keywords, actions: gate.actions })))) ?? row;
+      filled = (await suggestForMatch(resume.userId, row, job, undefined, floorDemand(gaps, unwrittenMusts({ keywords, actions: gate.actions })))) ?? row;
     } else {
       // The floor's own call does this at its end; without it, a refused title
       // or summary wording is written again here (rewrite.ts).
-      filled = await rewriteRefusedLeads(row, job);
+      filled = await rewriteRefusedLeads(resume.userId, row, job);
     }
   }
 
@@ -289,6 +289,7 @@ export async function matchResumeToJob(
  * quick check — only the suggestions call is missing.
  */
 export async function findReusableMatch(
+  userId: number,
   jobId: number,
   resumeId: number,
   text: string,
@@ -297,7 +298,7 @@ export async function findReusableMatch(
 ): Promise<{ row: ResumeMatch; decision: 'reuse' | 'suggest' } | null> {
   const refreshedAt = await getPostingRefreshedAt(jobId);
   const [rows, verification] = await Promise.all([
-    listMatchesForText(jobId, resumeId, text, REUSE_CANDIDATES, refreshedAt),
+    listMatchesForText(userId, jobId, resumeId, text, REUSE_CANDIDATES, refreshedAt),
     mode === 'full' ? getLatestVerificationContext(jobId) : null,
   ]);
   const stored = rows.map((match) => ({

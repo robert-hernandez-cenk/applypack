@@ -120,6 +120,7 @@ companiesRoute.get('/companies', async (c) => {
     _count: { _all: true },
   });
   const applicationMap = new Map(applicationCounts.map((r) => [r.companyId, r._count._all]));
+  // Everybody's, like the applications above: deleting a source takes every person's comparisons and letters with it (ADR 0068).
   // Counted in SQL, one row per company: `groupBy` cannot group across a
   // relation, and loading every match and every letter to tally them in
   // memory would grow with the user's whole history for a confirm string.

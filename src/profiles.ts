@@ -82,10 +82,11 @@ export async function getProfile(userId: number, id: number): Promise<Profile | 
 
 /** The searches that hunt with a given resume — shown on that resume's page. */
 export async function listProfilesForResume(
+  userId: number,
   resumeId: number,
 ): Promise<Pick<Profile, 'id' | 'name'>[]> {
   return prisma.profile.findMany({
-    where: { resumeId },
+    where: { userId, resumeId },
     select: { id: true, name: true },
     orderBy: { id: 'asc' },
   });

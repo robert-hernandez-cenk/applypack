@@ -45,7 +45,7 @@ export type CoverOutcome =
  * block → refuse.
  */
 export async function generateCoverLetter(
-  resume: { id: number; text: string; version: number; hidden?: boolean },
+  resume: { id: number; userId: number; text: string; version: number; hidden?: boolean },
   job: MatchJobInput & { id: number },
   opts: {
     tone: CoverTone;
@@ -61,11 +61,11 @@ export async function generateCoverLetter(
 ): Promise<CoverOutcome> {
   const started = Date.now();
   const [match, companySnapshot] = await Promise.all([
-    getLatestMatchForResumeAndJob(job.id, resume.id, resume.text),
+    getLatestMatchForResumeAndJob(resume.userId, job.id, resume.id, resume.text),
     getLatestCompanySnapshot(job.id),
   ]);
   const evidence = opts.evidence ?? (resume.hidden ? (match ? readMatchEvidence(match.breakdown) : 'text') : 'own');
-  const facts = evidence === 'own' ? await listFacts() : [];
+  const facts = evidence === 'own' ? await listFacts(resume.userId) : [];
   const context: CoverContext = {
     tone: opts.tone,
     angles: opts.angles,

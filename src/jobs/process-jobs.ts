@@ -17,7 +17,6 @@ import { toScoreData } from './score-store';
 import { verdictColumns } from './user-job';
 import { holdAlert, markAlerted } from './user-job-store';
 import { listUserIds } from '../users/store';
-import { DEFAULT_USER_ID } from '../users/identity';
 import { mergeAiLocation, type StoredPlace } from './location-merge';
 import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
 import { alertChannel, sendAlert, type Delivery } from '../notifier';
@@ -312,9 +311,17 @@ export async function processNormalizedJobs(
   // match waits for them; no chat at all means there is nothing to wait for.
   const channel = await alertChannel();
   // Read once as well: whether a strong new match gets an application pack
-  // (ADR 0063), and how many today's limit has left.
+  // (ADR 0063), and how many today's limit has left for each person (ADR 0068):
+  // read the first time a person's pack is considered, then counted up here.
   const packs = await getPackSettings();
-  let packsToday = packs.enabled ? await autoPacksToday(new Date()) : 0;
+  const packsToday = new Map<number, number>();
+  const packsTodayFor = async (userId: number): Promise<number> => {
+    const known = packsToday.get(userId);
+    if (known !== undefined) return known;
+    const count = await autoPacksToday(userId, new Date());
+    packsToday.set(userId, count);
+    return count;
+  };
 
   // Classify up to AI_CONCURRENCY jobs at once; results are consumed in the
   // original order, so persisting and alerting stay sequential and ordered.
@@ -459,28 +466,28 @@ export async function processNormalizedJobs(
     // stored — so the backlog is never walked and a re-classify queues
     // nothing (pack/trigger.ts). The runner picks the row up (pack-job.ts).
     // A source whose alerts are off asked to be left quiet: no pack is prepared on its own either.
-    // A pack is per posting and prepared with the default user's resume until resumes are scoped (slice 4): it follows their verdict.
-    const packOwner = keepers.find((p) => p.userId === DEFAULT_USER_ID && !p.skipsAlert);
-    const packFit = packOwner?.merged.winner.classification.fit_score ?? -1;
-    if (
-      packFit >= 0 &&
-      item.quiet !== true &&
-      autoPack({ settings: packs, fit: packFit, postedAt: created.postedAt, dated: item.job.undated !== true, now: new Date(), queuedToday: packsToday }) === 'queue'
-    ) {
+    // A pack is a person's own (ADR 0068): one for each person who keeps the posting, from their verdict,
+    // against their own daily limit, prepared later with their resume.
+    for (const person of keepers) {
+      if (person.skipsAlert || item.quiet === true || !packs.enabled) continue;
+      const packFit = person.merged.winner.classification.fit_score;
+      if (packFit < 0) continue;
       // A pack is an extra: failing to queue one must never cost the match its alert.
       try {
+        const queuedToday = await packsTodayFor(person.userId);
+        if (autoPack({ settings: packs, fit: packFit, postedAt: created.postedAt, dated: item.job.undated !== true, now: new Date(), queuedToday }) !== 'queue') continue;
         // Another source's copy of a role already stored: one pack a role, and no way into the backlog (#380).
-        const role = crossListing ? await sameRole(created.id) : null;
+        const role = crossListing ? await sameRole(person.userId, created.id) : null;
         const copy = role ? copyPack({ role, onSince: packsOnSince(packs) }) : 'queue';
         if (copy === 'queue') {
-          await queuePack(created.id, 'auto');
-          packsToday++;
+          await queuePack(person.userId, created.id, 'auto');
+          packsToday.set(person.userId, queuedToday + 1);
           stats.packsQueued++;
         } else {
-          logger.info({ jobId: created.id, originalJobId: crossListing?.job.id, reason: copy }, 'process-jobs: no pack for a copy of a stored posting');
+          logger.info({ jobId: created.id, userId: person.userId, originalJobId: crossListing?.job.id, reason: copy }, 'process-jobs: no pack for a copy of a stored posting');
         }
       } catch (err) {
-        logger.warn({ err, jobId: created.id }, 'process-jobs: could not queue an application pack');
+        logger.warn({ err, jobId: created.id, userId: person.userId }, 'process-jobs: could not queue an application pack');
       }
     }
     // Counted where every other counter is: after the row exists. A posting

@@ -24,7 +24,7 @@ export interface ComparisonRequest {
   jobId: number;
   job: MatchJobInput & { id: number };
   /** `name` is stored with the row (match-name.ts); `text` is the stored text a draft is measured against. */
-  resume: { id: number; name: string; version: number; text: string };
+  resume: { id: number; userId: number; name: string; version: number; text: string };
   /** The text to judge: the stored version, the editor's draft, or a fresh upload. */
   text: string;
   mode: MatchMode;
@@ -54,7 +54,7 @@ export async function startComparison(c: Context, req: ComparisonRequest): Promi
   // replace. A full report asked of a stored quick check needs only the
   // suggestions call.
   if (!req.force && !rebuild) {
-    const reused = await findReusableMatch(jobId, resume.id, text, mode, req.evidence);
+    const reused = await findReusableMatch(resume.userId, jobId, resume.id, text, mode, req.evidence);
     if (reused?.decision === 'reuse') {
       return flashRedirect(req.resultUrl(reused.row.id), 'warn', reuseNotice(formatRelative(reused.row.createdAt)), {
         rerun: true,
@@ -63,7 +63,7 @@ export async function startComparison(c: Context, req: ComparisonRequest): Promi
     }
     if (reused) {
       return c.redirect(
-        startSuggestionsRun({ match: reused.row, job, resumeName: resume.name, resultUrl: req.resultUrl(reused.row.id) }),
+        startSuggestionsRun({ userId: resume.userId, match: reused.row, job, resumeName: resume.name, resultUrl: req.resultUrl(reused.row.id) }),
         303,
       );
     }
@@ -92,7 +92,7 @@ export async function startComparison(c: Context, req: ComparisonRequest): Promi
  */
 export async function runComparison(runId: string, req: ComparisonRequest, lead: RunStep[] = []): Promise<void> {
   if (!req.force && !req.rebuild) {
-    const reused = await findReusableMatch(req.jobId, req.resume.id, req.text, req.mode, req.evidence);
+    const reused = await findReusableMatch(req.resume.userId, req.jobId, req.resume.id, req.text, req.mode, req.evidence);
     if (reused?.decision === 'reuse') {
       updateRun(runId, {
         stage: 'done',
@@ -106,6 +106,7 @@ export async function runComparison(runId: string, req: ComparisonRequest, lead:
       alsoClaims(runId, suggestionsKey(reused.row.id));
       updateRun(runId, { steps: [...lead, 'suggestions'], stage: 'suggestions' });
       await finishSuggestions(runId, {
+        userId: req.resume.userId,
         match: reused.row,
         job: req.job,
         resultUrl: req.resultUrl(reused.row.id),
@@ -133,7 +134,7 @@ async function compare(runId: string, req: ComparisonRequest): Promise<void> {
   }
   updateRun(runId, { stage: matchStep(mode) });
   let reason = '';
-  const row = await matchResumeToJob({ id: resume.id, name: resume.name, version: resume.version, text }, job, {
+  const row = await matchResumeToJob({ id: resume.id, userId: resume.userId, name: resume.name, version: resume.version, text }, job, {
     draft: req.draft ?? text !== resume.text,
     mode,
     evidence: req.evidence,

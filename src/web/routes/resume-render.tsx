@@ -25,6 +25,7 @@ import { runFailure } from '../run-failure';
 import { ResumeRenderPage } from '../pages/resume-render';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { t } from '../../i18n/t';
+import { currentUser } from '../current-user';
 
 /*
  * "Clean version in your typeface" (ADR 0039). Everything here is derived from
@@ -136,7 +137,7 @@ resumeRenderRoute.post('/resumes/:id/render', async (c) => {
     const name = `${resume.name} · clean`;
     const sourceFilename = versionFileName(name, 1, 'docx');
     const text = docxToText(original);
-    const saved = await createResume({ name, sourceFilename, mimeType: DOCX_MIME, original, text });
+    const saved = await createResume(currentUser().id, { name, sourceFilename, mimeType: DOCX_MIME, original, text });
     logger.info(
       { id: resume.id, newId: saved.id, bytes: original.length, ms: Date.now() - started },
       'resume: saved clean render as a new resume',
@@ -162,7 +163,7 @@ resumeRenderRoute.post('/resumes/:id/render', async (c) => {
 async function load(c: Context): Promise<RenderContext | { response: Response }> {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return { response: c.text(t('http.badId'), 400) };
-  const resume = await getResume(id);
+  const resume = await getResume(currentUser().id, id);
   if (!resume) return { response: c.text(t('http.notFound'), 404) };
   if (resume.hidden) {
     return {
@@ -185,7 +186,7 @@ async function load(c: Context): Promise<RenderContext | { response: Response }>
       'resume: stored structure no longer matches the text',
     );
   }
-  const row = await getResumeOriginal(id);
+  const row = await getResumeOriginal(currentUser().id, id);
   const bytes = row ? Buffer.from(row.original) : null;
   const style = row ? await resumeStyle(resume, row) : blankStyle();
   // The built-in reading takes the page's own columns and skills table, when the file is a PDF that has them.

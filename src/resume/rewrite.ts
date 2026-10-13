@@ -30,6 +30,7 @@ import { listFacts, updateMatchActions } from './store';
  * would have stored it, so the user can see why their rewrite was refused.
  */
 export async function rewriteAction(
+  userId: number,
   match: ResumeMatch,
   job: MatchJobInput & { id: number },
   index: number,
@@ -44,7 +45,7 @@ export async function rewriteAction(
   const { why, refusal } = splitRefusal(action);
   // A comparison judged on its text alone keeps its rewrites to it too (TASKS R1).
   const [facts, briefed] = await Promise.all([
-    readMatchEvidence(match.breakdown) === 'own' ? listFacts() : [],
+    readMatchEvidence(match.breakdown) === 'own' ? listFacts(userId) : [],
     briefForPosting(job),
   ]);
   const answer = await askForJson(
@@ -109,13 +110,13 @@ const OWED_WORDING: ReadonlySet<MatchAction['section']> = new Set(['title', 'sum
  * one more call with the reason in sight; the new wording passes the same gate,
  * and a second refusal stays on the card for the user's own Rewrite.
  */
-export async function rewriteRefusedLeads(match: ResumeMatch, job: MatchJobInput & { id: number }): Promise<ResumeMatch> {
+export async function rewriteRefusedLeads(userId: number, match: ResumeMatch, job: MatchJobInput & { id: number }): Promise<ResumeMatch> {
   const refused = readActions(match.actions).flatMap((a, index) =>
     OWED_WORDING.has(a.section) && splitRefusal(a).refusal !== null ? [index] : [],
   );
   let row = match;
   // One at a time: each call stores the whole action list it was given.
-  for (const index of refused) row = (await rewriteAction(row, job, index)) ?? row;
+  for (const index of refused) row = (await rewriteAction(userId, row, job, index)) ?? row;
   if (refused.length > 0) {
     const still = readActions(row.actions).filter((a) => OWED_WORDING.has(a.section) && splitRefusal(a).refusal !== null);
     logger.info({ matchId: match.id, jobId: match.jobId, refused: refused.length, stillRefused: still.length }, 'resume: refused lead wording written again');

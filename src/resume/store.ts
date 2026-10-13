@@ -25,35 +25,44 @@ export type ResumeSummary = Omit<Resume, 'original'>;
 
 const WITHOUT_ORIGINAL = { original: true } as const;
 
-export async function listResumes(): Promise<ResumeSummary[]> {
+/*
+ * Ownership (ADR 0068): a resume is its owner's, and the comparisons, reviews
+ * and letters that hang off it are owned through it - every read below goes
+ * `resume: { userId }`. Nothing here reads `currentUser()`: the dashboard
+ * passes the person, the worker passes the pack's owner. A foreign id is a
+ * row that is not there.
+ */
+
+export async function listResumes(userId: number): Promise<ResumeSummary[]> {
   return prisma.resume.findMany({
-    where: { hidden: false },
+    where: { userId, hidden: false },
     omit: WITHOUT_ORIGINAL,
     orderBy: [{ isDefault: 'desc' }, { id: 'asc' }],
   });
 }
 
-export async function getResume(id: number): Promise<ResumeSummary | null> {
-  return prisma.resume.findUnique({ where: { id }, omit: WITHOUT_ORIGINAL });
+export async function getResume(userId: number, id: number): Promise<ResumeSummary | null> {
+  return prisma.resume.findFirst({ where: { id, userId }, omit: WITHOUT_ORIGINAL });
 }
 
 export async function getResumeOriginal(
+  userId: number,
   id: number,
 ): Promise<Pick<Resume, 'sourceFilename' | 'mimeType' | 'original'> | null> {
-  return prisma.resume.findUnique({
-    where: { id },
+  return prisma.resume.findFirst({
+    where: { id, userId },
     select: { sourceFilename: true, mimeType: true, original: true },
   });
 }
 
 /** One of the user's resumes whose text is this text (TASKS R16): a re-upload, or their own file on a launcher. */
-export async function findResumeWithText(text: string): Promise<{ id: number; name: string; version: number } | null> {
-  const rows = await prisma.resume.findMany({ where: { hidden: false }, select: { id: true, name: true, version: true, text: true } });
+export async function findResumeWithText(userId: number, text: string): Promise<{ id: number; name: string; version: number } | null> {
+  const rows = await prisma.resume.findMany({ where: { userId, hidden: false }, select: { id: true, name: true, version: true, text: true } });
   const hit = sameTextAs(text, rows);
   return hit ? { id: hit.id, name: hit.name, version: hit.version } : null;
 }
 
-export async function createResume(input: {
+export async function createResume(userId: number, input: {
   name: string;
   sourceFilename: string;
   mimeType: string;
@@ -65,10 +74,10 @@ export async function createResume(input: {
   // both counted 0 and both became the default, so the count and the
   // create share one lock.
   const row = await withGlobalWriteLock(async (tx) => {
-    const isDefault = (await tx.resume.count()) === 0;
+    const isDefault = (await tx.resume.count({ where: { userId } })) === 0;
     return tx.resume.create({
       // Prisma 6 types Bytes as Uint8Array<ArrayBuffer>; a Buffer's backing store may be shared.
-      data: { ...input, original: new Uint8Array(input.original), isDefault },
+      data: { ...input, userId, original: new Uint8Array(input.original), isDefault },
       omit: WITHOUT_ORIGINAL,
     });
   });
@@ -84,7 +93,7 @@ export async function createResume(input: {
  * its resume's CURRENT text. A new text retires them; the same file again
  * keeps them.
  */
-export async function upsertScratchResume(input: {
+export async function upsertScratchResume(userId: number, input: {
   name: string;
   sourceFilename: string;
   mimeType: string;
@@ -98,10 +107,10 @@ export async function upsertScratchResume(input: {
   // same kind of invariant: one row in the whole table.
   const data = { ...input, original: new Uint8Array(input.original) };
   const { row, created, lettersCleared } = await withGlobalWriteLock(async (tx) => {
-    const existing = await tx.resume.findFirst({ where: { hidden: true }, select: { id: true, text: true } });
+    const existing = await tx.resume.findFirst({ where: { userId, hidden: true }, select: { id: true, text: true } });
     if (!existing) {
       return {
-        row: await tx.resume.create({ data: { ...data, hidden: true, isDefault: false }, omit: WITHOUT_ORIGINAL }),
+        row: await tx.resume.create({ data: { ...data, userId, hidden: true, isDefault: false }, omit: WITHOUT_ORIGINAL }),
         created: true,
         lettersCleared: 0,
       };
@@ -132,11 +141,12 @@ export async function upsertScratchResume(input: {
 
 /** "Upload new version": swap the file + text, bump version, clear the scan. */
 export async function replaceResumeFile(
+  userId: number,
   id: number,
   input: { sourceFilename: string; mimeType: string; original: Buffer; text: string },
 ): Promise<ResumeSummary> {
   const row = await prisma.resume.update({
-    where: { id },
+    where: { id, userId },
     data: {
       ...input,
       original: new Uint8Array(input.original),
@@ -154,23 +164,23 @@ export async function replaceResumeFile(
 }
 
 /** Renames a resume; null when the row is gone (deleted in another tab). */
-export async function renameResume(id: number, name: string): Promise<ResumeSummary | null> {
+export async function renameResume(userId: number, id: number, name: string): Promise<ResumeSummary | null> {
   return prisma.resume
-    .update({ where: { id }, data: { name }, omit: WITHOUT_ORIGINAL })
+    .update({ where: { id, userId }, data: { name }, omit: WITHOUT_ORIGINAL })
     .catch(() => null);
 }
 
 /** False when there was no such row — the caller must not report a deletion. */
-export async function deleteResume(id: number): Promise<boolean> {
-  const { count } = await prisma.resume.deleteMany({ where: { id } });
+export async function deleteResume(userId: number, id: number): Promise<boolean> {
+  const { count } = await prisma.resume.deleteMany({ where: { id, userId } });
   if (count === 0) logger.warn({ id }, 'resume: delete found nothing');
   return count > 0;
 }
 
-export async function setDefaultResume(id: number): Promise<void> {
+export async function setDefaultResume(userId: number, id: number): Promise<void> {
   await prisma.$transaction([
-    prisma.resume.updateMany({ where: { isDefault: true }, data: { isDefault: false } }),
-    prisma.resume.update({ where: { id }, data: { isDefault: true } }),
+    prisma.resume.updateMany({ where: { userId, isDefault: true }, data: { isDefault: false } }),
+    prisma.resume.update({ where: { id, userId }, data: { isDefault: true } }),
   ]);
 }
 
@@ -180,14 +190,14 @@ export async function setDefaultResume(id: number): Promise<void> {
  * alone rather than clearing a structure an earlier scan earned.
  */
 /** The sectors the scan read off a resume — empty before it is scanned again (ADR 0046). */
-export async function getResumeIndustries(id: number): Promise<string[]> {
-  const row = await prisma.resume.findUnique({ where: { id }, select: { industries: true } });
+export async function getResumeIndustries(userId: number, id: number): Promise<string[]> {
+  const row = await prisma.resume.findFirst({ where: { id, userId }, select: { industries: true } });
   return row?.industries ?? [];
 }
 
-export async function saveResumeScan(id: number, scan: ResumeScan): Promise<void> {
+export async function saveResumeScan(userId: number, id: number, scan: ResumeScan): Promise<void> {
   await prisma.resume.update({
-    where: { id },
+    where: { id, userId },
     data: {
       scannedAt: new Date(),
       title: scan.title,
@@ -204,9 +214,9 @@ export async function saveResumeScan(id: number, scan: ResumeScan): Promise<void
 }
 
 /** The resume as data, read by its own call (structure.ts) and guarded before it gets here (ADR 0039). */
-export async function saveResumeStructure(id: number, structure: JsonResume): Promise<void> {
+export async function saveResumeStructure(userId: number, id: number, structure: JsonResume): Promise<void> {
   await prisma.resume.update({
-    where: { id },
+    where: { id, userId },
     data: { structure: structure as unknown as Prisma.InputJsonValue },
   });
 }
@@ -220,9 +230,9 @@ export type MatchWithJob = ResumeMatch & {
 /** Newest matches win; re-runs accumulate forever, so the lists are capped. */
 const MATCH_LIST_LIMIT = 50;
 
-export async function listMatchesForJob(jobId: number): Promise<MatchWithResume[]> {
+export async function listMatchesForJob(userId: number, jobId: number): Promise<MatchWithResume[]> {
   const rows = await prisma.resumeMatch.findMany({
-    where: { jobId },
+    where: { jobId, resume: { userId } },
     include: { resume: { select: { id: true, name: true, hidden: true } } },
     orderBy: { createdAt: 'desc' },
     take: MATCH_LIST_LIMIT,
@@ -235,9 +245,9 @@ export type MatchRunSummary = Pick<ResumeMatch, 'id' | 'jobId' | 'resumeId' | 'r
   job: { id: number; title: string; employer: string | null; company: { name: string; atsType: string } };
 };
 
-export async function listMatchesForResume(resumeId: number): Promise<MatchRunSummary[]> {
+export async function listMatchesForResume(userId: number, resumeId: number): Promise<MatchRunSummary[]> {
   return prisma.resumeMatch.findMany({
-    where: { resumeId },
+    where: { resumeId, resume: { userId } },
     select: {
       id: true,
       jobId: true,
@@ -263,12 +273,13 @@ const COVERAGE_POSTINGS = 100;
  * tables are the heavy column, and a posting compared twenty times would
  * otherwise bring nineteen stale copies along.
  */
-export async function listLatestKeywordTables(resumeId: number): Promise<MatchKeyword[][]> {
+export async function listLatestKeywordTables(userId: number, resumeId: number): Promise<MatchKeyword[][]> {
   const rows = await prisma.$queryRaw<{ keywords: unknown }[]>`
     SELECT t."keywords" FROM (
       SELECT DISTINCT ON ("jobId") "keywords", "createdAt"
       FROM "resume_match"
       WHERE "resumeId" = ${resumeId} AND NOT "draft"
+        AND EXISTS (SELECT 1 FROM "resume" r WHERE r."id" = "resumeId" AND r."userId" = ${userId})
       ORDER BY "jobId", "createdAt" DESC
     ) t
     ORDER BY t."createdAt" DESC
@@ -283,7 +294,7 @@ export async function listLatestKeywordTables(resumeId: number): Promise<MatchKe
  * resume by skill overlap, and an application keeps its text snapshot but
  * loses the name. Silent either way until the dialog names them.
  */
-export async function deleteImpact(resumeId: number): Promise<{
+export async function deleteImpact(userId: number, resumeId: number): Promise<{
   matches: number;
   letters: number;
   reviews: number;
@@ -291,11 +302,11 @@ export async function deleteImpact(resumeId: number): Promise<{
   applications: number;
 }> {
   const [matches, letters, reviews, searches, applications] = await Promise.all([
-    prisma.resumeMatch.count({ where: { resumeId } }),
-    prisma.coverLetter.count({ where: { resumeId } }),
-    prisma.resumeReview.count({ where: { resumeId } }),
-    prisma.profile.count({ where: { resumeId } }),
-    prisma.userJob.count({ where: { appliedResumeId: resumeId } }),
+    prisma.resumeMatch.count({ where: { resumeId, resume: { userId } } }),
+    prisma.coverLetter.count({ where: { resumeId, resume: { userId } } }),
+    prisma.resumeReview.count({ where: { resumeId, resume: { userId } } }),
+    prisma.profile.count({ where: { resumeId, userId } }),
+    prisma.userJob.count({ where: { appliedResumeId: resumeId, userId } }),
   ]);
   return { matches, letters, reviews, searches, applications };
 }
@@ -312,9 +323,10 @@ export interface ResumeMatchStats {
  * comparison are absent from the map rather than present with zeros: "never
  * compared" and "compared, scored 0" are different answers.
  */
-export async function matchStatsByResume(): Promise<Map<number, ResumeMatchStats>> {
+export async function matchStatsByResume(userId: number): Promise<Map<number, ResumeMatchStats>> {
   const rows = await prisma.resumeMatch.groupBy({
     by: ['resumeId'],
+    where: { resume: { userId } },
     _count: { _all: true },
     _max: { matchScore: true },
   });
@@ -351,8 +363,8 @@ export async function createReview(input: {
 }
 
 /** The review a resume page shows: the most recent run, whatever version it read. */
-export async function getLatestReviewForResume(resumeId: number): Promise<ResumeReview | null> {
-  return prisma.resumeReview.findFirst({ where: { resumeId }, orderBy: { createdAt: 'desc' } });
+export async function getLatestReviewForResume(userId: number, resumeId: number): Promise<ResumeReview | null> {
+  return prisma.resumeReview.findFirst({ where: { resumeId, resume: { userId } }, orderBy: { createdAt: 'desc' } });
 }
 
 /**
@@ -360,9 +372,9 @@ export async function getLatestReviewForResume(resumeId: number): Promise<Resume
  * not by `createdAt`: two runs a second apart are exactly what "answer, then
  * re-run" produces, and a timestamp tie would pick arbitrarily.
  */
-export async function getPreviousReview(resumeId: number, beforeId: number): Promise<ResumeReview | null> {
+export async function getPreviousReview(userId: number, resumeId: number, beforeId: number): Promise<ResumeReview | null> {
   return prisma.resumeReview.findFirst({
-    where: { resumeId, id: { lt: beforeId } },
+    where: { resumeId, resume: { userId }, id: { lt: beforeId } },
     orderBy: { id: 'desc' },
   });
 }
@@ -373,14 +385,15 @@ export async function getPreviousReview(resumeId: number, beforeId: number): Pro
  * edit does — two answers typed in two tabs must both survive.
  */
 export async function saveReviewAnswer(
+  userId: number,
   resumeId: number,
   question: string,
   answer: string,
 ): Promise<ReviewAnswer[] | null> {
   return prisma.$transaction(async (tx) => {
-    const locked = await tx.$queryRaw<{ id: number }[]>`SELECT id FROM resume WHERE id = ${resumeId} FOR UPDATE`;
+    const locked = await tx.$queryRaw<{ id: number }[]>`SELECT id FROM resume WHERE id = ${resumeId} AND "userId" = ${userId} FOR UPDATE`;
     if (locked.length === 0) return null;
-    const row = await tx.resume.findUniqueOrThrow({ where: { id: resumeId }, select: { answers: true } });
+    const row = await tx.resume.findUniqueOrThrow({ where: { id: resumeId }, select: { answers: true } }); // locked above for this person
     const next = upsertAnswer(readAnswers(row.answers), question, answer);
     await tx.resume.update({
       where: { id: resumeId },
@@ -397,8 +410,9 @@ export type ReviewSummary = Pick<ResumeReview, 'resumeId' | 'resumeVersion' | 'r
  * A resume with no review is absent from the map: "never reviewed" and
  * "reviewed, scored 0" are different answers (as in matchStatsByResume).
  */
-export async function latestReviewByResume(): Promise<Map<number, ReviewSummary>> {
+export async function latestReviewByResume(userId: number): Promise<Map<number, ReviewSummary>> {
   const rows = await prisma.resumeReview.findMany({
+    where: { resume: { userId } },
     distinct: ['resumeId'],
     orderBy: [{ resumeId: 'asc' }, { createdAt: 'desc' }],
     select: { resumeId: true, resumeVersion: true, reviewScore: true, createdAt: true },
@@ -413,9 +427,9 @@ export function versionFileName(name: string, version: number, ext: string): str
   return `${slug}-v${version}.${ext}`;
 }
 
-export async function saveResumeTextVersion(id: number, text: string): Promise<ResumeSummary> {
-  const current = await prisma.resume.findUniqueOrThrow({ where: { id }, select: { name: true, version: true } });
-  return replaceResumeFile(id, {
+export async function saveResumeTextVersion(userId: number, id: number, text: string): Promise<ResumeSummary> {
+  const current = await prisma.resume.findFirstOrThrow({ where: { id, userId }, select: { name: true, version: true } });
+  return replaceResumeFile(userId, id, {
     sourceFilename: versionFileName(current.name, current.version + 1, 'md'),
     mimeType: 'text/markdown',
     original: Buffer.from(text, 'utf8'),
@@ -428,8 +442,8 @@ export async function saveResumeTextVersion(id: number, text: string): Promise<R
  * stay. For the document-properties fix (ADR 0038): the words did not change,
  * so a new version and a re-scan would be noise.
  */
-export async function replaceResumeBytes(id: number, original: Buffer): Promise<void> {
-  await prisma.resume.update({ where: { id }, data: { original: new Uint8Array(original) } });
+export async function replaceResumeBytes(userId: number, id: number, original: Buffer): Promise<void> {
+  await prisma.resume.update({ where: { id, userId }, data: { original: new Uint8Array(original) } });
   logger.info({ id, bytes: original.length }, 'resume: bytes replaced');
 }
 
@@ -477,15 +491,15 @@ export async function createMatch(input: {
   });
 }
 
-export async function getMatch(id: number): Promise<ResumeMatch | null> {
-  return prisma.resumeMatch.findUnique({ where: { id } });
+export async function getMatch(userId: number, id: number): Promise<ResumeMatch | null> {
+  return prisma.resumeMatch.findFirst({ where: { id, resume: { userId } } });
 }
 
 /** Latest analysis of a posting, any resume — its keyword frame keeps re-runs comparable. */
 /** The newest comparison of this posting — or, with `before`, the newest one older than that row. */
-export async function getLatestMatchForJob(jobId: number, before?: number): Promise<ResumeMatch | null> {
+export async function getLatestMatchForJob(userId: number, jobId: number, before?: number): Promise<ResumeMatch | null> {
   return prisma.resumeMatch.findFirst({
-    where: { jobId, ...(before === undefined ? {} : { id: { lt: before } }) },
+    where: { jobId, resume: { userId }, ...(before === undefined ? {} : { id: { lt: before } }) },
     orderBy: { createdAt: 'desc' },
   });
 }
@@ -524,6 +538,7 @@ export interface RescoreOutcome<T> {
  * route did.
  */
 export async function rescoreMatchKeywords<T>(
+  userId: number,
   id: number,
   edit: (match: ResumeMatch) => KeywordRescore<T>,
 ): Promise<RescoreOutcome<T> | null> {
@@ -532,7 +547,7 @@ export async function rescoreMatchKeywords<T>(
   // the matcher.
   const matcher = await loadKeywordMatcher();
   return prisma.$transaction(async (tx) => {
-    const locked = await tx.$queryRaw<{ id: number }[]>`SELECT id FROM resume_match WHERE id = ${id} FOR UPDATE`;
+    const locked = await tx.$queryRaw<{ id: number }[]>`SELECT m.id FROM resume_match m JOIN resume r ON r.id = m."resumeId" WHERE m.id = ${id} AND r."userId" = ${userId} FOR UPDATE OF m`;
     if (locked.length === 0) return null;
     const match = await tx.resumeMatch.findUniqueOrThrow({ where: { id } });
     const { keywords, detail } = edit(match);
@@ -629,17 +644,17 @@ export async function getLatestVerificationContext(jobId: number): Promise<{ id:
 
 export type CoverLetterWithResume = CoverLetter & { resume: { id: number; name: string } };
 
-export async function listCoverLettersForJob(jobId: number): Promise<CoverLetterWithResume[]> {
+export async function listCoverLettersForJob(userId: number, jobId: number): Promise<CoverLetterWithResume[]> {
   return prisma.coverLetter.findMany({
-    where: { jobId },
+    where: { jobId, resume: { userId } },
     include: { resume: { select: { id: true, name: true } } },
     orderBy: { createdAt: 'desc' },
   });
 }
 
-export async function getCoverLetter(id: number): Promise<CoverLetterWithResume | null> {
-  return prisma.coverLetter.findUnique({
-    where: { id },
+export async function getCoverLetter(userId: number, id: number): Promise<CoverLetterWithResume | null> {
+  return prisma.coverLetter.findFirst({
+    where: { id, resume: { userId } },
     include: { resume: { select: { id: true, name: true } } },
   });
 }
@@ -650,12 +665,13 @@ export async function getCoverLetter(id: number): Promise<CoverLetterWithResume 
  * draft, a new version, every file the scratch row has held.
  */
 export async function getLatestMatchForResumeAndJob(
+  userId: number,
   jobId: number,
   resumeId: number,
   text: string,
 ): Promise<ResumeMatch | null> {
   return prisma.resumeMatch.findFirst({
-    where: { jobId, resumeId, resumeText: text },
+    where: { jobId, resumeId, resume: { userId }, resumeText: text },
     orderBy: { createdAt: 'desc' },
   });
 }
@@ -666,6 +682,7 @@ export async function getLatestMatchForResumeAndJob(
  * out: they judged a description the posting has since replaced (ADR 0043).
  */
 export async function listMatchesForText(
+  userId: number,
   jobId: number,
   resumeId: number,
   text: string,
@@ -673,7 +690,7 @@ export async function listMatchesForText(
   since: Date | null,
 ): Promise<ResumeMatch[]> {
   return prisma.resumeMatch.findMany({
-    where: { jobId, resumeId, resumeText: text, ...(since ? { createdAt: { gt: since } } : {}) },
+    where: { jobId, resumeId, resume: { userId }, resumeText: text, ...(since ? { createdAt: { gt: since } } : {}) },
     orderBy: { createdAt: 'desc' },
     take,
   });
@@ -754,32 +771,33 @@ export async function createCoverLetter(input: {
 
 /** A manual edit; null editedText restores the generated original. */
 export async function updateCoverLetterEdit(
+  userId: number,
   id: number,
   input: { editedText: string | null; gateVerdict: string; gateNotes: string[] },
 ): Promise<CoverLetter> {
-  return prisma.coverLetter.update({ where: { id }, data: input });
+  return prisma.coverLetter.update({ where: { id, resume: { userId } }, data: input });
 }
 
 /* ---------- candidate facts (ask_user answers) ---------- */
 
-export async function listFacts(): Promise<CandidateFact[]> {
-  return prisma.candidateFact.findMany({ orderBy: { term: 'asc' } });
+export async function listFacts(userId: number): Promise<CandidateFact[]> {
+  return prisma.candidateFact.findMany({ where: { userId }, orderBy: { term: 'asc' } });
 }
 
-export async function upsertFact(term: string, status: FactAnswer, note: string | null): Promise<CandidateFact> {
+export async function upsertFact(userId: number, term: string, status: FactAnswer, note: string | null): Promise<CandidateFact> {
   const key = term.trim().toLowerCase();
   const row = await prisma.candidateFact.upsert({
-    where: { term: key },
-    create: { term: key, status, note },
+    where: { userId_term: { userId, term: key } },
+    create: { userId, term: key, status, note },
     update: { status, note },
   });
   logger.info({ term: key, status }, 'resume: candidate fact saved');
   return row;
 }
 
-export async function deleteFact(term: string): Promise<void> {
+export async function deleteFact(userId: number, term: string): Promise<void> {
   await prisma.candidateFact
-    .delete({ where: { term: term.trim().toLowerCase() } })
+    .delete({ where: { userId_term: { userId, term: term.trim().toLowerCase() } } })
     .catch(() => undefined);
 }
 
@@ -788,10 +806,11 @@ export async function deleteFact(term: string): Promise<void> {
  * evidence vault behind "you have it, but this resume hides it".
  */
 export async function listOtherResumeSkills(
+  userId: number,
   excludeResumeId: number,
 ): Promise<{ skill: string; resumeName: string }[]> {
   const rows = await prisma.resume.findMany({
-    where: { hidden: false, id: { not: excludeResumeId } },
+    where: { userId, hidden: false, id: { not: excludeResumeId } },
     select: { name: true, skills: true },
     orderBy: [{ isDefault: 'desc' }, { id: 'asc' }],
   });
