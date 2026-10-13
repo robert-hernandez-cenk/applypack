@@ -79,6 +79,7 @@ gets a dated addendum at the end of the ADR.
 - [0063 — The worker prepares an application pack for a strong new match](./0063-the-worker-prepares-an-application-pack.md) *(amends 0008)*
 - [0064 — The dashboard can sign in through an OpenID Connect provider](./0064-oidc-login-for-the-dashboard.md)
 - [0065 — An install has users; the catalog is shared, the workspace is private](./0065-users-and-identity.md) *(supersedes 0004's single-user stance for the workspace)*
+- [0066 — Searches belong to a person; scoring still covers everyone's](./0066-searches-belong-to-a-person.md) *(amends 0028: the primary lives on the user)*
 
 ## When to write a new one
 

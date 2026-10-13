@@ -123,6 +123,8 @@ of truth when the two disagree.
 - 0062 Rows the user brings are read from what they hand over, and nothing is fetched
 - 0063 The worker prepares an application pack for a strong new match *(amends 0008)*
 - 0064 The dashboard can sign in through an OpenID Connect provider
+- 0065 An install has users; the catalog is shared, the workspace is private *(supersedes 0004's single-user stance for the workspace)*
+- 0066 Searches belong to a person; scoring still covers everyone's *(amends 0028: the primary lives on the user)*
 
 Check a proposal against these before touching process layout, sources,
 scheduling, profiles, how the AI is called, the resume score or employer

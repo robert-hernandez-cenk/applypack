@@ -37,6 +37,7 @@ import {
 import { findMute, listMutes, muteEmployer, unmuteEmployer } from '../../jobs/employer-store';
 import { roleLines, titleWordsOf, type TitleWords } from '../../watchlist/paste';
 import { listActiveProfiles } from '../../profiles';
+import { currentUser } from '../current-user';
 import { packOffers } from '../pack-offers';
 import { isBlankProfile } from '../../profile-guards';
 import { t } from '../../i18n/t';
@@ -202,7 +203,7 @@ companiesRoute.get('/companies', async (c) => {
       companies={rows}
       folders={folders}
       folderHost={{ launcher: localInstall(), roots: inboxRoots(config.APPLYPACK_INBOX_ROOTS) }}
-      watchlist={watchedRows(companies, freshMap, titleWordsOf((await listActiveProfiles()).filter((p) => !isBlankProfile(p))))}
+      watchlist={watchedRows(companies, freshMap, titleWordsOf((await listActiveProfiles(currentUser().id)).filter((p) => !isBlankProfile(p))))}
       watchlistRun={activeWatchlistRun()}
       packs={packs}
       suggestions={await currentSuggestions()}

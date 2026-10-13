@@ -34,6 +34,7 @@ import { DEFAULT_MIN_CEILING } from '../pack/gate';
 import { DEFAULT_POLICY } from '../pack/policy';
 import { preparePosting, type Prepared, type PreparedResume } from '../pack/prepare';
 import { getActiveProfile } from '../profiles';
+import { DEFAULT_USER_ID } from '../users/identity';
 import { readActions, readKeywords, type MatchKeyword } from '../resume/prompts';
 import { readBreakdown } from '../resume/score';
 // The page's own "Copy my changes" sheet, so the edits read here as they do there.
@@ -201,7 +202,7 @@ async function main(): Promise<void> {
   console.log(`${jobs.length} postings with fit ≥ ${settings.minFit}; ${jobs.length - todo.length} already done, ${todo.length} to run → ${out}`);
 
   const tools: Tools = { settings, verify: !process.argv.includes('--no-verify'), rejudge: process.argv.includes('--rejudge'), out };
-  const fallbackResumeId = (await getActiveProfile())?.resumeId ?? null;
+  const fallbackResumeId = (await getActiveProfile(DEFAULT_USER_ID))?.resumeId ?? null;
   const limiter = createLimiter(Math.max(1, flagNumber('concurrency', DEFAULT_CONCURRENCY)));
   await Promise.all(
     todo.map((job) =>

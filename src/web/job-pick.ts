@@ -1,6 +1,7 @@
 import type { JobStatus } from '@prisma/client';
 import { prisma } from '../db';
 import { getActiveProfile } from '../profiles';
+import { currentUser } from './current-user';
 import { t } from '../i18n/t';
 import { companyForPage } from '../employer';
 
@@ -46,7 +47,7 @@ export function toPickOption(job: PickRow, note: string | null, now = Date.now()
  * lands on a picker without its job reads as "that job is gone".
  */
 export async function listPickableJobs(include: number | null = null): Promise<JobPickOption[]> {
-  const profile = await getActiveProfile();
+  const profile = await getActiveProfile(currentUser().id);
   const fitting = await prisma.job.findMany({
     where: { status: { in: PICKABLE }, ...(profile ? { fitScore: { gte: profile.minFitScore } } : {}) },
     orderBy: [{ fetchedAt: 'desc' }],

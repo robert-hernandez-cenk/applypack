@@ -15,7 +15,7 @@ import { keepFolderLooks } from './source-file-store';
 import { deliverPageChanges, recordPageChanges } from './page-change-alerts';
 import { syncFranceTravail, type MirrorStats } from './france-travail-sync';
 import { isFailureStatus } from '../fetchers/source-health';
-import { listActiveProfiles } from '../profiles';
+import { listAllActiveProfiles } from '../profiles';
 import type { Profile } from '@prisma/client';
 import { getSchedule, getSettings, getSourceKeys } from '../settings';
 import { describeSchedule, isFetchDue, lastRealFetch, RUN_LOOKBACK } from '../user-schedule';
@@ -112,7 +112,7 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
   }
   const classify = settings.fetchingEnabled;
 
-  const profiles = await listActiveProfiles();
+  const profiles = await listAllActiveProfiles();
   if (profiles.length === 0) {
     logger.warn(
       'fetch-job: no active search configured; aborting (switch one on at /settings)',

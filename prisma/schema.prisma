@@ -445,8 +445,6 @@ model AiCall {
 model AppSettings {
   id                             Int       @id @default(1)
   telegramEnabled                Boolean   @default(false)
-  activeProfileId                Int?
-  activeProfile                  Profile?  @relation(fields: [activeProfileId], references: [id], onDelete: SetNull)
   // Classifier mode: 'single' = full classifier only;
   // 'two_stage' = short prefilter prompt, full classifier only on yes.
   classifierMode                 String    @default("single")
@@ -674,8 +672,8 @@ model Profile {
   priorityRules        Json                @default("[]")
   // ADR 0028: several searches run at once. `active` is the switch — a job is
   // scored against every active profile in ONE classifier call, and each row
-  // gates its own alerts with its own minFitScore. AppSettings.activeProfileId
-  // stays as the PRIMARY (defaults, preselects); the primary is always active.
+  // gates its own alerts with its own minFitScore. User.primaryProfileId
+  // is the PRIMARY (defaults, preselects); the primary is always active.
   active               Boolean             @default(false)
   // Where alerts for this profile go. null → broadcast to all active targets.
   notificationTargetId Int?
@@ -690,11 +688,15 @@ model Profile {
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
-  // Back-relation for AppSettings.activeProfileId
-  activeFor AppSettings[]
+  // ADR 0066: a search belongs to one person; their primary is
+  // User.primaryProfileId (the back-relation below).
+  userId    Int        @default(1)
+  user      User       @relation("UserProfiles", fields: [userId], references: [id], onDelete: Cascade)
+  primaryOf User?      @relation("UserPrimary")
   jobScores JobScore[]
 
   @@index([active])
+  @@index([userId])
   @@map("profile")
 }
 
@@ -1168,13 +1170,18 @@ enum UserRole {
 // migration creates: the owner of everything that existed before, and the one
 // person an install without sign-in has. The first OIDC sign-in claims it.
 model User {
-  id        Int      @id @default(autoincrement())
+  id               Int       @id @default(autoincrement())
   // The identity provider's stable id for the person; NULL until someone
   // signs in as this user (and always for an install without sign-in).
-  oidcSub   String?  @unique
-  name      String
-  role      UserRole @default(MEMBER)
-  createdAt DateTime @default(now())
+  oidcSub          String?   @unique
+  name             String
+  role             UserRole  @default(MEMBER)
+  createdAt        DateTime  @default(now())
+  // The person's primary search (ADR 0066): the defaults and preselects for
+  // their pages, always running. Was AppSettings.activeProfileId.
+  primaryProfileId Int?      @unique
+  primaryProfile   Profile?  @relation("UserPrimary", fields: [primaryProfileId], references: [id], onDelete: SetNull)
+  profiles         Profile[] @relation("UserProfiles")
 
   @@map("users")
 }

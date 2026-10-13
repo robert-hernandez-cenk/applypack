@@ -11,6 +11,7 @@ import { loadHeldLine, loadNextCheck } from '../schedule-view';
 import { companyForPage, withoutMuted } from '../../employer';
 import { mutedKeys } from '../../jobs/employer-store';
 import { getActiveProfile, listActiveProfiles } from '../../profiles';
+import { currentUser } from '../current-user';
 import { readStackParam } from '../overview-numbers';
 import { loadOverviewStats } from '../overview-stats';
 import { preferredPlaces } from '../place-line';
@@ -87,7 +88,7 @@ overviewRoute.get('/', async (c) => {
       ),
     ),
     loadOverviewStats({ range, stack: readStackParam(c.req.query('stack')), unmuted }),
-    listActiveProfiles(),
+    listActiveProfiles(currentUser().id),
   ]);
 
   const counts = countsRows.map((r) => ({
@@ -138,7 +139,7 @@ const READY_PACKS_SHOWN = 8;
 async function loadNextThings(unmuted: Prisma.JobWhereInput): Promise<NextThing[] | null> {
   const comparisons = await prisma.resumeMatch.count();
   if (comparisons > 0) return null;
-  const profile = await getActiveProfile();
+  const profile = await getActiveProfile(currentUser().id);
   const top = await prisma.job.findFirst({
     // A "best match" under the search's own floor would be a word for nothing.
     where: {

@@ -17,6 +17,7 @@ import {
   setSetupCompleted,
 } from '../../settings';
 import { getActiveProfile, updateProfile, type ProfileInput } from '../../profiles';
+import { currentUser } from '../current-user';
 import { resolveCountries } from '../../countries';
 import { searchPlaces } from '../../fetchers/fetch-context';
 import { isAggregator } from '../source-groups';
@@ -299,7 +300,7 @@ welcomeRoute.post('/welcome/profile/apply', async (c) => {
   const draft = buildProfileDraft(profile, scanFields(resume));
   // The search is built from this resume, so it hunts with it (#158) — the
   // same link the settings route proposes when it fills from a resume.
-  await updateProfile(profile.id, { ...profileInput(profile), ...draft.changes, resumeId: resume.id });
+  await updateProfile(currentUser().id, profile.id, { ...profileInput(profile), ...draft.changes, resumeId: resume.id });
   const changed = profile.resumeId === resume.id ? draft.changed : [...draft.changed, t('welcome.flash.changedResume')];
   // No step named: the wizard lands on the first undone one — the sources
   // step when the new countries call for boards, the matches otherwise.
@@ -340,7 +341,7 @@ welcomeRoute.post('/welcome/profile', async (c) => {
   if (stackRequired.length === 0 && roleTypes.length === 0) {
     return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.profileEmpty'));
   }
-  await updateProfile(profile.id, { ...profileInput(profile), stackRequired, roleTypes, seniority });
+  await updateProfile(currentUser().id, profile.id, { ...profileInput(profile), stackRequired, roleTypes, seniority });
   return flashRedirect('/welcome', 'ok', t('welcome.flash.profileSaved'));
 });
 
@@ -359,9 +360,9 @@ welcomeRoute.post('/welcome/search', async (c) => {
   if (typed.unknown.length > 0) {
     return flashRedirect(SEARCH_STEP, 'err', t('welcome.flash.countryUnknown', { names: typed.unknown.join(', ') }));
   }
-  let profile = await getActiveProfile();
+  let profile = await getActiveProfile(currentUser().id);
   if (profile && typed.codes.length > 0) {
-    profile = await updateProfile(profile.id, { ...profileInput(profile), countries: typed.codes });
+    profile = await updateProfile(currentUser().id, profile.id, { ...profileInput(profile), countries: typed.codes });
   }
   const run = await beginFetchNow({
     backUrl: '/welcome',
@@ -392,11 +393,13 @@ welcomeRoute.post('/welcome/score', async (c) => {
     backLabel: t('fetch.backToSetup'),
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
+  const userId = currentUser().id;
   startRun(run.id, async () => {
     let stats: CronStats = {};
     await recordCronRun('score-unscored', async () => {
       const out = await runScoreUnscored({
         limit: SCORE_BATCH,
+        userId,
         onProgress: (done, total) => updateRun(run.id, { progress: { done, total } }),
       });
       stats = out.stats;

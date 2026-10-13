@@ -29,6 +29,7 @@ import { employerGate, hiringKey } from '../../employer';
 import { loadEmployerRules } from '../../jobs/employer-store';
 import { isBlankProfile } from '../../profile-guards';
 import { listActiveProfiles } from '../../profiles';
+import { currentUser } from '../current-user';
 import { getPackSettings, getSettings } from '../../settings';
 import { alertChannel } from '../../notifier';
 import { autoPacksToday } from '../../pack/store';
@@ -167,7 +168,7 @@ async function previewFacts(stash: ImportStash) {
   const mapped = mapRows(stash.rows, stash.mapping, stash.source.id ?? 0, now);
   const [settings, active, employers, stored] = await Promise.all([
     getSettings(),
-    listActiveProfiles(),
+    listActiveProfiles(currentUser().id),
     loadEmployerRules(now),
     stash.source.id === null || mapped.jobs.length === 0
       ? []

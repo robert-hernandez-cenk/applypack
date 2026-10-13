@@ -1061,7 +1061,13 @@ sign-in (ADR 0064) a person is provisioned from the provider's `sub` on first
 sign-in: the first person takes over the default user and is the admin, later
 ones are members. Without OIDC (open or Basic Auth) the dashboard runs as the
 default user. The session carries the user id; `web/current-user.ts` makes it
-available as `currentUser()`. No table is scoped to a user yet (issue #5, later
+available as `currentUser()`. Searches (`Profile`) belong to a user (ADR 0066): the
+primary search is `User.primaryProfileId`, the running-search limit is per
+person, and the dashboard lists and changes only the signed-in person's
+searches. Scoring is shared: one classifier call per posting covers every
+running search of every person and stores a verdict per search; /jobs and a
+job page show only your own searches' verdicts. A new member starts with a
+blank primary search. No other table is scoped yet (issue #5, later
 slices).
 
 ## Hard out-of-scope (Phase 7+)

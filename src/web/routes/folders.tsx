@@ -49,6 +49,7 @@ import { localInstall } from '../../local/install';
 import { logger } from '../../logger';
 import { isBlankProfile } from '../../profile-guards';
 import { listActiveProfiles } from '../../profiles';
+import { currentUser } from '../current-user';
 import type { Profile } from '@prisma/client';
 import { getSettings } from '../../settings';
 import { t } from '../../i18n/t';
@@ -121,7 +122,7 @@ const isAlerts = (value: unknown): value is FolderAlerts => FOLDER_ALERTS.some((
 
 /** Running searches, how many can score, and whether scoring runs at all: what both previews say. */
 async function searchesNow(): Promise<{ scoring: boolean; active: Profile[]; roster: Profile[] }> {
-  const [settings, active] = await Promise.all([getSettings(), listActiveProfiles()]);
+  const [settings, active] = await Promise.all([getSettings(), listActiveProfiles(currentUser().id)]);
   const scoring = settings.fetchingEnabled;
   return { scoring, active, roster: scoring ? active.filter((p) => !isBlankProfile(p)) : active };
 }

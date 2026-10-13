@@ -51,7 +51,7 @@ sequenceDiagram
   participant cron as node-cron (hourly heartbeat)
   participant runFetchJob as runFetchJob<br/>jobs/fetch-job.ts
   participant deliverHeldAlerts as deliverHeldAlerts<br/>jobs/alert-delivery.ts
-  participant listActiveProfiles as listActiveProfiles<br/>profiles.ts
+  participant listAllActiveProfiles as listAllActiveProfiles<br/>profiles.ts
   participant runAllFetchers as runAllFetchers<br/>fetchers/index.ts
   participant processNormalizedJobs as processNormalizedJobs<br/>jobs/process-jobs.ts
   participant passesAnyBaseFilter as passesAnyBaseFilter<br/>filter.ts
@@ -65,8 +65,8 @@ sequenceDiagram
   runFetchJob->>deliverHeldAlerts: matches held by earlier ticks, when shouldDeliverHeld allows this beat and Alerts are on
   runFetchJob->>runFetchJob: deliverPageChanges (careers-page changes still pending, under the same rules)
   Note over runFetchJob: stops here when fetchingEnabled is off or isFetchDue says no<br/>(a manual "Fetch now" carries on)
-  runFetchJob->>listActiveProfiles: the running searches
-  listActiveProfiles-->>runFetchJob: profiles[]
+  runFetchJob->>listAllActiveProfiles: the running searches
+  listAllActiveProfiles-->>runFetchJob: profiles[]
   Note over runFetchJob: no search running: stops here with reason no-active-profile
   runFetchJob->>runAllFetchers: active Companies, minus disabledSources, minus rows not due (dueCutoff)
   loop per due Company, shuffled, politeDelayMs apart
@@ -175,7 +175,7 @@ ADR: [0006-discovery-via-hn-parser.md](./docs/adr/0006-discovery-via-hn-parser.m
 ```mermaid
 flowchart LR
   subgraph settings["AppSettings (singleton)"]
-    primary["activeProfileId (the primary)"]
+    primary["the primary<br/>(User.primaryProfileId)"]
     mode[classifierMode]
     disabled[disabledSources]
   end
@@ -245,7 +245,7 @@ src/
                                  when alerts may leave, which hours are digest hours
   seed.ts                      ← SEED_COMPANIES list + OBSOLETE_TOKENS cleanup
   settings.ts                  ← AppSettings + NotificationTarget CRUD, the key accessors, maskToken re-export
-  profiles.ts                  ← Profile CRUD, listActiveProfiles, getActiveProfile / setActiveProfile, setProfileActive
+  profiles.ts                  ← Profile CRUD scoped to a user (ADR 0066), listAllActiveProfiles (the worker), getActiveProfile / setActiveProfile (the primary), setProfileActive, ensurePrimaryProfile
   profile-guards.ts            ← pure: the blank-profile guards (issue #50) and MAX_ACTIVE_PROFILES
   priority-rules.ts            ← pure: parsePriorityRules, the score floors a search sets
   eligibility.ts               ← pure: where the candidate lives, the relocation choices, residenceCovered (ADR 0033)
@@ -798,7 +798,8 @@ one row on each side.
 
 ```mermaid
 erDiagram
-  Profile |o--o{ AppSettings : "activeProfileId, the primary (SetNull)"
+  User ||--o{ Profile : "userId (Cascade), whose search it is"
+  Profile |o--o| User : "primaryProfileId, the primary (SetNull)"
   NotificationTarget |o--o{ Profile : "notificationTargetId (SetNull)"
   Resume |o--o{ Profile : "resumeId (SetNull)"
   Profile ||--o{ JobScore : "profileId (Cascade)"
@@ -824,7 +825,6 @@ erDiagram
   AppSettings {
     Int id PK "always 1"
     Boolean telegramEnabled "the Alerts switch, every channel"
-    Int activeProfileId FK "the primary search"
     String classifierMode "single or two_stage"
     Boolean applicationTrackingEnabled
     Boolean staleApplicationsDigestEnabled
