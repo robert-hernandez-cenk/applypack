@@ -562,7 +562,9 @@ src/
                                   /static files, every route, the error handler
     layout.tsx                  ← HTML shell, the :root token block, grouped sidebar nav, the committed Tailwind build
     tailwind.css                ← the Tailwind source; npm run css builds public/tailwind.css from it
-    tokens.ts                   ← the design tokens' values + contrast arithmetic (pure); tokens.test.ts holds body and helper text to 5:1, a status tone to AA
+    tokens.ts                   ← the design tokens' values — LIGHT_TOKENS and DARK_TOKENS, same names — and the contrast arithmetic (pure); rootBlock emits light, [data-theme="dark"] and the system-dark rule; tokens.test.ts holds body and helper text to 5:1, a status tone to AA, in both sets
+    theme.ts                    ← the look of a request (pure + AsyncLocalStorage): the `theme` cookie's parseTheme, themeAttr for <html data-theme>, currentTheme
+    theme-switch.tsx            ← <ThemeSwitch>: System / Light / Dark, posting to /settings/theme
     ui.tsx                      ← the shared primitives: <PageHeader>, <Card>, <Empty> (title · why · one action), <Disclosure>, <More>, <Tabs>, <FilterChip>, <StatCard>, <CardHeader>, <IconTile>, <Avatar>, <StatusBadge>, <FitBadge>, <Tag>, the form controls
     icons.tsx                   ← <Icon>: the one icon family (Lucide's paths), inline SVG
     table-hide.ts               ← pure: the classes that hide a table column below a breakpoint

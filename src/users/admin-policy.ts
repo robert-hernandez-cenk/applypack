@@ -96,6 +96,7 @@ export const PERSONAL_ROUTES = [
   'POST /settings/stages/:key/move',
   'POST /settings/stages/:key/rename',
   'POST /settings/locale',
+  'POST /settings/theme',
   'POST /settings/pack',
   'POST /settings/reapply',
   'POST /settings/stale-digest-toggle',

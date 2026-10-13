@@ -33,7 +33,7 @@ Format: `- [ ] Tnn [P?] [USn] description (file)`.
 
 ## Phase 7: US5 docs and release
 - [x] T018 [US5] ADR 0070 + ADR README row; SPEC.md, PRODUCT.md, README, docs/oidc-login.md multi-user section, docs/where-to-look.md, CLAUDE.md bullet, ADR 0066-0069 "forced for slice 6" notes closed (docs/, *.md)
-- [x] T019 [US5] CHANGELOG 2.57.0 + compare link, package.json and lock version (no tag) (CHANGELOG.md, package.json, package-lock.json)
+- [x] T019 [US5] CHANGELOG 2.58.0 + compare link, package.json and lock version (no tag) (CHANGELOG.md, package.json, package-lock.json)
 
 ## Phase 8: Polish and verification
 - [x] T020 Full verification: lint:types, tests, exports:audit, build, route smoke on a fresh scratch database, screenshots of /users at 375 and 1280 px (no files)

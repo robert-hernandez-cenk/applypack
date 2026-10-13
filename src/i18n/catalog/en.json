@@ -4135,5 +4135,10 @@
   "users.flash.lastAdmin": "The installation needs at least one administrator, so the last one cannot be demoted or removed.",
   "users.flash.notFound": "That user no longer exists.",
   "users.flash.noChange": "{name} already has that role.",
-  "companies.memberDesc": "The companies you have muted. The boards and feeds the search reads are managed by an administrator."
+  "companies.memberDesc": "The companies you have muted. The boards and feeds the search reads are managed by an administrator.",
+  "theme.label": "Appearance",
+  "theme.system": "System",
+  "theme.light": "Light",
+  "theme.dark": "Dark",
+  "theme.hint": "System follows your device’s light or dark setting. The choice is kept in this browser."
 }

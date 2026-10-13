@@ -6,7 +6,6 @@ import type { FlashKind, FlashMessage } from './flash';
 import { hideCellsClass, hideHeaderClass, type HideBelow } from './table-hide';
 import { barHeights } from './chart-svg';
 import { Icon, type IconName } from './icons';
-import { TOKENS, hex } from './tokens';
 import { hashShortId } from '../text-utils';
 import { formatNumber } from '../i18n/format';
 import { t } from '../i18n/t';
@@ -18,7 +17,7 @@ import { t } from '../i18n/t';
  */
 
 /*
- * A pill paints its 12 % tint over white whatever it is laid on (the gradient
+ * A pill paints its 12 % tint over the raised surface whatever it is laid on (the gradient
  * is the tint, the colour under it the ground), so its text contrast is one
  * number held by tokens.test.ts — not one per surface. On the canvas alone the
  * bare tint read 4.44:1 for the Applied pill. The ground is a `pill-*` class
@@ -783,9 +782,7 @@ export const Input: FC<Record<string, unknown> & { mono?: boolean }> = ({
   ...rest
 }) => <input class={`${CONTROL} ${mono ? 'font-mono text-meta' : ''} ${className}`} {...rest} />;
 
-/* Drawn chevron so selects match the themed controls instead of browser chrome. */
-const SELECT_CHEVRON = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23${hex(TOKENS['ink-faint']).slice(1)}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`;
-
+/* The drawn chevron is a custom property per theme (tokens.ts:chevronDeclaration), so selects match the themed controls instead of browser chrome. */
 export const Select: FC<PropsWithChildren<Record<string, unknown>>> = ({
   children,
   class: className = '',
@@ -793,7 +790,7 @@ export const Select: FC<PropsWithChildren<Record<string, unknown>>> = ({
 }) => (
   <select
     class={`${CONTROL} appearance-none bg-[length:14px_14px] bg-[position:right_0.6rem_center] bg-no-repeat pr-8 ${className}`}
-    style={`background-image:${SELECT_CHEVRON}`}
+    style="background-image:var(--select-chevron)"
     {...rest}
   >
     {children}
@@ -851,11 +848,11 @@ export const Radio: FC<PropsWithChildren<Record<string, unknown> & { title: Chil
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'warn' | 'violet' | 'ghost';
 
 const BUTTON_VARIANT: Record<ButtonVariant, string> = {
-  primary: 'bg-accent-strong text-white shadow-sm hover:bg-accent-deep',
+  primary: 'bg-accent-strong text-on-accent shadow-sm hover:bg-accent-deep',
   secondary: 'border border-line-strong bg-surface-raised text-ink shadow-sm hover:bg-surface-overlay',
   // The word is red; the outline is any control's, so a column of Deletes does not shout.
   danger: 'border border-line-strong bg-surface-raised text-danger shadow-sm hover:border-danger/40 hover:bg-danger/5',
-  warn: 'bg-warn text-white shadow-sm hover:bg-warn/90',
+  warn: 'bg-warn text-on-accent shadow-sm hover:bg-warn/90',
   violet: 'border border-violet/30 bg-violet/5 text-violet hover:bg-violet/10',
   ghost: 'text-ink-muted hover:bg-surface-overlay hover:text-ink',
 };
@@ -1042,7 +1039,7 @@ export const ToggleRow: FC<
               }`}
             >
               <span
-                class={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-150 ${
+                class={`inline-block h-5 w-5 rounded-full bg-surface-raised shadow-sm transition-transform duration-150 ${
                   enabled ? 'translate-x-[22px]' : 'translate-x-0.5'
                 }`}
               />

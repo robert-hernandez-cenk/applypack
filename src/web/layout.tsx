@@ -5,10 +5,12 @@ import { APP_VERSION } from '../app-version';
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import { raw } from 'hono/html';
 import { Icon, type IconName } from './icons';
-import { TOKENS, hex, rootBlock } from './tokens';
+import { LIGHT_TOKENS, chevronDeclaration, hex, rootBlock } from './tokens';
 import { currentLocale } from '../i18n/locale';
 import { t } from '../i18n/t';
 import { LanguageInvite, LanguageMenu } from './language-menu';
+import { ThemeSwitch } from './theme-switch';
+import { currentTheme, themeAttr } from './theme';
 import { browserMessagesJson } from './browser-messages';
 import { signInEnabled } from './oidc/enabled';
 import { currentUser } from './current-user';
@@ -101,8 +103,7 @@ const NAV_GROUPS: { key: 'work' | 'tools' | 'research' | 'system'; items: NavIte
  * component rewrite. See src/web/ui.tsx for primitives.
  */
 const TOKENS_CSS = `
-  ${rootBlock()}
-  html { color-scheme: light; }
+  ${rootBlock(chevronDeclaration)}
   html, body { background-color: rgb(var(--surface)); }
   /* App shell: every scroll lives inside a pane (main, board columns).
      The window itself never scrolls — content browser extensions append
@@ -157,10 +158,10 @@ const TOKENS_CSS = `
     .app-sidebar {
       position: fixed; top: 0; bottom: 0; left: 0; z-index: 40; width: 16rem;
       transform: translateX(-100%); transition: transform 200ms ease;
-      box-shadow: 0 8px 30px rgb(16 24 40 / 0.12);
+      box-shadow: 0 8px 30px rgb(var(--shadow-ink) / 0.12);
     }
     html[data-nav-open] .app-sidebar { transform: none; }
-    .nav-backdrop { display: none; position: fixed; inset: 0; z-index: 30; background: rgb(16 24 40 / 0.4); }
+    .nav-backdrop { display: none; position: fixed; inset: 0; z-index: 30; background: rgb(var(--scrim) / 0.4); }
     html[data-nav-open] .nav-backdrop { display: block; }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -173,8 +174,8 @@ const TOKENS_CSS = `
 
 /** Direction contract — audited at the finish review; keep in sync with DESIGN.md. */
 const DIRECTION_CONTRACT = `<!--
-THESIS: A job-search console read twice a day: clear, crisp, light. The numbers lead, the chrome stays out of the way.
-OWN-WORLD: Canvas ground (${hex(TOKENS.surface)}), white cards and a white menu, a subtle third surface (${hex(TOKENS['surface-overlay'])}) for table headers and wells, ${hex(TOKENS.line)} outlines; a type ladder of title / kpi / section / entity / body / label / meta; Inter for UI, mono reserved for machine values; emerald is the one brand accent; status speaks in tinted pills and icon tiles (blue/amber/emerald/violet/gray).
+THESIS: A job-search console read twice a day: clear, crisp, in a light or a dark look. The numbers lead, the chrome stays out of the way.
+OWN-WORLD: Canvas ground (${hex(LIGHT_TOKENS.surface)}), white cards and a white menu (a near-black canvas and one step lighter cards in the dark look), a subtle third surface (${hex(LIGHT_TOKENS['surface-overlay'])}) for table headers and wells, ${hex(LIGHT_TOKENS.line)} outlines; a type ladder of title / kpi / section / entity / body / label / meta; Inter for UI, mono reserved for machine values; emerald is the one brand accent; status speaks in tinted pills and icon tiles (blue/amber/emerald/violet/gray).
 STORY: The user opens Overview, reads four numbers and the trend, scans the newest alerts, drills into a job, acts - apply, save, verify, compare - without ceremony.
 FIRST VIEWPORT: 240px menu left; content fills the rest: title row, four KPI cards with their sparklines, the matches chart beside pipeline health and recent activity.
 FORM: Brief-pinned light ops console (Linear density, Stripe forms, GitHub tables); the brief pins the world, no seed roll.
@@ -218,7 +219,7 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
         every <form> grew a 1em bottom margin, which is what put a form-wrapped
         button below its bare neighbour (#153). */}
     {raw('<!DOCTYPE html>')}
-    <html lang={currentLocale()}>
+    <html lang={currentLocale()} data-theme={themeAttr(currentTheme())}>
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -247,7 +248,7 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
       <div id="page-progress" aria-hidden="true" hidden></div>
       <a
         href="#main"
-        class="skip-link rounded-md bg-accent-strong px-3 py-1.5 text-sm font-medium text-white"
+        class="skip-link rounded-md bg-accent-strong px-3 py-1.5 text-sm font-medium text-on-accent"
       >
         {t('layout.skip')}
       </a>
@@ -303,7 +304,7 @@ const NAV_ICON: Record<NavKey, IconName> = {
 
 /** The AP mark: the one solid emerald square on a page. */
 const BrandMark: FC<{ class?: string }> = ({ class: className = 'h-8 w-8' }) => (
-  <span translate="no" class={`grid shrink-0 place-items-center rounded-md bg-accent text-label font-bold tracking-tight text-white shadow-sm ${className}`}>
+  <span translate="no" class={`grid shrink-0 place-items-center rounded-md bg-accent text-label font-bold tracking-tight text-on-accent shadow-sm ${className}`}>
     AP
   </span>
 );
@@ -389,6 +390,7 @@ const Sidebar: FC<{ active?: NavKey }> = ({ active }) => {
       )}
       {signInEnabled() && <SignOut />}
       <LanguageMenu variant="sidebar" />
+      <ThemeSwitch variant="sidebar" />
       <LanguageInvite place="sidebar" />
       <p class="px-3 text-meta leading-4 text-ink-faint md:hidden lg:block">
         {t('layout.local')}

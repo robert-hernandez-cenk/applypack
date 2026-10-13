@@ -16,4 +16,4 @@
 
 **R8 - The 403 page**. Decision: render with `Layout` (so the member keeps the menu) and a catalog message; JSON `{error}` for `/state` polls. Status 403, not 404, so a member learns the page exists but is not theirs.
 
-**R9 - Version**: runtime feature, so a minor: 2.57.0 (the integration branch is at 2.56.0 from #2; slices 7-11 did not bump). No tag; the final integration PR does it.
+**R9 - Version**: runtime feature, so a minor: 2.58.0 (the integration branch is at 2.56.0 from #2; slices 7-11 did not bump). No tag; the final integration PR does it.

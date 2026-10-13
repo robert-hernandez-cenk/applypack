@@ -593,6 +593,35 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=general#language' && flashOf(res).includes('The interface is in English'),
     },
     {
+      // The appearance switch: a cookie in the browser, no row in the database.
+      name: 'POST /settings/theme (Dark, back to the page it was pressed on)',
+      init: form({ theme: 'dark', back: '/jobs?status=NEW' }),
+      expect: (res) => {
+        const cookie = res.headers.get('set-cookie') ?? '';
+        return res.status === 303 && res.headers.get('location') === '/jobs?status=NEW' && /^theme=dark;/.test(cookie) && /HttpOnly/i.test(cookie);
+      },
+    },
+    {
+      name: 'GET /jobs with the dark cookie (the page is in the dark look from its first byte)',
+      init: { method: 'GET', headers: { ...ORIGIN, cookie: 'theme=dark' } },
+      expect: async (res) => res.status === 200 && (await res.text()).includes('<html lang="en" data-theme="dark">'),
+    },
+    {
+      name: 'GET /jobs with a cookie that is not a look (System: no data-theme)',
+      init: { method: 'GET', headers: { ...ORIGIN, cookie: 'theme=blue' } },
+      expect: async (res) => res.status === 200 && (await res.text()).includes('<html lang="en">'),
+    },
+    {
+      name: 'POST /settings/theme (System removes the cookie)',
+      init: form({ theme: 'system' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/' && /^theme=;.*Max-Age=0/i.test(res.headers.get('set-cookie') ?? ''),
+    },
+    {
+      name: 'POST /settings/theme with a look nobody offers (nothing set, back where it came from)',
+      init: form({ theme: 'blue', back: '//evil.example/' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/' && !res.headers.has('set-cookie'),
+    },
+    {
       // ADR 0063: the settings form as a browser sends it — an unticked box absent, the sections repeated.
       name: 'POST /settings/pack (packs switched on)',
       init: { method: 'POST', headers: { ...ORIGIN, 'content-type': 'application/x-www-form-urlencoded' }, body: 'enabled=1&minFit=92&dailyLimit=0&maxAgeDays=14&coverLetter=asked&sections=title&sections=skills&maxBullets=1&keywords=1' },
@@ -695,6 +724,11 @@ async function main(): Promise<void> {
     '/jobs',
     '/settings/locale',
     '/settings/locale',
+    '/settings/theme',
+    '/jobs',
+    '/jobs',
+    '/settings/theme',
+    '/settings/theme',
     '/settings/pack',
     '/settings?tab=automation',
     '/settings/pack',
@@ -734,6 +768,16 @@ async function main(): Promise<void> {
         body: 'this is not multipart at all',
       },
       expect: (res) => res.status === 400,
+    },
+    {
+      name: 'POST /settings/theme from another site (refused, no cookie)',
+      url: '/settings/theme',
+      init: {
+        method: 'POST',
+        headers: { origin: 'https://evil.example', host: 'localhost', 'content-type': 'application/x-www-form-urlencoded' },
+        body: 'theme=dark',
+      },
+      expect: (res) => res.status === 403 && !res.headers.has('set-cookie'),
     },
     {
       // Just over DEFAULT_BODY_BYTES, not a round number of megabytes: the

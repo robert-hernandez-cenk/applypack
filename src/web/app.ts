@@ -7,6 +7,7 @@
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
+import { getCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import { secureHeaders } from 'hono/secure-headers';
 import { config } from '../config';
@@ -52,6 +53,7 @@ import { getDisplaySettings } from '../settings';
 import { withLocale, type Locale } from '../i18n/locale';
 import { t } from '../i18n/t';
 import { backFor, resolveLanguage, withLanguagePage } from './language';
+import { THEME_COOKIE, parseTheme, withTheme } from './theme';
 import { DEFAULT_BODY_BYTES, hasOwnBodyLimit } from './body-limits';
 
 /** The bundled typeface changes far less often than a release: a week, and its URL carries no version. */
@@ -163,7 +165,7 @@ app.use('*', async (c, next) => {
   const started = Date.now();
   await withLocale(language.locale, () =>
     withLanguagePage({ invite: language.invite, back: backFor(c.req.method, c.req.url) }, () =>
-      withDisplayZone(display.timezone, () => next()),
+      withTheme(parseTheme(getCookie(c, THEME_COOKIE)), () => withDisplayZone(display.timezone, () => next())),
     ),
   );
   logger.info(

@@ -4135,5 +4135,10 @@
   "users.flash.lastAdmin": "La instalación necesita al menos un administrador, así que el último no puede degradarse ni eliminarse.",
   "users.flash.notFound": "Ese usuario ya no existe.",
   "users.flash.noChange": "{name} ya tiene ese rol.",
-  "companies.memberDesc": "Las empresas que has silenciado. Los tableros y fuentes que lee la búsqueda los gestiona un administrador."
+  "companies.memberDesc": "Las empresas que has silenciado. Los tableros y fuentes que lee la búsqueda los gestiona un administrador.",
+  "theme.label": "Apariencia",
+  "theme.system": "Sistema",
+  "theme.light": "Claro",
+  "theme.dark": "Oscuro",
+  "theme.hint": "Sistema sigue el ajuste claro u oscuro de tu dispositivo. La elección se guarda en este navegador."
 }

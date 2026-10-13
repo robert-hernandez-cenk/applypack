@@ -4135,5 +4135,10 @@
   "users.flash.lastAdmin": "L'installation a besoin d'au moins un administrateur : le dernier ne peut être ni rétrogradé ni supprimé.",
   "users.flash.notFound": "Cet utilisateur n'existe plus.",
   "users.flash.noChange": "{name} a déjà ce rôle.",
-  "companies.memberDesc": "Les entreprises que vous avez masquées. Les tableaux et flux que lit la recherche sont gérés par un administrateur."
+  "companies.memberDesc": "Les entreprises que vous avez masquées. Les tableaux et flux que lit la recherche sont gérés par un administrateur.",
+  "theme.label": "Apparence",
+  "theme.system": "Système",
+  "theme.light": "Clair",
+  "theme.dark": "Sombre",
+  "theme.hint": "Système suit le réglage clair ou sombre de votre appareil. Le choix est conservé dans ce navigateur."
 }

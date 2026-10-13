@@ -49,7 +49,7 @@ TypeScript strict, Hono (jsx) dashboard, Prisma/Postgres. No schema change: `Use
 - Users-page checks: demote/remove rules end to end, session of a removed user → 401.
 
 ### 8. Docs and release
-ADR 0070 (+ README row), SPEC.md stance, PRODUCT.md, README and `docs/oidc-login.md` multi-user section, `docs/where-to-look.md` rows, CHANGELOG 2.57.0 + `package.json`/lock version (no tag), CLAUDE.md file-rule bullet for `users/` and the admin policy, i18n keys in every catalog.
+ADR 0070 (+ README row), SPEC.md stance, PRODUCT.md, README and `docs/oidc-login.md` multi-user section, `docs/where-to-look.md` rows, CHANGELOG 2.58.0 + `package.json`/lock version (no tag), CLAUDE.md file-rule bullet for `users/` and the admin policy, i18n keys in every catalog.
 
 ## Project structure (new/changed)
 ```
