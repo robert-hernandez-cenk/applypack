@@ -215,7 +215,7 @@ export function employerGates(
   rulesByUser: ReadonlyMap<number, EmployerRules>,
   userIds: readonly number[],
   everyPosting = false,
-): { all: EmployerGate | null; away: ReadonlySet<number> } {
+): { all: EmployerGate | null; away: ReadonlySet<number>; reason: EmployerGate | null } {
   const away = new Set<number>();
   let first: EmployerGate | null = null;
   for (const userId of userIds) {
@@ -225,7 +225,7 @@ export function employerGates(
     away.add(userId);
     first ??= gate;
   }
-  return { all: userIds.length > 0 && away.size === userIds.length ? first : null, away };
+  return { all: userIds.length > 0 && away.size === userIds.length ? first : null, away, reason: first };
 }
 
 /**

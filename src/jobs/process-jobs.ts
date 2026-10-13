@@ -310,7 +310,7 @@ export async function processNormalizedJobs(
       continue;
     }
     seen.add(key);
-    candidates.push({ ...item, place, employerKey, away: gates?.away ?? new Set(), awayReason: gates === null || gates.away.size === 0 ? null : (employerGates(employerKey, employers, [...gates.away], alertsEveryPosting(item.watch)).all) });
+    candidates.push({ ...item, place, employerKey, away: gates?.away ?? new Set(), awayReason: gates?.reason ?? null });
   }
   if (cancelled) {
     stats.abortedMidRun = 1;
