@@ -34,3 +34,5 @@
 
 {"event":"artifact_drift_detected","timestamp":"2026-10-13T02:16:22.9779720Z","actor":"claude","feature_directory":"specs/011-per-user-notifications","drifted_artifacts":[{"path":"tasks.md","old_sha256":"f600c106503f34fe6bcb32357716f9408426f4a4648abbbfff5ccc2264b360b6","new_sha256":"7302fb9ca74b509568c11c7d20d47e37b23ce68209c3060a1c2225ce3bedc12b"}]}
 
+{"timestamp":"2026-10-13T02:21:30.7826103Z","action":"handoff","status":"ready","feature_directory":"specs/011-per-user-notifications","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261013T0221307340331Z-ready"}
+
