@@ -215,7 +215,7 @@ async function previewRows(
 
   const [{ scoring, active, roster }, employers, stored] = await Promise.all([
     searchesNow(),
-    loadEmployerRules(now),
+    loadEmployerRules(currentUser().id, now),
     existingId !== null && jobs.length > 0
       ? prisma.job.findMany({ where: { companyId: existingId, externalId: { in: [...new Set(jobs.map((j) => j.externalId))] } }, select: { externalId: true } })
       : [],

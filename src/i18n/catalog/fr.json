@@ -942,6 +942,7 @@
   "settingsRoute.schedule.notSaved": "Horaires non enregistrés ({issue}). Les horaires enregistrés ne changent pas ; corrigez ce champ et enregistrez à nouveau.",
   "settingsRoute.schedule.saved": "Horaires enregistrés — {schedule}.",
   "settingsRoute.schedule.alertsSaved": "Horaires d'alerte enregistrés.",
+  "settingsRoute.schedule.adminOnly": "Seul un administrateur change quand la recherche s'exécute.",
   "settingsRoute.schedule.zoneSaved": "Fuseau horaire enregistré : {zone}.",
   "settingsRoute.alerts.enabled": "Alertes activées sur tous les canaux.",
   "settingsRoute.alerts.disabled": "Alertes désactivées sur tous les canaux. Ce qui est trouvé entre-temps attend, puis arrive en un seul message par chat quand vous les réactivez.",

@@ -485,6 +485,10 @@ refusal. The sitemap + JSON-LD rung the plan called stage B was measured and
   company reads `employer ?? company.name`: the list ("Acme · via
   Remotive"), the alerts, the classifier, the verifier, the letter.
 
+## Settings, chats and mutes (ADR 0069)
+
+What runs the install (fetching and its schedule, sources, the AI engine and its keys, employer mode) is one set for everybody. What a person is told and how their own dashboard behaves is theirs: the Alerts switch and the timing of alerts, the recap and stale-nudge hours, their Telegram and Discord destinations, the mute list and the re-apply window, cover angles, board columns, application-pack settings, language and time zone. A search with no chosen destination sends to its owner's destinations; the AI budget warning, a changed careers page and the failing-source line go to administrators. An install without sign-in is one person and behaves as before.
+
 ## Resumes (Phase 8.1)
 
 Each person has their own resumes (ADR 0068): a resume, its scan, reviews,

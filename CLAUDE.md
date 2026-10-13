@@ -204,6 +204,16 @@
   `process-jobs.ts` creates the rows with the posting, `score-store.ts` is the
   one write for a re-score. Pasted / imported postings are their adder's only
   (`ownerId`, `givesRowToOthers`). The old `Job.status`-style columns are gone.
+  Settings, destinations and mutes are a person's too (ADR 0069):
+  `settings-split.ts` (pure) classifies every `AppSettings` column — the
+  install's stay on `AppSettings`, a person's are `UserSettings`
+  (`getUserSettings(userId)`, setters take the `userId` first; the schedule
+  is cut into the install's fetch half and the person's zone + alerts).
+  `NotificationTarget.userId` and `CompanyMute (userId, key)`; the notifier
+  takes the `userId` first and a broadcast goes to THAT person's chats;
+  operator notices go to administrators; the recap and nudge run per person
+  (`jobs/for-each-user.ts`); the tick drops a posting before the AI only when
+  every person it could reach turns it away (`employerGates`).
   A resume is its owner's (ADR 0068): `Resume.userId`, and `resume/store.ts`
   takes the `userId` first on every list, getter, default flag, scratch row
   and fact — never `currentUser()` inside a store, so the worker passes the

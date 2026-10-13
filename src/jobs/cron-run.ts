@@ -1,6 +1,7 @@
 import { CronRunStatus, Prisma } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
+import { DEFAULT_USER_ID } from '../users/identity';
 
 /** One source's answer in a fetch tick — which boards took the time and which failed (docs/onboarding-sources.md §1). */
 export type SourceStat = {
@@ -26,9 +27,11 @@ interface RunResult<T> {
 export async function recordCronRun<T>(
   name: string,
   fn: () => Promise<T> | Promise<RunResult<T>> | Promise<void>,
+  /** Whose run it is, for a recap or a nudge (ADR 0069); absent = the install's. */
+  userId?: number,
 ): Promise<void> {
   const run = await prisma.cronRun.create({
-    data: { name, status: CronRunStatus.RUNNING },
+    data: { name, status: CronRunStatus.RUNNING, ...(userId !== undefined && { userId }) },
   });
 
   try {
@@ -70,9 +73,11 @@ export async function recordCronRun<T>(
  * executes, so a caller inside a job reads the run before it — which is what
  * "since the last one" means.
  */
-export async function lastSuccessfulRunAt(name: string): Promise<Date | null> {
+export async function lastSuccessfulRunAt(name: string, userId?: number): Promise<Date | null> {
   const row = await prisma.cronRun.findFirst({
-    where: { name, status: CronRunStatus.OK },
+    // A person's run is the one recorded for them; rows from before users (no
+    // userId) are the default user's.
+    where: { name, status: CronRunStatus.OK, ...(userId !== undefined && { OR: userId === DEFAULT_USER_ID ? [{ userId }, { userId: null }] : [{ userId }] }) },
     orderBy: { startedAt: 'desc' },
     select: { startedAt: true },
   });

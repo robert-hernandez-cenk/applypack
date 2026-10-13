@@ -17,7 +17,7 @@ import {
   postedSince,
   tallyFacets,
 } from '../job-facets';
-import { getSettings } from '../../settings';
+import { getUserSettings } from '../../settings';
 import { allStages, parseStageConfig } from '../stage-config';
 import { classifyExistingJob, type Rescored } from '../../jobs/classify-existing';
 import { rescoreFlash } from '../rescore-flash';
@@ -231,7 +231,7 @@ jobsRoute.get('/jobs', async (c) => {
   if (watched === '1') where.company = { watched: true };
   // ADR 0056: a muted company's postings stay stored and out of sight until
   // "Muted companies" or an unmute. A row that names nobody is never hidden.
-  const hiddenKeys = muted === '1' ? [] : await mutedKeys();
+  const hiddenKeys = muted === '1' ? [] : await mutedKeys(currentUser().id);
   const unmuted = withoutMuted(hiddenKeys);
   const hide: Prisma.JobWhereInput[] = unmuted ? [unmuted] : [];
   if (hide.length > 0) where.AND = hide;
@@ -458,7 +458,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
       where: { userId_jobId: { userId, jobId: id } },
       include: { appliedResume: { select: { name: true } } },
     }),
-    getSettings(),
+    getUserSettings(currentUser().id),
     listResumes(currentUser().id),
     listMatchesForJob(currentUser().id, id),
     listVerificationsForJob(id),
@@ -480,7 +480,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
   // aggregator named, or the source when it is the employer; nobody else.
   const hiring = hiringName(job.employer, job.company);
   const hiringKey = hiring === null ? null : employerKey(hiring);
-  const muted = hiringKey === null ? null : await findMute(hiringKey);
+  const muted = hiringKey === null ? null : await findMute(currentUser().id, hiringKey);
 
   // ?match=<id> shows an older comparison; default is the latest. Same for ?letter.
   const requestedMatch = idParam(c.req.query('match'));
@@ -616,7 +616,7 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
   // pipelineStage / appliedAt — user may have backdated them.
   let seedEvent: StageEventData | null = null;
   if (parsed.data.status === 'APPLIED') {
-    const settings = await getSettings();
+    const settings = await getUserSettings(currentUser().id);
     if (settings.applicationTrackingEnabled) {
       const current = await prisma.userJob.findUnique({
         where: key,
@@ -984,7 +984,7 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
         approach: angle(form.approach),
         notes: angle(form.notes, 500),
       }
-    : readCoverAngles((await getSettings()).coverAngles);
+    : readCoverAngles((await getUserSettings(currentUser().id)).coverAngles);
 
   const [job, resume] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
@@ -992,7 +992,7 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
   ]);
   if (!job || !resume) return c.text(t('http.notFound'), 404);
 
-  if (fromForm) await setCoverAngles(angles);
+  if (fromForm) await setCoverAngles(currentUser().id, angles);
 
   // Tone and angles are part of the request: a second Generate with a
   // different tone is different work, not the same work twice.

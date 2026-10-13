@@ -4,7 +4,7 @@ import { logger } from '../logger';
 import { markClockDated } from '../fetchers/dates';
 import { fetchHnHiring, findLatestHiringThread } from '../fetchers/hn-hiring';
 import { listAllActiveProfiles } from '../profiles';
-import { getSchedule, getSettings } from '../settings';
+import { getSettings } from '../settings';
 import { recordCandidatesFromText } from '../discovery';
 import { makeFetchPauseProbe } from './fetch-pause';
 import { emptyProcessStats, processNormalizedJobs } from './process-jobs';
@@ -115,7 +115,7 @@ async function pullHnThread(): Promise<{ stats: CronStats }> {
 
   const inner = emptyProcessStats();
   await processNormalizedJobs(items, profiles, inner, {
-    schedule: await getSchedule(),
+    respectAlertHours: true,
     classifierMode: settings.classifierMode,
     isCancelled: paused,
   });

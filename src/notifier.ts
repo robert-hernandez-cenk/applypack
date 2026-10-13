@@ -1,6 +1,7 @@
 import { logger } from './logger';
-import { getSettings, listActiveNotificationTargets, markTargetUsed } from './settings';
+import { getUserSettings, listActiveNotificationTargets, markTargetUsed } from './settings';
 import { prisma } from './db';
+import { listAdminIds } from './users/store';
 import type { NotificationTarget } from '@prisma/client';
 import type { AlertJob } from './types';
 import { formatPlaceLine, formatSalary, hasApplyLink, quietSourceList, type PageChangeNotice, type QuietSourceAlert } from './notify/lines';
@@ -12,8 +13,8 @@ import type { MessageParams } from './i18n/message';
 import { t } from './i18n/t';
 
 /*
- * Alerts, digests and notices go out through here to every active target,
- * each in its channel's own markup (ADR 0041): this file is the Telegram
+ * Alerts, digests and notices go out through here to the active targets of
+ * the person they are for (ADR 0069), each in its channel's own markup (ADR 0041): this file is the Telegram
  * channel — MarkdownV2, the 4096-char limit, the bot API — and the switch
  * that hands a Discord row to notify/discord.ts. The words both channels
  * share are in notify/lines.ts; every sentence is the catalog's, in the
@@ -71,10 +72,10 @@ export function channelFor(activeTargets: number, alertsOn: boolean): AlertChann
   return alertsOn ? 'open' : 'alerts-off';
 }
 
-/** The channel as it stands, for a caller deciding whether to hold a match before it sends anything. */
-export async function alertChannel(): Promise<AlertChannel> {
-  const targets = await listActiveNotificationTargets();
-  return channelFor(targets.length, (await getSettings()).telegramEnabled);
+/** The person's channel as it stands, for a caller deciding whether to hold a match before it sends anything. */
+export async function alertChannel(userId: number): Promise<AlertChannel> {
+  const targets = await listActiveNotificationTargets(userId);
+  return channelFor(targets.length, (await getUserSettings(userId)).telegramEnabled);
 }
 
 /**
@@ -83,11 +84,12 @@ export async function alertChannel(): Promise<AlertChannel> {
  * routing is the only thing the notifier ever wanted from a profile, and
  * passing the row invited callers to think the message was per-profile.
  */
-export async function sendAlert(job: AlertJob, targetId?: number | null): Promise<Delivery> {
-  return broadcast({ telegram: [formatJobMessage(job)], discord: [formatDiscordAlert(job)] }, targetId);
+export async function sendAlert(userId: number, job: AlertJob, targetId?: number | null): Promise<Delivery> {
+  return broadcast(userId, { telegram: [formatJobMessage(job)], discord: [formatDiscordAlert(job)] }, targetId);
 }
 
 export async function sendDigest(
+  userId: number,
   jobs: AlertJob[],
   targetId?: number | null,
   quiet: QuietSourceAlert[] = [],
@@ -99,6 +101,7 @@ export async function sendDigest(
   unscored = 0,
 ): Promise<Delivery> {
   return broadcast(
+    userId,
     {
       telegram: formatTelegramDigest(jobs, quiet, title, more, unscored),
       discord: formatDiscordDigest(jobs, quiet, title, more, unscored),
@@ -128,11 +131,11 @@ export function formatTelegramDigest(
   return packMessages(header, blocks, '\n\n———\n\n', MAX_MESSAGE_LENGTH);
 }
 
-async function broadcast(out: Outgoing, targetId?: number | null): Promise<Delivery> {
-  const targets = await resolveTargets(targetId);
-  const channel = channelFor(targets.length, (await getSettings()).telegramEnabled);
+async function broadcast(userId: number, out: Outgoing, targetId?: number | null): Promise<Delivery> {
+  const targets = await resolveTargets(userId, targetId);
+  const channel = channelFor(targets.length, (await getUserSettings(userId)).telegramEnabled);
   if (channel !== 'open') {
-    logger.info({ alerts: channel, targetId, preview: out.telegram[0]?.slice(0, 200) }, 'notify: nothing sent');
+    logger.info({ alerts: channel, userId, targetId, preview: out.telegram[0]?.slice(0, 200) }, 'notify: nothing sent');
     return { reached: 0, skipped: channel };
   }
 
@@ -150,17 +153,17 @@ async function broadcast(out: Outgoing, targetId?: number | null): Promise<Deliv
 }
 
 /**
- * Pick the targets for this broadcast:
- * - If the search named a target and that target is active, send only there.
- * - Otherwise broadcast to all active targets.
+ * Pick the targets for this broadcast (all of them the person's own):
+ * - If the search named a target and that target is theirs and active, send only there.
+ * - Otherwise broadcast to all of their active targets.
  */
-async function resolveTargets(targetId?: number | null): Promise<NotificationTarget[]> {
+async function resolveTargets(userId: number, targetId?: number | null): Promise<NotificationTarget[]> {
   if (targetId) {
-    const t = await prisma.notificationTarget.findUnique({ where: { id: targetId } });
+    const t = await prisma.notificationTarget.findFirst({ where: { id: targetId, userId } });
     if (t && t.active) return [t];
-    logger.warn({ targetId }, 'notify: search target inactive or missing; falling back to all active');
+    logger.warn({ targetId, userId }, 'notify: search target inactive or missing; falling back to all active');
   }
-  return listActiveNotificationTargets();
+  return listActiveNotificationTargets(userId);
 }
 
 /** Each target gets the messages in its own channel's markup; the row's kind decides. */
@@ -295,18 +298,43 @@ export function formatPageChangeMessage(pages: readonly PageChangeNotice[]): str
   return [header, ...lines, telegramText('pageChange.footer')].join('\n');
 }
 
-export async function sendPageChangeAlert(pages: readonly PageChangeNotice[]): Promise<Delivery> {
-  return broadcast({ telegram: [formatPageChangeMessage(pages)], discord: [formatDiscordPageChanges(pages)] }, null);
+export async function sendPageChangeAlert(userId: number, pages: readonly PageChangeNotice[]): Promise<Delivery> {
+  return broadcast(userId, { telegram: [formatPageChangeMessage(pages)], discord: [formatDiscordPageChanges(pages)] }, null);
 }
 
-/** One plain line to every chat — the AI budget's warning (ADR 0055). */
+/**
+ * An operator notice reaches the install's administrators (ADR 0069): each one
+ * through their own targets and their own Alerts switch. The result is the
+ * sum; a notice nobody could take (no administrator has a chat, or every
+ * switch is off) reaches no one and says why of the first.
+ */
+async function sendToAdmins(send: (adminId: number) => Promise<Delivery>): Promise<Delivery> {
+  let reached = 0;
+  let skipped: Delivery['skipped'] = null;
+  let failed = 0;
+  const admins = await listAdminIds();
+  for (const adminId of admins) {
+    try {
+      const delivery = await send(adminId);
+      reached += delivery.reached;
+      skipped ??= delivery.skipped;
+    } catch (err) {
+      failed++;
+      logger.error({ err, adminId }, 'notify: operator notice failed for an administrator');
+    }
+  }
+  if (reached === 0 && failed > 0) throw new AlertDeliveryError(failed);
+  return { reached, skipped: reached > 0 ? null : (skipped ?? 'no-targets') };
+}
+
+/** One plain line to the administrators' chats — the AI budget's warning (ADR 0055). */
 export async function sendBudgetAlert(text: string): Promise<Delivery> {
-  return broadcast({ telegram: [escapeMarkdownV2(text)], discord: [escapeDiscord(text)] }, null);
+  return sendToAdmins((adminId) => broadcast(adminId, { telegram: [escapeMarkdownV2(text)], discord: [escapeDiscord(text)] }, null));
 }
 
-/** The grouped "packs ready" message (ADR 0063), as plain lines (pack/view.ts:packNoticeLines). */
-export async function sendPackNotice(lines: readonly string[]): Promise<Delivery> {
-  return broadcast({ telegram: [lines.map(escapeMarkdownV2).join('\n')], discord: [lines.map(escapeDiscord).join('\n')] }, null);
+/** The grouped "packs ready" message (ADR 0063), as plain lines (pack/view.ts:packNoticeLines), to the pack owner's chats. */
+export async function sendPackNotice(userId: number, lines: readonly string[]): Promise<Delivery> {
+  return broadcast(userId, { telegram: [lines.map(escapeMarkdownV2).join('\n')], discord: [lines.map(escapeDiscord).join('\n')] }, null);
 }
 
 export function escapeMarkdownV2(text: string): string {

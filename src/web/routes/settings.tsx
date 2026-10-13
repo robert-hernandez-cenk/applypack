@@ -12,7 +12,10 @@ import {
   deleteNotificationTarget,
   getAiKeys,
   getPackSettings,
-  getSchedule,
+  getAlertSchedule,
+  getNotificationTarget,
+  getUserSettings,
+  setPersonalSchedule,
   getSettings,
   listNotificationTargets,
   maskToken,
@@ -48,7 +51,8 @@ import {
 import { setEmployerModeCache } from '../employer-mode';
 import { applicantNotice, LEGAL_NOTE } from '../../screening/notice';
 import { config } from '../../config';
-import { ALL_DAYS, MAX_DIGEST_HOURS, ScheduleSchema, describeSchedule, parseSchedule } from '../../user-schedule';
+import { ALL_DAYS, MAX_DIGEST_HOURS, ScheduleSchema, describeSchedule } from '../../user-schedule';
+import { formForRole, planScheduleSave } from '../../settings-split';
 import { loadHeldLine, loadNextCheck } from '../schedule-view';
 import {
   addStage,
@@ -258,32 +262,35 @@ function cardRank(e: { enabled: boolean; position: number; lastResort: boolean }
 async function loadSettingsProps() {
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const aiKeys = await getAiKeys();
-  const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth, recentAttempts] =
+  const [settings, own, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth, recentAttempts] =
     await Promise.all([
       getSettings(),
-      listNotificationTargets(),
+      getUserSettings(currentUser().id),
+      listNotificationTargets(currentUser().id),
       listProfiles(currentUser().id),
       getActiveProfile(currentUser().id),
       listResumes(currentUser().id),
       probeAiProviders(aiKeys),
-      // The stage list is the install's; a stage in use by anyone counts (ADR 0067).
+      // The stage list is the person's own (ADR 0069): the jobs they hold in a stage count.
       prisma.userJob.groupBy({
         by: ['pipelineStage'],
         _count: { _all: true },
-        where: { pipelineStage: { not: null } },
+        where: { userId: currentUser().id, pipelineStage: { not: null } },
       }),
       billedThisMonth(),
       loadRecentAttempts(),
     ]);
   // "available" is what the probe found on disk; whether calls get through is what the ledger's last rows say (#413).
   const troubles = new Map(engineTroubles(recentAttempts).map((trouble) => [trouble.engine, troubleLine(trouble)]));
-  const check = await loadNextCheck(settings.schedule);
+  const check = await loadNextCheck();
   const scheduleView = {
     schedule: check.schedule,
     zones: supportedTimezones(check.schedule.timezone),
     nextFetch: check.next,
     held: await loadHeldLine(check.schedule),
-    unsaved: settings.schedule === null,
+    unsaved: own.schedule === null,
+    // Only an administrator changes when the search runs (ADR 0069).
+    fetchEditable: currentUser().role === 'ADMIN',
   };
   const countByStage = new Map(
     stageCounts.map((row) => [row.pipelineStage, row._count._all]),
@@ -376,17 +383,17 @@ async function loadSettingsProps() {
   };
   const aiBudget = { cents: settings.aiBudgetCents, billedThisMonthMicro: billedMonth };
   return {
-    telegramEnabled: settings.telegramEnabled,
+    telegramEnabled: own.telegramEnabled,
     classifierMode: settings.classifierMode,
-    applicationTrackingEnabled: settings.applicationTrackingEnabled,
-    pipelineStages: allStages(parseStageConfig(settings.pipelineStages)).map((s) => ({
+    applicationTrackingEnabled: own.applicationTrackingEnabled,
+    pipelineStages: allStages(parseStageConfig(own.pipelineStages)).map((s) => ({
       ...s,
       count: countByStage.get(s.key) ?? 0,
       fixed: s.key === 'applied' || TERMINAL_KEYS.includes(s.key),
     })),
-    staleApplicationsDigestEnabled: settings.staleApplicationsDigestEnabled,
-    reapplyDays: settings.reapplyDays,
-    pack: parsePackSettings(settings.pack),
+    staleApplicationsDigestEnabled: own.staleApplicationsDigestEnabled,
+    reapplyDays: own.reapplyDays,
+    pack: parsePackSettings(own.pack),
     loginItem: loginItemState(),
     updates: {
       enabled: settings.updateCheck,
@@ -503,7 +510,9 @@ settingsRoute.post('/settings/fetching-toggle', async (c) => {
  */
 settingsRoute.post('/settings/schedule', async (c) => {
   const form = await c.req.parseBody({ all: true });
-  const current = parseSchedule((await getSettings()).schedule, config.TZ);
+  // The person's schedule: their zone and alerts, with the install's fetch half (ADR 0069).
+  const current = await getAlertSchedule(currentUser().id);
+  const isAdmin = currentUser().role === 'ADMIN';
   // Three forms on three tabs save one part each and keep the stored rest; a body with no part saves all of it.
   const part = schedulePart(form.part);
   const takes = (p: SchedulePart): boolean => part === null || part === p;
@@ -529,11 +538,15 @@ settingsRoute.post('/settings/schedule', async (c) => {
       : current.alerts,
   };
   const back = SCHEDULE_BACK[part ?? 'fetch'];
+  // When the search runs is the install's: a member's form saves the rest and keeps it.
+  if (part === 'fetch' && !isAdmin) return flashRedirect(back, 'err', t('settingsRoute.schedule.adminOnly'));
   const parsed = ScheduleSchema.safeParse(candidate);
   if (!parsed.success) {
     return flashRedirect(back, 'err', t('settingsRoute.schedule.notSaved', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
   }
-  await setSchedule(parsed.data);
+  const plan = planScheduleSave(formForRole(parsed.data, current, isAdmin), isAdmin);
+  await setPersonalSchedule(currentUser().id, plan.personal);
+  if (plan.global) await setSchedule(plan.global);
   if (part === 'zone') return flashRedirect(back, 'ok', t('settingsRoute.schedule.zoneSaved', { zone: parsed.data.timezone }));
   const held = await loadHeldLine(parsed.data);
   const saved = part === 'alerts' ? t('settingsRoute.schedule.alertsSaved') : t('settingsRoute.schedule.saved', { schedule: describeSchedule(parsed.data) });
@@ -575,12 +588,12 @@ function pills(value: unknown, fallback: readonly number[]): number[] {
 // --- Telegram toggle / targets ---------------------------------------------
 
 settingsRoute.post('/settings/telegram-toggle', async (c) => {
-  const settings = await getSettings();
+  const settings = await getUserSettings(currentUser().id);
   const enabled = !settings.telegramEnabled;
-  await setTelegramEnabled(enabled);
+  await setTelegramEnabled(currentUser().id, enabled);
   // Every channel, Discord included (ADR 0041) — the column is just old.
   if (!enabled) return flashRedirect('/settings?tab=notifications', 'ok', t('settingsRoute.alerts.disabled'));
-  const held = await loadHeldLine(await getSchedule());
+  const held = await loadHeldLine(await getAlertSchedule(currentUser().id));
   return flashRedirect('/settings?tab=notifications', 'ok', sentences(t('settingsRoute.alerts.enabled'), held ? `${held.text}.` : ''));
 });
 
@@ -901,8 +914,8 @@ settingsRoute.post('/settings/classifier-mode', async (c) => {
 });
 
 settingsRoute.post('/settings/application-tracking-toggle', async (c) => {
-  const settings = await getSettings();
-  await setApplicationTrackingEnabled(!settings.applicationTrackingEnabled);
+  const settings = await getUserSettings(currentUser().id);
+  await setApplicationTrackingEnabled(currentUser().id, !settings.applicationTrackingEnabled);
   return flashRedirect(
     '/settings?tab=applications',
     'ok',
@@ -928,13 +941,13 @@ async function applyStageEdit(
     | StageEditError,
   okText: string,
 ): Promise<Response> {
-  const settings = await getSettings();
+  const settings = await getUserSettings(currentUser().id);
   const work = parseStageConfig(settings.pipelineStages);
   const next = edit(work);
   if (typeof next === 'string') {
     return flashRedirect(STAGES_BACK, 'err', t(STAGE_ERROR_TEXT[next]));
   }
-  await setPipelineStages(next);
+  await setPipelineStages(currentUser().id, next);
   return flashRedirect(STAGES_BACK, 'ok', okText);
 }
 
@@ -955,19 +968,18 @@ settingsRoute.post('/settings/stages/:key/remove', async (c) => {
   // instant is still possible — the drag itself takes no lock, and making
   // every card move queue on one row would be a poor trade — so a stranded
   // job is caught by the "Unfiled" column on the board rather than lost.
+  const userId = currentUser().id;
   const outcome = await withGlobalWriteLock(async (tx) => {
-    const held = await tx.userJob.count({ where: { pipelineStage: key } });
+    const held = await tx.userJob.count({ where: { userId, pipelineStage: key } });
     if (held > 0) return { kind: 'in-use' as const, held };
-    const row = await tx.appSettings.findUnique({
-      where: { id: SETTINGS_ID },
+    const row = await tx.userSettings.findUnique({
+      where: { userId },
       select: { pipelineStages: true },
     });
     const next = removeStage(parseStageConfig(row?.pipelineStages), key);
     if (typeof next === 'string') return { kind: 'refused' as const, error: next };
-    await tx.appSettings.update({
-      where: { id: SETTINGS_ID },
-      data: { pipelineStages: JSON.parse(JSON.stringify(next)) as Prisma.InputJsonValue },
-    });
+    const stages = JSON.parse(JSON.stringify(next)) as Prisma.InputJsonValue;
+    await tx.userSettings.upsert({ where: { userId }, update: { pipelineStages: stages }, create: { userId, pipelineStages: stages } });
     return { kind: 'ok' as const };
   });
   if (outcome.kind === 'in-use') {
@@ -1024,7 +1036,7 @@ settingsRoute.post('/settings/locale', async (c) => {
   const back = safeBack(form.back, LANGUAGE_SECTION);
   const locale = form.locale;
   if (!isSelectableLocale(locale)) return flashRedirect(back, 'err', t('language.unknown'));
-  await setLocale(locale);
+  await setLocale(currentUser().id, locale);
   return flashRedirect(back, 'ok', withLocale(locale, () => t('language.saved')));
 });
 
@@ -1036,10 +1048,10 @@ settingsRoute.post('/settings/pack', async (c) => {
   if (!form.ok) {
     return flashRedirect(back, 'err', t('settingsRoute.pack.notSaved', { issue: firstIssue(form.issues) }), refusedField(c.req.path, form.issues));
   }
-  const pack = switchedOn(form.settings, await getPackSettings(), new Date());
-  await setPackSettings(pack);
+  const pack = switchedOn(form.settings, await getPackSettings(currentUser().id), new Date());
+  await setPackSettings(currentUser().id, pack);
   // Off means off for what already waits: the flash says none is prepared on its own, and the queue may hold a day of them.
-  const cancelled = pack.enabled ? 0 : await cancelQueuedAutoPacks();
+  const cancelled = pack.enabled ? 0 : await cancelQueuedAutoPacks(currentUser().id);
   return flashRedirect(
     back,
     'ok',
@@ -1063,7 +1075,7 @@ settingsRoute.post('/settings/reapply', async (c) => {
   if (days !== null && !isReapplyChoice(days)) {
     return flashRedirect('/settings?tab=applications#reapply', 'err', t('settingsRoute.reapply.invalid'));
   }
-  await setReapplyDays(days);
+  await setReapplyDays(currentUser().id, days);
   return flashRedirect(
     '/settings?tab=applications#reapply',
     'ok',
@@ -1072,8 +1084,9 @@ settingsRoute.post('/settings/reapply', async (c) => {
 });
 
 settingsRoute.post('/settings/stale-digest-toggle', async (c) => {
-  const settings = await getSettings();
+  const settings = await getUserSettings(currentUser().id);
   await setStaleApplicationsDigestEnabled(
+    currentUser().id,
     !settings.staleApplicationsDigestEnabled,
   );
   return flashRedirect(
@@ -1147,13 +1160,13 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
       return flashRedirect(back, 'err', t('settingsRoute.targets.invalidDiscord'));
     }
     // Before the test message, so a repeat does not post twice to the channel.
-    const same = await findSameDestination({ kind: 'DISCORD', ...parsed.data });
+    const same = await findSameDestination(currentUser().id, { kind: 'DISCORD', ...parsed.data });
     if (same) return flashRedirect(back, 'err', t('settingsRoute.targets.webhookExists', { name: same.name }));
     const test = await testDiscordWebhook(parsed.data.webhookUrl);
     if (!test.ok) {
       return flashRedirect(back, 'err', t('settingsRoute.targets.discordTestFailed', { reason: test.error ?? noReason() }));
     }
-    const added = await addNotificationTarget({ kind: 'DISCORD', ...parsed.data });
+    const added = await addNotificationTarget(currentUser().id, { kind: 'DISCORD', ...parsed.data });
     if (!added) {
       return flashRedirect(back, 'err', t('settingsRoute.targets.webhookRace'));
     }
@@ -1167,13 +1180,13 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
   if (!parsed.success) {
     return flashRedirect(back, 'err', t('settingsRoute.targets.invalidTelegram'));
   }
-  const same = await findSameDestination({ kind: 'TELEGRAM', ...parsed.data });
+  const same = await findSameDestination(currentUser().id, { kind: 'TELEGRAM', ...parsed.data });
   if (same) return flashRedirect(back, 'err', t('settingsRoute.targets.telegramExists', { name: same.name }));
   const test = await testTelegramTarget(parsed.data.botToken, parsed.data.chatId);
   if (!test.ok) {
     return flashRedirect(back, 'err', t('settingsRoute.targets.telegramTestFailed', { reason: test.error ?? noReason() }));
   }
-  const added = await addNotificationTarget({ kind: 'TELEGRAM', ...parsed.data });
+  const added = await addNotificationTarget(currentUser().id, { kind: 'TELEGRAM', ...parsed.data });
   if (!added) {
     return flashRedirect(back, 'err', t('settingsRoute.targets.telegramRace'));
   }
@@ -1183,21 +1196,22 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
 settingsRoute.post('/settings/targets/:id/toggle', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  await toggleNotificationTarget(id);
+  await toggleNotificationTarget(currentUser().id, id);
   return flashRedirect('/settings?tab=notifications', 'ok', t('settingsRoute.targets.toggled'));
 });
 
 settingsRoute.post('/settings/targets/:id/delete', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  await deleteNotificationTarget(id);
+  await deleteNotificationTarget(currentUser().id, id);
   return flashRedirect('/settings?tab=notifications', 'ok', t('settingsRoute.targets.deleted'));
 });
 
 settingsRoute.post('/settings/targets/:id/test', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const target = await prisma.notificationTarget.findUnique({ where: { id } });
+  // Only the person's own destinations exist for them (ADR 0069).
+  const target = await getNotificationTarget(currentUser().id, id);
   if (!target) return flashRedirect('/settings?tab=notifications', 'err', t('settingsRoute.targets.gone'));
   if (target.kind === 'DISCORD') {
     const result = await testDiscordWebhook(target.webhookUrl ?? '');
@@ -1350,7 +1364,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     resumeId === null ? null : getResume(currentUser().id, resumeId),
     notificationTargetId === null
       ? null
-      : prisma.notificationTarget.findUnique({ where: { id: notificationTargetId }, select: { id: true } }),
+      : getNotificationTarget(currentUser().id, notificationTargetId),
   ]);
   const missing = missingLinkMessage({
     resumeGone: resumeId !== null && resumeRow === null,

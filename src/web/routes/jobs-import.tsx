@@ -170,7 +170,7 @@ async function previewFacts(stash: ImportStash) {
   const [settings, active, employers, stored] = await Promise.all([
     getSettings(),
     listActiveProfiles(currentUser().id),
-    loadEmployerRules(now),
+    loadEmployerRules(currentUser().id, now),
     stash.source.id === null || mapped.jobs.length === 0
       ? []
       : prisma.job.findMany({
@@ -187,7 +187,7 @@ async function previewFacts(stash: ImportStash) {
   const counts = previewCounts(mapped.jobs, roster, storedIds, turnsAway);
   // What the Alerts choice is about, read only when there is something to choose: who would hear, and how many packs.
   const choosing = scoring && counts.passing > 0;
-  const [channel, packSettings, queuedToday] = choosing ? await Promise.all([alertChannel(), getPackSettings(), autoPacksToday(currentUser().id, now)]) : [null, null, 0];
+  const [channel, packSettings, queuedToday] = choosing ? await Promise.all([alertChannel(currentUser().id), getPackSettings(currentUser().id), autoPacksToday(currentUser().id, now)]) : [null, null, 0];
   const sends = choosing && channel && packSettings
     ? {
         alerts: stash.alerts ?? defaultImportAlerts(counts.passing),

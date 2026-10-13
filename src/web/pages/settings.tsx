@@ -171,6 +171,8 @@ export interface ScheduleView {
   held: HeldLine | null;
   /** No schedule saved yet: the zone is the install's default, and the browser's is the better guess (TASKS S28). */
   unsaved: boolean;
+  /** When the search runs is the install's: only an administrator edits it (ADR 0069). */
+  fetchEditable: boolean;
 }
 
 export interface AiStatusSummary {
@@ -393,6 +395,7 @@ const SearchScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
           {nextFetch ? t('settings.scheduleWithNext', { schedule: describeSchedule(s), next: nextFetch }) : describeSchedule(s)}
         </Hint>
       </div>
+      <fieldset disabled={!view.fetchEditable} class="space-y-3">
       <div class="flex flex-wrap items-end gap-3">
         <Field label={t('settings.howOften')} class="w-44">
           <Select name="fetchEvery">
@@ -407,9 +410,14 @@ const SearchScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
         <HourSelect name="fetchTo" value={s.fetch.to} label={t('settings.toInclusive')} />
       </div>
       <DayPills name="fetchDays" days={s.fetch.days} />
+      </fieldset>
       <ZoneLine zone={s.timezone} />
       <Hint>{t('settings.fetchNowIgnoresTheSchedule')}</Hint>
-      <Button type="submit" variant="secondary">{t('settings.saveSchedule')}</Button>
+      {view.fetchEditable ? (
+        <Button type="submit" variant="secondary">{t('settings.saveSchedule')}</Button>
+      ) : (
+        <Hint>{t('settingsRoute.schedule.adminOnly')}</Hint>
+      )}
     </form>
   );
 };

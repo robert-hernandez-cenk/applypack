@@ -18,8 +18,8 @@ import { mergeAiLocation } from './location-merge';
 import { handPickedSource, statusAfterRescore } from './rescore-status';
 import { rankByProfileFit, SCORE_BATCH, type ScorableJob } from './score-pick';
 import type { CronStats } from './cron-run';
-import { companyForPrompt, withoutMuted } from '../employer';
-import { mutedKeys } from './employer-store';
+import { companyForPrompt, heldOnlyByMuters, withoutMuted } from '../employer';
+import { allMutedKeys, mutedKeys } from './employer-store';
 
 export { SCORE_BATCH };
 
@@ -66,7 +66,7 @@ export async function runScoreUnscored(
     // A muted company's rows are never scored: a mute promises no AI on them (ADR 0056).
     where: {
       userJobs: { some: { userId: opts.userId, fitScore: null, status: JobStatus.NEW } },
-      ...withoutMuted(await mutedKeys()),
+      ...withoutMuted(await mutedKeys(opts.userId)),
     },
     select: {
       id: true,
@@ -128,9 +128,11 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
   const scope = {
     // Nothing to score again for a posting every holder has applied to.
     NOT: { userJobs: { some: {}, every: { status: JobStatus.APPLIED } } },
-    ...withoutMuted(await mutedKeys()),
     ...(opts.ids && { id: { in: opts.ids } }),
   };
+  // A mute promises no AI on a company's postings for the person who muted it;
+  // a posting is set aside only when every person who holds it did (ADR 0069).
+  const mutes = await allMutedKeys();
   const total = await prisma.job.count({ where: scope });
   logger.info(
     {
@@ -172,12 +174,14 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
     });
     if (batch.length === 0) break;
     lastId = batch[batch.length - 1]?.id ?? lastId;
+    const states = await statusesOf(batch.map((b) => b.id));
+    const wanted = batch.filter((j) => !heldOnlyByMuters(j.employerKey, [...(states.get(j.id) ?? [])].map(([userId]) => userId), mutes));
 
     // Jobs no active search admits skip Claude entirely; the rest are
     // classified AI_CONCURRENCY at a time and persisted in id order as their
     // results come in. A posting the user chose is scored whatever the filter
     // says, as it was when it came in (ADR 0062).
-    const pending = batch.map((j) => {
+    const pending = wanted.map((j) => {
       const chosen = handPickedSource(j.company);
       const scored = chosen || passesAnyBaseFilter(j, profiles);
       return {
@@ -215,7 +219,6 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
     const queue = (into: Map<number, number[]>, userId: number, jobId: number): void => {
       into.set(userId, [...(into.get(userId) ?? []), jobId]);
     };
-    const states = await statusesOf(batch.map((b) => b.id));
     const turnDown = (j: { id: number }, chosen: boolean): void => {
       for (const [userId, current] of states.get(j.id) ?? []) {
         const target = statusAfterRescore(current, false, chosen);

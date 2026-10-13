@@ -89,10 +89,11 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
   // allows it — also above the gates, for the same reason: they were found
   // and scored already, and neither a pause nor a quiet hour is a reason for
   // the user never to hear about them (TASKS §16).
+  // Each person's own hours decide (ADR 0069); the fetch schedule below is the install's.
   const schedule = await getSchedule();
-  const held = await deliverHeldAlerts(new Date(), schedule);
-  // Careers-page changes seen earlier and not reported yet, under the same rules.
-  const pagesWaiting = await deliverPageChanges(new Date(), schedule);
+  const held = await deliverHeldAlerts(new Date());
+  // Careers-page changes seen earlier and not reported yet, to the administrators under the same rules.
+  const pagesWaiting = await deliverPageChanges(new Date());
   const delivery: CronStats = {
     ...(held.delivered > 0 && { heldDelivered: held.delivered, heldMessages: held.messages }),
     ...(pagesWaiting.alerted > 0 && { pagesChanged: pagesWaiting.alerted }),
@@ -170,7 +171,7 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
   // schedule allows: the message carries no posting and costs no AI, so there
   // is nothing to wait for.
   await recordPageChanges();
-  const pagesNow = await deliverPageChanges(new Date(), schedule);
+  const pagesNow = await deliverPageChanges(new Date());
   if (pagesNow.alerted > 0) delivery.pagesChanged = pagesWaiting.alerted + pagesNow.alerted;
 
   // Phase 7.5 — universal ATS-URL discovery from any fetched job's URL
@@ -231,7 +232,7 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
     classifierMode,
     classify,
     isCancelled: paused,
-    schedule,
+    respectAlertHours: true,
     unstored,
   });
 

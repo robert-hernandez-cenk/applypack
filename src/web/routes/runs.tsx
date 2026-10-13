@@ -20,6 +20,8 @@ runsRoute.get('/runs', async (c) => {
   const now = new Date();
   const [runs, funnel, sources] = await Promise.all([
     prisma.cronRun.findMany({
+      // The install's runs, and the recaps and nudges that were this person's (ADR 0069).
+      where: { OR: [{ userId: null }, { userId: currentUser().id }] },
       orderBy: { startedAt: 'desc' },
       take: RUNS_LIMIT,
     }),

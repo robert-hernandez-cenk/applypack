@@ -7,6 +7,7 @@ import { sourceLine } from '../web/pages/attribution';
 import { alertsOff } from '../datasets/map';
 import { QUIET_STREAK } from '../fetchers/source-health';
 import { getSettings, pausedFamilies } from '../settings';
+import { loadUser } from '../users/store';
 import { lastSuccessfulRunAt, type CronStats } from './cron-run';
 import type { AlertJob } from '../types';
 
@@ -14,8 +15,9 @@ import type { AlertJob } from '../types';
 const DIGEST_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
- * One person's recap (ADR 0067). Chats belong to the install until
- * notifications do to a person (#11), so the worker asks for the default user's.
+ * One person's recap (ADR 0067), to their own chats (ADR 0069), covering what
+ * arrived since THEIR last recap. The line about failing sources is the
+ * install's, so only an administrator's recap carries it.
  */
 export async function runDigestJob(userId: number): Promise<{ stats: CronStats }> {
   const started = Date.now();
@@ -25,9 +27,9 @@ export async function runDigestJob(userId: number): Promise<{ stats: CronStats }
   // repeat the morning's in full. A failed run does not move the mark, so
   // nothing is skipped either; `digest-once.js` does move it, which is right —
   // asking for the recap now means the next one starts from here.
-  const previous = await lastSuccessfulRunAt('digest');
+  const previous = await lastSuccessfulRunAt('digest', userId);
   const since = previous ?? new Date(Date.now() - DIGEST_WINDOW_MS);
-  logger.info({ since: since.toISOString(), firstEver: previous === null }, 'digest-job: start');
+  logger.info({ userId, since: since.toISOString(), firstEver: previous === null }, 'digest-job: start');
 
   const rows = await prisma.userJob.findMany({
     where: {
@@ -104,18 +106,19 @@ export async function runDigestJob(userId: number): Promise<{ stats: CronStats }
   });
 
   // Broadcast, not routed: the digest spans every search, so it goes to every
-  // active target rather than to any one search's chat. A send every chat
+  // active target of the person rather than to any one search's chat. A send every chat
   // refused throws, and the failed run keeps the mark where it was.
-  const delivery = await sendDigest(alerts, undefined, await quietSources(), undefined, 0, unscored);
+  const admin = (await loadUser(userId))?.role === 'ADMIN';
+  const delivery = await sendDigest(userId, alerts, undefined, admin ? await quietSources() : [], undefined, 0, unscored);
   const durationMs = Date.now() - started;
   if (delivery.skipped !== null) {
     // Alerts off, or no chat: nothing to recap into. The matches found
     // meanwhile wait as held alerts and arrive on their own when they can.
     logger.info({ reason: delivery.skipped, durationMs }, 'digest-job: nothing sent');
-    return { stats: { skipped: 1, reason: delivery.skipped, durationMs } };
+    return { stats: { userId, skipped: 1, reason: delivery.skipped, durationMs } };
   }
   logger.info({ count: alerts.length, unscored, durationMs }, 'digest-job: done');
-  return { stats: { count: alerts.length, unscored, durationMs } };
+  return { stats: { userId, count: alerts.length, unscored, durationMs } };
 }
 
 /**

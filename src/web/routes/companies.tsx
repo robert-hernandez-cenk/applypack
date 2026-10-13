@@ -214,7 +214,7 @@ companiesRoute.get('/companies', async (c) => {
       keyedUnlocked={unlockedSources(await getSourceKeys())}
       flash={flash}
       fetchingEnabled={settings.fetchingEnabled}
-      muted={await listMutes()}
+      muted={await listMutes(currentUser().id)}
     />,
     200,
     { 'Set-Cookie': clearFlashCookie() },
@@ -233,17 +233,17 @@ companiesRoute.post('/companies/mutes', async (c) => {
   const back = safeBack(body.back, '/companies#muted');
   const parsed = MuteFormSchema.safeParse(body);
   if (!parsed.success) return flashRedirect(back, 'err', t('mute.flash.invalid', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
-  const mute = await muteEmployer(parsed.data.name, parsed.data.reason);
+  const mute = await muteEmployer(currentUser().id, parsed.data.name, parsed.data.reason);
   if (!mute) return flashRedirect(back, 'err', t('mute.flash.noLetters'));
-  const hidden = await prisma.job.count({ where: { employerKey: mute.key } });
+  const hidden = await prisma.job.count({ where: { employerKey: mute.key, userJobs: { some: { userId: currentUser().id } } } });
   return flashRedirect(back, 'ok', t('mute.flash.muted', { name: mute.name, n: hidden }));
 });
 
 companiesRoute.post('/companies/mutes/delete', async (c) => {
   const body = await c.req.parseBody();
   const back = safeBack(body.back, '/companies#muted');
-  const mute = typeof body.key === 'string' ? await findMute(body.key) : null;
-  if (!mute || !(await unmuteEmployer(mute.key))) return flashRedirect(back, 'err', t('mute.flash.notMuted'));
+  const mute = typeof body.key === 'string' ? await findMute(currentUser().id, body.key) : null;
+  if (!mute || !(await unmuteEmployer(currentUser().id, mute.key))) return flashRedirect(back, 'err', t('mute.flash.notMuted'));
   // "The next search reads its postings again" is true of a feed and not of a file of rows, which was read once (#448).
   return flashRedirect(back, 'ok', [t('mute.flash.unmuted', { name: mute.name }), await foldersReadOnceHint()].filter(Boolean).join(' '));
 });

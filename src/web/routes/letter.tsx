@@ -13,7 +13,7 @@ import { matchResumeToJob } from '../../resume/match';
 import { countWords, COVER_TONES, readCoverAngles, type CoverTone } from '../../resume/prompts';
 import { getLatestCompanySnapshot } from '../../resume/store';
 import { verifyJob } from '../../verification/verify';
-import { getSettings, setCoverAngles } from '../../settings';
+import { getUserSettings, setCoverAngles } from '../../settings';
 import { LetterStartPage } from '../pages/letter-start';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { claimRun, LETTER_FAILED, startRun, updateRun, type RunStep } from '../target-runs';
@@ -46,7 +46,7 @@ const LetterFormSchema = z.object({
 export const letterRoute = new Hono();
 
 letterRoute.get('/letter', async (c) => {
-  const [settings, jobs, resumes] = await Promise.all([getSettings(), listPickableJobs(), listResumeOptions()]);
+  const [settings, jobs, resumes] = await Promise.all([getUserSettings(currentUser().id), listPickableJobs(), listResumeOptions()]);
   return c.html(
     <LetterStartPage
       presetUrl={(c.req.query('url') ?? '').slice(0, 2000)}
@@ -83,8 +83,8 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
         approach: angle(form.approach),
         notes: angle(form.notes, 500),
       }
-    : readCoverAngles((await getSettings()).coverAngles);
-  if (fromForm) await setCoverAngles(angles);
+    : readCoverAngles((await getUserSettings(currentUser().id)).coverAngles);
+  if (fromForm) await setCoverAngles(currentUser().id, angles);
 
   // Resolve the resume inline — bad input fails before anything runs.
   const resume = await resolveResumeSource(form, f);

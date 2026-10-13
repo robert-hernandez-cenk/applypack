@@ -6,6 +6,7 @@ import { preparePosting, type Prepared } from '../pack/prepare';
 import { wantsCoverLetter } from '../pack/settings';
 import {
   claimNextPack,
+  usersWithUnnotifiedPacks,
   dropAutoPack,
   finishPack,
   hasUnfinishedPacks,
@@ -20,7 +21,8 @@ import { autoPackUnwanted, type Unwanted } from '../pack/trigger';
 import { packNoticeLines, type PackEdits, type PackNotice } from '../pack/view';
 import { getActiveProfile } from '../profiles';
 import { readCoverAngles } from '../resume/prompts';
-import { getPackSettings, getSchedule, getSettings } from '../settings';
+import { getAlertSchedule, getPackSettings, getUserSettings } from '../settings';
+import { inRunLocale } from '../run-locale';
 import { shouldDeliverHeld } from '../user-schedule';
 import type { CronStats } from './cron-run';
 import { mutedKeys } from './employer-store';
@@ -45,7 +47,8 @@ const PACK_LOCK_KEY = 0x41504b50; // "APKP" — the fetch lock's neighbour (fetc
 const NOTICE_RETRY_MS = 15 * 60_000;
 
 let stopping = false;
-let noticeFailedAt = 0;
+/** When a person's last message reached nobody, by person. */
+const noticeFailedAt = new Map<number, number>();
 
 /** The worker is shutting down: no further pack is started, and the one in flight goes back in the queue. */
 export function stopPackJob(): void {
@@ -54,20 +57,22 @@ export function stopPackJob(): void {
 
 /** Whether this beat has anything to do — asked before a run row is written. */
 export async function packWorkWaiting(): Promise<boolean> {
-  return (await hasUnfinishedPacks()) || (await noticesDue()).length > 0;
+  if (await hasUnfinishedPacks()) return true;
+  for (const userId of await usersWithUnnotifiedPacks()) if ((await noticesDue(userId)).length > 0) return true;
+  return false;
 }
 
 /**
- * The finished packs a message can carry NOW: the person's schedule lets a
- * held message out (user-schedule.ts), Alerts are not off, and the last try
- * did not just fail. Anything else waits without a run row a minute.
+ * The finished packs a message to this person can carry NOW: their schedule
+ * lets a held message out (user-schedule.ts), their Alerts are not off, and
+ * the last try did not just fail. Anything else waits without a run row a minute.
  */
-async function noticesDue(): Promise<(PackNotice & { id: number })[]> {
-  if (Date.now() - noticeFailedAt < NOTICE_RETRY_MS) return [];
-  const waiting = await listUnnotifiedPacks();
+async function noticesDue(userId: number): Promise<(PackNotice & { id: number })[]> {
+  if (Date.now() - (noticeFailedAt.get(userId) ?? 0) < NOTICE_RETRY_MS) return [];
+  const waiting = await listUnnotifiedPacks(userId);
   if (waiting.length === 0) return [];
-  if (!shouldDeliverHeld(new Date(), await getSchedule())) return [];
-  return (await alertChannel()) === 'alerts-off' ? [] : waiting;
+  if (!shouldDeliverHeld(new Date(), await getAlertSchedule(userId))) return [];
+  return (await alertChannel(userId)) === 'alerts-off' ? [] : waiting;
 }
 
 export async function runPackJob(): Promise<{ stats: CronStats }> {
@@ -106,7 +111,7 @@ export async function runPackJob(): Promise<{ stats: CronStats }> {
 
 /** Why a pack the tick queued should not be prepared now (trigger.ts), or null. Read per pack: the settings and the job are the person's to change while the queue runs. */
 async function noLongerWanted(userId: number, jobId: number): Promise<Unwanted | null> {
-  const [pack, job, muted] = await Promise.all([getPackSettings(), packJobState(userId, jobId), mutedKeys()]);
+  const [pack, job, muted] = await Promise.all([getPackSettings(userId), packJobState(userId, jobId), mutedKeys(userId)]);
   // A job that is gone fails in runOne, with its own sentence.
   if (!job) return null;
   return autoPackUnwanted({ enabled: pack.enabled, status: job.status, applied: job.applied, muted: job.employerKey !== null && muted.includes(job.employerKey) });
@@ -119,7 +124,7 @@ async function runOne(packId: number, userId: number, jobId: number): Promise<'r
     return 'failed';
   };
   // Read per pack, not per beat: a setting changed while the queue runs applies to the next pack (gotcha 9).
-  const [pack, settings, primary] = await Promise.all([getPackSettings(), getSettings(), getActiveProfile(userId)]);
+  const [pack, settings, primary] = await Promise.all([getPackSettings(userId), getUserSettings(userId), getActiveProfile(userId)]);
   const inputs = await loadPackInputs(userId, jobId, primary?.resumeId ?? null);
   if (!inputs) return fail(t('pack.why.postingGone'));
   const { posting, resume } = inputs;
@@ -199,21 +204,25 @@ async function requeue(packId: number): Promise<'requeued'> {
 }
 
 /**
- * One message for every pack that finished since the last one. With no chat
- * to send to they are marked as told: there is nobody to keep trying for.
+ * One message per person for every pack of theirs that finished since the last
+ * one, in their language and to their chats. With no chat to send to they are
+ * marked as told: there is nobody to keep trying for.
  */
 async function deliverNotices(): Promise<number> {
-  const due = await noticesDue();
-  const lines = packNoticeLines(due);
-  if (lines.length === 0) return 0;
-  try {
-    const delivery = await sendPackNotice(lines);
-    if (delivery.skipped === 'alerts-off') return 0;
-    await markPacksNotified(due.map((p) => p.id), new Date());
-    return delivery.reached > 0 ? due.length : 0;
-  } catch (err) {
-    noticeFailedAt = Date.now();
-    logger.warn({ err, packs: due.length }, 'pack: the notice reached nobody; it stays owed');
-    return 0;
+  let notified = 0;
+  for (const userId of await usersWithUnnotifiedPacks()) {
+    const due = await noticesDue(userId);
+    const lines = packNoticeLines(due);
+    if (lines.length === 0) continue;
+    try {
+      const delivery = await inRunLocale(() => sendPackNotice(userId, lines), userId);
+      if (delivery.skipped === 'alerts-off') continue;
+      await markPacksNotified(due.map((p) => p.id), new Date());
+      if (delivery.reached > 0) notified += due.length;
+    } catch (err) {
+      noticeFailedAt.set(userId, Date.now());
+      logger.warn({ err, userId, packs: due.length }, 'pack: the notice reached nobody; it stays owed');
+    }
   }
+  return notified;
 }

@@ -241,9 +241,9 @@ export async function cancelQueuedPack(userId: number, jobId: number): Promise<b
   return (await prisma.applicationPack.deleteMany({ where: { userId, jobId, status: 'queued' } })).count > 0;
 }
 
-/** Packs were switched off: the ones the tick queued and no runner has started are not prepared. Returns how many. */
-export async function cancelQueuedAutoPacks(): Promise<number> {
-  return (await prisma.applicationPack.deleteMany({ where: { trigger: 'auto', status: 'queued' } })).count;
+/** A person switched packs off: the ones the tick queued for THEM and no runner has started are not prepared. Returns how many. */
+export async function cancelQueuedAutoPacks(userId: number): Promise<number> {
+  return (await prisma.applicationPack.deleteMany({ where: { userId, trigger: 'auto', status: 'queued' } })).count;
 }
 
 export async function setPackStep(id: number, step: PrepareStep): Promise<void> {
@@ -303,10 +303,18 @@ export async function loadPackInputs(userId: number, jobId: number, primaryResum
 
 type NoticeRow = PackNotice & { id: number };
 
-/** Finished packs the worker started on its own that no message has carried yet — the ones that failed too: a pack that came to nothing is not passed over in silence. */
-export async function listUnnotifiedPacks(): Promise<NoticeRow[]> {
+const UNNOTIFIED = { trigger: 'auto', notifiedAt: null, status: { in: ['ready', 'stopped', 'failed'] } } satisfies Prisma.ApplicationPackWhereInput;
+
+/** The people with a finished pack no message has carried yet (ADR 0069): each is told in their own chats. */
+export async function usersWithUnnotifiedPacks(): Promise<number[]> {
+  const rows = await prisma.applicationPack.findMany({ where: UNNOTIFIED, distinct: ['userId'], select: { userId: true }, orderBy: { userId: 'asc' } });
+  return rows.map((r) => r.userId);
+}
+
+/** A person's finished packs the worker started on its own that no message has carried yet — the ones that failed too: a pack that came to nothing is not passed over in silence. */
+export async function listUnnotifiedPacks(userId: number): Promise<NoticeRow[]> {
   const rows = await prisma.applicationPack.findMany({
-    where: { trigger: 'auto', notifiedAt: null, status: { in: ['ready', 'stopped', 'failed'] } },
+    where: { ...UNNOTIFIED, userId },
     orderBy: { finishedAt: 'asc' },
     select: {
       id: true,

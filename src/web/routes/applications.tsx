@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { idParam } from '../params';
 import { z } from 'zod';
 import { prisma } from '../../db';
-import { getSettings } from '../../settings';
+import { getUserSettings } from '../../settings';
 import { getPack, markPackSent } from '../../pack/store';
 import { getResume } from '../../resume/store';
 import { appliedResumeColumns, packAsShown, readAppliedResumeChoice } from '../applied-resume';
@@ -43,7 +43,7 @@ export const applicationsRoute = new Hono();
  * exports read the board from here.
  */
 async function loadBoard() {
-  const settings = await getSettings();
+  const settings = await getUserSettings(currentUser().id);
   const work = parseStageConfig(settings.pipelineStages);
   // The person's own board (ADR 0067): their rows, their stages, their history.
   const userId = currentUser().id;
@@ -187,7 +187,7 @@ const StageMoveSchema = z.object({ toStage: z.string().min(1).max(40) });
 applicationsRoute.post('/jobs/:id/stage', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const settings = await getSettings();
+  const settings = await getUserSettings(currentUser().id);
   if (!settings.applicationTrackingEnabled) {
     return c.redirect('/applications', 303);
   }
@@ -228,7 +228,7 @@ applicationsRoute.post('/jobs/:id/stage', async (c) => {
 applicationsRoute.post('/jobs/:id/application', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const settings = await getSettings();
+  const settings = await getUserSettings(currentUser().id);
   if (!settings.applicationTrackingEnabled) {
     return c.redirect(`/jobs/${id}`, 303);
   }

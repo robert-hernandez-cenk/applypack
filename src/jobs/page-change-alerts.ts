@@ -3,7 +3,10 @@ import { logger } from '../logger';
 import { alertChannel, sendPageChangeAlert, type Delivery } from '../notifier';
 import { checkPostingUrl } from './posting-url';
 import { takePageChanges } from '../watchlist/page-changes';
-import { shouldDeliverHeld, type Schedule } from '../user-schedule';
+import { shouldDeliverHeld } from '../user-schedule';
+import { getAlertSchedule } from '../settings';
+import { listAdminIds } from '../users/store';
+import { inRunLocale } from '../run-locale';
 
 /**
  * Delivery for the change watch (TASKS §17 stage C, ADR 0036).
@@ -17,7 +20,9 @@ import { shouldDeliverHeld, type Schedule } from '../user-schedule';
  * The notice keeps to the held matches' rules (TASKS §16): it goes out on
  * the first heartbeat the schedule allows — any hour with alerts sent right
  * away, the hours of the window, the digest times — with Alerts on and a chat
- * to send to. It is on the row, not in memory, because the page may not be
+ * to send to. The watchlist is the install's, so the notice is an operator's:
+ * it goes to each administrator whose own schedule, switch and chats allow it
+ * (ADR 0069). It is on the row, not in memory, because the page may not be
  * read again at such an hour: a weekly check, or a 304 that says nothing new.
  * With no chat at all the row on /companies is the report ("changed 2h ago"),
  * so the change is taken as reported at once — as a match with no chat stays
@@ -39,9 +44,17 @@ export async function recordPageChanges(): Promise<void> {
  * schedule, like the held matches — and again after the walk, so a change
  * seen inside the alert hours goes out in the tick that saw it.
  */
-export async function deliverPageChanges(now: Date, schedule: Schedule): Promise<{ alerted: number }> {
-  const channel = await alertChannel();
-  if (channel === 'alerts-off' || (channel === 'open' && !shouldDeliverHeld(now, schedule))) return { alerted: 0 };
+export async function deliverPageChanges(now: Date): Promise<{ alerted: number }> {
+  // Who may be told now; an administrator with no chat is nobody to wait for, one whose switch or hours say "later" is.
+  const sendable: number[] = [];
+  let waiting = false;
+  for (const adminId of await listAdminIds()) {
+    const channel = await alertChannel(adminId);
+    if (channel === 'no-targets') continue;
+    if (channel === 'alerts-off' || !shouldDeliverHeld(now, await getAlertSchedule(adminId))) waiting = true;
+    else sendable.push(adminId);
+  }
+  if (sendable.length === 0 && waiting) return { alerted: 0 };
   const pending = await prisma.company.findMany({
     where: { pendingContentHash: { not: null }, active: true },
     select: { id: true, name: true, atsToken: true, pendingContentHash: true },
@@ -56,17 +69,20 @@ export async function deliverPageChanges(now: Date, schedule: Schedule): Promise
   });
   if (linked.length === 0) return { alerted: 0 };
 
-  if (channel === 'open') {
-    let delivery: Delivery;
-    try {
-      delivery = await sendPageChangeAlert(linked.map((c) => ({ companyName: c.name, url: c.url })));
-    } catch (err) {
-      // Every chat refused it; the rows keep their pending hash for the next heartbeat.
-      logger.error({ err, pages: linked.length }, 'page-change: send failed, leaving them pending');
-      return { alerted: 0 };
+  if (sendable.length > 0) {
+    let reached = 0;
+    for (const adminId of sendable) {
+      let delivery: Delivery;
+      try {
+        delivery = await inRunLocale(() => sendPageChangeAlert(adminId, linked.map((c) => ({ companyName: c.name, url: c.url }))), adminId);
+      } catch (err) {
+        logger.error({ err, adminId, pages: linked.length }, 'page-change: send failed for an administrator');
+        continue;
+      }
+      if (delivery.skipped === null) reached++;
     }
-    // Switched off since the check above.
-    if (delivery.skipped === 'alerts-off') return { alerted: 0 };
+    // Every chat refused it, or the switches went off since the check above; the rows keep their pending hash for the next heartbeat.
+    if (reached === 0) return { alerted: 0 };
   }
 
   for (const company of linked) {
