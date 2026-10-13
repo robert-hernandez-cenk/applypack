@@ -2,9 +2,10 @@ import { JobStatus } from '@prisma/client';
 import { prisma } from '../db';
 
 /*
- * The one place `user_job` rows are read for the worker's decisions and
- * stamped after an alert (ADR 0067). Re-score writes go through
- * `score-store.ts`, which writes a score and its rows in one transaction.
+ * What the worker reads of `user_job` to decide a re-score, and the stamps it
+ * writes after an alert (ADR 0067). A re-score's own writes go through
+ * `score-store.ts`, which writes the score and every person's row in one
+ * transaction; a new posting's rows are created with it in `process-jobs.ts`.
  */
 
 /** Each person's current status for a batch of postings: jobId -> userId -> status. */

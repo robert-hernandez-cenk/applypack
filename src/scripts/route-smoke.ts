@@ -841,13 +841,19 @@ async function isolationChecks(ownJobId: number): Promise<Check[]> {
   };
   const teammate = await prisma.user.create({ data: { oidcSub: 'smoke-teammate', name: 'Smoke teammate', role: 'MEMBER' } });
   await ensurePrimaryProfile(teammate.id);
-  const company = await prisma.company.create({ data: { name: 'Isolation Co', atsType: 'MANUAL', atsToken: 'isolation-co', active: false } });
-  const shared = await prisma.job.create({
-    data: { companyId: company.id, externalId: 'shared', title: 'Isolation Shared', url: '', location: 'Remote', description: POSTING, postedAt: new Date() },
+  const posting = (externalId: string, title: string) => ({ externalId, title, url: '', location: 'Remote', description: POSTING, postedAt: new Date() });
+  const company = await prisma.company.create({
+    data: {
+      name: 'Isolation Co',
+      atsType: 'MANUAL',
+      atsToken: 'isolation-co',
+      active: false,
+      jobs: { create: [posting('shared', 'Isolation Shared'), posting('theirs', 'Isolation Theirs')] },
+    },
+    include: { jobs: true },
   });
-  const theirs = await prisma.job.create({
-    data: { companyId: company.id, externalId: 'theirs', title: 'Isolation Theirs', url: '', location: 'Remote', description: POSTING, postedAt: new Date() },
-  });
+  const shared = company.jobs.find((j) => j.externalId === 'shared')!;
+  const theirs = company.jobs.find((j) => j.externalId === 'theirs')!;
   await prisma.userJob.createMany({
     data: [
       { userId: DEFAULT_USER_ID, jobId: shared.id, status: 'NEW', fitScore: 90 },
