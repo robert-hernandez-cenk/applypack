@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-14T04:49:53Z",
-  "feature_directory": "specs/022-gmail-job-leads",
+  "updated_at": "2026-10-14T12:13:25Z",
+  "feature_directory": "specs/029-jobs-by-source",
   "source_of_truth": {
     "constitution": ".specify/memory/constitution.md",
-    "spec": "specs/022-gmail-job-leads/spec.md",
-    "plan": "specs/022-gmail-job-leads/plan.md",
-    "tasks": "specs/022-gmail-job-leads/tasks.md"
+    "spec": "specs/029-jobs-by-source/spec.md",
+    "plan": "specs/029-jobs-by-source/plan.md",
+    "tasks": "specs/029-jobs-by-source/tasks.md"
   },
   "supersedes": [
     "speckit.implement"

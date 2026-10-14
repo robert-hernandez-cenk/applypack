@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.59.2] — 2026-10-14
+
+### Added
+- **Jobs by source on the Overview.** A second card under **Jobs by stack**
+  shows where your last 30 days' matches came from — Gmail, a folder, an
+  imported file, pasted jobs, each aggregator — with a bar and a count for each
+  and the total underneath. The company career platforms (Greenhouse, Lever and
+  the like) are counted together as one **Company boards** bar. The numbers are
+  your own: someone else's Gmail never appears in your counts. The card is
+  hidden when there is no match in the window, and its bars do not filter the
+  chart (#29).
+
 ## [2.59.1] — 2026-10-14
 
 ### Added

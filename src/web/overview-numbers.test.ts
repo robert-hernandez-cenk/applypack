@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { SPARK_DAYS, kpiTrends, overviewHref, readStackParam, statusMoment, topTerms, type KpiRow } from './overview-numbers';
+import { COMPANY_BOARDS, SPARK_DAYS, kpiTrends, overviewHref, readStackParam, statusMoment, topSources, topTerms, type KpiRow } from './overview-numbers';
 
 const NOW = new Date('2026-09-30T15:00:00Z');
 const at = (iso: string) => new Date(iso);
@@ -74,6 +74,36 @@ describe('technologies', () => {
     assert.equal(topTerms([{ techMatch: ['a', 'b', 'c'] }], 2).length, 2);
     assert.deepEqual(topTerms([], 5), []);
     assert.deepEqual(topTerms([{ techMatch: ['', '  '] }], 5), []);
+  });
+});
+
+describe('the sources the matches came through', () => {
+  const from = (...atsTypes: string[]) => atsTypes.map((atsType) => ({ atsType }));
+
+  it('counts every per-company vendor board as one bar', () => {
+    const sources = topSources(from('GREENHOUSE', 'LEVER', 'ASHBY', 'GREENHOUSE', 'GMAIL'), 5);
+    assert.deepEqual(sources, [
+      { source: COMPANY_BOARDS, count: 4, share: 100 },
+      { source: 'GMAIL', count: 1, share: 25 },
+    ]);
+  });
+
+  it('keeps an aggregator and the user\'s own kinds apart', () => {
+    const sources = topSources(from('REMOTEOK', 'REMOTEOK', 'FOLDER', 'MANUAL', 'IMPORT', 'FEED'), 8);
+    assert.deepEqual(
+      sources.map((s) => [s.source, s.count]),
+      [['REMOTEOK', 2], ['FEED', 1], ['FOLDER', 1], ['IMPORT', 1], ['MANUAL', 1]],
+    );
+  });
+
+  it('orders ties by name, so the list does not reshuffle between two page loads', () => {
+    assert.deepEqual(topSources(from('ZED', 'ALPHA'), 5).map((s) => s.source), ['ALPHA', 'ZED']);
+  });
+
+  it('keeps the first `max`, keeps a kind it does not know, and says nothing of nothing', () => {
+    assert.equal(topSources(from('A', 'B', 'C'), 2).length, 2);
+    assert.deepEqual(topSources(from('A_NEW_KIND'), 5), [{ source: 'A_NEW_KIND', count: 1, share: 100 }]);
+    assert.deepEqual(topSources([], 5), []);
   });
 });
 
