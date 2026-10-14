@@ -32,6 +32,9 @@ import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
 import { t } from '../../i18n/t';
 
+/** What the upload card takes: the resume formats and a Reactive Resume export (ADR 0073). */
+const UPLOAD_TYPES = [...ACCEPTED_EXTENSIONS, '.json'];
+
 export interface ResumeRow {
   id: number;
   name: string;
@@ -344,12 +347,12 @@ const ResumeUploadForm: FC = () => (
     <Field label={t('resumes.name')} hint={t('resumes.blankTakenFromTheFile')}>
       <Input type="text" name="name" placeholder={t('resumes.namePlaceholder')} maxlength="100" />
     </Field>
-    <Field label={t('resumes.file')} hint={t('upload.fileHint', { types: ACCEPTED_EXTENSIONS.join(', '), mb: MAX_UPLOAD_MB })}>
+    <Field label={t('resumes.file')} hint={t('upload.fileHint', { types: UPLOAD_TYPES.join(', '), mb: MAX_UPLOAD_MB })}>
       <Input
         type="file"
         name="file"
         required
-        accept={ACCEPTED_EXTENSIONS.join(',')}
+        accept={UPLOAD_TYPES.join(',')}
         class={FILE_INPUT_CLASS}
       />
     </Field>
@@ -357,7 +360,7 @@ const ResumeUploadForm: FC = () => (
       <Button class="w-full">{t('resumes.uploadScan')}</Button>
     </div>
     <Hint class="sm:col-span-3">
-      {t('resumes.oneCallToTheResume')}
+      {t('resumes.oneCallToTheResume')} {t('resumes.reactiveFileHint')}
     </Hint>
   </form>
 );

@@ -4208,5 +4208,9 @@
   "gmail.flash.queued": "Перевірку поставлено в чергу; вона почнеться протягом хвилини.",
   "gmail.flash.notConnected": "Gmail не підключено.",
   "gmail.flash.disconnected": "Gmail відключено.",
-  "gmail.alertTitle": "Вакансії з вашого Gmail"
+  "gmail.alertTitle": "Вакансії з вашого Gmail",
+  "resume.read.badJson": "Файл не є коректним JSON.",
+  "resume.read.notReactiveResume": "Цей JSON-файл не є експортом Reactive Resume. У Reactive Resume експортуйте резюме як JSON і завантажте цей файл.",
+  "resume.read.reactiveEmpty": "В експорті Reactive Resume немає нічого видимого для імпорту: усі розділи приховані або порожні.",
+  "resumes.reactiveFileHint": "Підійде й експорт Reactive Resume (.json, версії 4, 5 або 6)."
 }

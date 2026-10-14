@@ -86,6 +86,7 @@ gets a dated addendum at the end of the ADR.
 - [0070 — Administrators run the install; members work in their own space](./0070-administrators-run-the-install-members-work-in-their-own-space.md) *(completes 0065 and 0069: roles, the users page; employer mode is administrators' only)*
 - [0071 — Job leads are read from the person's own mailbox, read-only, and are theirs alone](./0071-job-leads-are-read-from-the-persons-own-mailbox.md) *(builds on 0005, 0062, 0067: Gmail label → that person's jobs; the refresh token is a new accessor-only secret)*
 - [0072 — A running job reports its progress through its own run row](./0072-running-jobs-report-progress-through-the-run-row.md) *(builds on 0003, 0069, 0070: `cron_run.progress`, a throttled reporter, a polled fragment on /runs)*
+- [0073 — A Reactive Resume resume is read from its export file or from the owner's own instance](./0073-reactive-resume-import-reads-a-file-or-asks-the-owners-instance.md) *(builds on 0005, 0011, 0070: Markdown as the stored form, `.json` handled in `readResumeUpload`, an API-key pull with the key in memory only, members kept off private addresses)*
 
 ## When to write a new one
 

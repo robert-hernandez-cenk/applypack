@@ -4208,5 +4208,9 @@
   "gmail.flash.queued": "Comprobación en cola; empieza en menos de un minuto.",
   "gmail.flash.notConnected": "Gmail no está conectado.",
   "gmail.flash.disconnected": "Gmail desconectado.",
-  "gmail.alertTitle": "Ofertas desde tu Gmail"
+  "gmail.alertTitle": "Ofertas desde tu Gmail",
+  "resume.read.badJson": "El archivo no es un JSON válido.",
+  "resume.read.notReactiveResume": "Este archivo JSON no es una exportación de Reactive Resume. En Reactive Resume, exporta el currículum como JSON y sube ese archivo.",
+  "resume.read.reactiveEmpty": "La exportación de Reactive Resume no tiene nada visible que importar: todas las secciones están ocultas o vacías.",
+  "resumes.reactiveFileHint": "También sirve una exportación de Reactive Resume (.json, de las versiones 4, 5 o 6)."
 }

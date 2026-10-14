@@ -1,0 +1,18 @@
+{
+  "picture": {},
+  "basics": { "name": "Sam O'Neil", "headline": "", "email": "", "phone": "", "location": "", "website": { "url": "", "label": "" } },
+  "summary": { "title": "Summary", "hidden": false, "content": "<p>Line one &amp; <strong>bold</strong> &lt;3 <a href=\"https://example.com\">a link</a></p><p>Line two</p><ol><li>First</li><li>Second</li></ol>" },
+  "sections": {
+    "experience": { "title": "Experience", "hidden": false, "items": [
+      { "id": "e1", "hidden": false, "company": "Tailspin", "position": "Engineer", "location": "", "period": "", "dates": { "start": null, "end": null, "present": false, "raw": "Summer 2019" }, "website": { "url": "", "label": "" }, "description": "<p>Did things.</p>", "roles": [] },
+      { "id": "e2", "hidden": true, "company": "Wingtip", "position": "Ghost", "location": "", "period": "", "dates": { "start": null, "end": null, "present": false }, "website": { "url": "", "label": "" }, "description": "", "roles": [] }
+    ] },
+    "skills": { "title": "Skills", "hidden": true, "items": [
+      { "id": "s1", "hidden": false, "name": "Hidden skill", "proficiency": "", "level": 1, "keywords": ["Nope"] }
+    ] }
+  },
+  "customSections": [
+    { "id": "cs1", "type": "cover-letter", "title": "Cover letter", "hidden": false, "recipient": "<p>Dear team</p>", "content": "<p>I would like to apply.</p>" }
+  ],
+  "metadata": {}
+}
