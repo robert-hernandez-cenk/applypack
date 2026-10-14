@@ -3736,6 +3736,7 @@
   "engine.url.noKey": "Ne mettez pas la clé dans l'adresse ; elle a son propre champ.",
   "engine.url.https": "Un serveur sur internet demande https:// — en http simple, la clé circulerait en clair.",
   "engine.url.notLocal": "Le moteur local dialogue avec un serveur sur cet ordinateur ou sur votre propre réseau ; un serveur sur internet va dans le moteur compatible OpenAI.",
+  "engine.url.noHost": "Ce nom est introuvable — vérifiez l'adresse et que le serveur est sur votre réseau.",
   "overview.packs.title": "Prêts à envoyer ({n})",
   "overview.packs.prepared": "préparé <when/>",
   "overview.packs.preparedMatch": "correspondance {score} · préparé <when/>",

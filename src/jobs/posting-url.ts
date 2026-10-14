@@ -158,7 +158,7 @@ export function isPrivateHost(hostname: string): boolean {
 /** The addresses a name resolves to — injected so the guard is tested without the network. */
 export type Resolver = (hostname: string) => Promise<string[]>;
 
-const lookupAddresses: Resolver = async (hostname) =>
+export const lookupAddresses: Resolver = async (hostname) =>
   (await dns.lookup(hostname, { all: true })).map((a) => a.address);
 
 /** The guard's refusal of a private address, as a catalog key: worded when it is returned, in the reader's language. */
