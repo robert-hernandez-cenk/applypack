@@ -158,12 +158,15 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
   beginPageChangeTick();
   // What a look at a folder learns about its files is staged the same way (ADR 0062).
   beginFolderTick();
+  const reportSources = (done: number, total: number): void =>
+    opts.report?.({ stage: 'sources', label: 'runs.running.stage.sources', unit: 'runs.running.unit.sources', done, total });
   const fetched = await runAllFetchers(paused, (progress) => {
     sources = progress.done;
     if (isFailureStatus(progress.status)) sourcesFailed++;
     if (progress.status === 'not_modified') sourcesUnchanged++;
     bySource.push({ name: progress.company, status: progress.status, count: progress.count, ms: progress.durationMs });
     opts.onSource?.(progress);
+    reportSources(progress.done, progress.total);
   }, { manual: opts.manual === true, only: opts.only, places: opts.places });
   logger.info(
     { count: fetched.length, sources, sourcesFailed, sourcesUnchanged },

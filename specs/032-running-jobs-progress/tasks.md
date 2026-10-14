@@ -56,9 +56,9 @@ description: "Task list for the live progress card for running jobs (#32)"
 
 **Independent test**: a row with `updatedAt` three minutes old renders amber; a fresh one does not.
 
-- [ ] T016 [P] [US2] Add failing cases to `src/web/running-view.test.ts` (stale boundary at exactly 120 000 ms is not stale, 120 001 is; `updatedAgoMs` never negative under clock skew) and, if needed, to `src/jobs/run-progress.test.ts`.
-- [ ] T017 [US2] In `src/web/pages/running-card.tsx` give the last-update line `text-warn` (plus a visible word, not colour alone: use the `runs.running.stalled` key added to the four catalogs) when `view.stale`, otherwise `text-ink-faint`; format the age with `formatDuration`. Re-run `npm run css` if a class is new.
-- [ ] T018 [US2] Run the checks; commit `Mark a run that stopped reporting (#32, US2)`; tick T016–T018.
+- [x] T016 [P] [US2] Add failing cases to `src/web/running-view.test.ts` (stale boundary at exactly 120 000 ms is not stale, 120 001 is; `updatedAgoMs` never negative under clock skew) and, if needed, to `src/jobs/run-progress.test.ts`.
+- [x] T017 [US2] In `src/web/pages/running-card.tsx` give the last-update line `text-warn` (plus a visible word, not colour alone: use the `runs.running.stalled` key added to the four catalogs) when `view.stale`, otherwise `text-ink-faint`; format the age with `formatDuration`. Re-run `npm run css` if a class is new.
+- [x] T018 [US2] Run the checks; commit `Mark a run that stopped reporting (#32, US2)`; tick T016–T018.
 
 ## Phase 5: User Story 3 — other long jobs show up too (P3)
 
@@ -66,10 +66,10 @@ description: "Task list for the live progress card for running jobs (#32)"
 
 **Independent test**: unit-test the reporting of each job with a fake `report`; the elapsed-only block is already covered by T006.
 
-- [ ] T019 [P] [US3] In `src/jobs/fetch-job.ts` call `opts.report?.({ stage: 'sources', label: 'runs.running.stage.sources', unit: 'runs.running.unit.sources', done: progress.done, total: progress.total })` inside the existing `runAllFetchers` progress callback (next to `opts.onSource?.`), and once before the walk with `done: 0`. The `classify` stage of T014 then replaces it.
-- [ ] T020 [P] [US3] Add `report?` to `GmailJobDeps` in `src/jobs/gmail-job.ts` (type from `run-progress.ts`); in the mail loop report `stage: 'mails'`, `done` = mails handled so far, `total` = `take.length`, counters `{ listings }` summed from `reads`. Extend `src/jobs/gmail-job.test.ts` (fakes) to assert the report sequence: one per mail, listings counter increasing, total constant.
-- [ ] T021 [US3] Hand `report` to the Gmail job: `src/jobs/for-each-user.ts` passes it from `recordCronRun(name, (report) => job(userId, report), userId)` (jobs that ignore it keep working), `src/jobs/gmail-tick.ts` forwards it to `liveGmailDeps()`/`runGmailJob`, `src/jobs/gmail-live.ts` includes it in the deps. Check the other `forEachUser` callers still compile unchanged.
-- [ ] T022 [US3] Run the checks; commit `Report sources and Gmail mails to the progress card (#32, US3)`; tick T019–T022.
+- [x] T019 [P] [US3] In `src/jobs/fetch-job.ts` call `opts.report?.({ stage: 'sources', label: 'runs.running.stage.sources', unit: 'runs.running.unit.sources', done: progress.done, total: progress.total })` inside the existing `runAllFetchers` progress callback (next to `opts.onSource?.`), and once before the walk with `done: 0`. The `classify` stage of T014 then replaces it.
+- [x] T020 [P] [US3] Add `report?` to `GmailJobDeps` in `src/jobs/gmail-job.ts` (type from `run-progress.ts`); in the mail loop report `stage: 'mails'`, `done` = mails handled so far, `total` = `take.length`, counters `{ listings }` summed from `reads`. Extend `src/jobs/gmail-job.test.ts` (fakes) to assert the report sequence: one per mail, listings counter increasing, total constant.
+- [x] T021 [US3] Hand `report` to the Gmail job: `src/jobs/for-each-user.ts` passes it from `recordCronRun(name, (report) => job(userId, report), userId)` (jobs that ignore it keep working), `src/jobs/gmail-tick.ts` forwards it to `liveGmailDeps()`/`runGmailJob`, `src/jobs/gmail-live.ts` includes it in the deps. Check the other `forEachUser` callers still compile unchanged.
+- [x] T022 [US3] Run the checks; commit `Report sources and Gmail mails to the progress card (#32, US3)`; tick T019–T022.
 
 ## Phase 6: Polish and cross-cutting
 
