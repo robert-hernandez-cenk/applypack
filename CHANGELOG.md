@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.59.4] — 2026-10-14
+
+### Added
+- **Live progress for a running job on `/runs`.** A "Running now" card shows
+  the stage, a count with a bar, counters, a time-left estimate and a warning
+  when the worker has gone quiet, for the hourly fetch, a scored batch and the
+  Gmail read. Nothing changes for a job that does not report (#32).
+- **A page for one running job.** In Run history, a row that is still running
+  carries a **Live Status** link in its "What happened" cell. It opens
+  `/runs/<id>`: the same progress, refreshed every few seconds, and the run's
+  outcome once it ends. An id that is not a run you can see goes back to Run
+  history (#36).
+
 ## [2.59.3] — 2026-10-14
 
 ### Changed
