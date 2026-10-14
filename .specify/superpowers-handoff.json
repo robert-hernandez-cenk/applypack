@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-14T04:18:23Z",
+  "updated_at": "2026-10-14T04:49:53Z",
   "feature_directory": "specs/022-gmail-job-leads",
   "source_of_truth": {
     "constitution": ".specify/memory/constitution.md",
@@ -19,11 +19,16 @@
     "requesting-code-review",
     "finishing-a-development-branch"
   ],
-  "status": "blocked",
-  "blocked_reason": "Missing required Spec Kit artifacts: specs/022-gmail-job-leads/spec.md,specs/022-gmail-job-leads/plan.md,specs/022-gmail-job-leads/tasks.md",
+  "status": "complete",
+  "blocked_reason": null,
   "artifact_owner": "claude",
   "review_only_agents": [],
   "notes": null,
   "last_snapshot_id": null,
-  "instructions": "Use /speckit-superpowers-bridge (Claude Code) or $speckit-superpowers-bridge (Codex). The bridge orchestrates native Superpowers skills against tasks.md; do not run speckit.implement and do not invoke superpowers:writing-plans / :brainstorming for an active Spec Kit feature."
+  "instructions": "Use /speckit-superpowers-bridge (Claude Code) or $speckit-superpowers-bridge (Codex). The bridge orchestrates native Superpowers skills against tasks.md; do not run speckit.implement and do not invoke superpowers:writing-plans / :brainstorming for an active Spec Kit feature.",
+  "artifacts_sha256": {
+    "spec.md": null,
+    "plan.md": null,
+    "tasks.md": null
+  }
 }
