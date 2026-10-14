@@ -80,21 +80,10 @@ async function getJson(url: string, key: string, limits: InstanceLimits): Promis
     } catch {
       throw new InstanceError(controller.signal.aborted ? 'timeout' : 'unreachable');
     }
-    if (resp.status >= REDIRECT_MIN && resp.status <= REDIRECT_MAX) {
+    const refusal = refusalOf(resp.status);
+    if (refusal) {
       await resp.body?.cancel().catch(() => undefined);
-      throw new InstanceError('redirect');
-    }
-    if (resp.status === 401 || resp.status === 403) {
-      await resp.body?.cancel().catch(() => undefined);
-      throw new InstanceError('unauthorized');
-    }
-    if (resp.status === 404 || resp.status === 405 || resp.status === 410) {
-      await resp.body?.cancel().catch(() => undefined);
-      throw new InstanceError('notApi');
-    }
-    if (!resp.ok) {
-      await resp.body?.cancel().catch(() => undefined);
-      throw new InstanceError('unreachable');
+      throw new InstanceError(refusal);
     }
     const text = await readCapped(resp, maxBytes, controller.signal);
     try {
@@ -105,6 +94,14 @@ async function getJson(url: string, key: string, limits: InstanceLimits): Promis
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** What an answer that is not a 2xx says about the instance; null for one worth reading. */
+function refusalOf(status: number): InstanceFailure | null {
+  if (status >= REDIRECT_MIN && status <= REDIRECT_MAX) return 'redirect';
+  if (status === 401 || status === 403) return 'unauthorized';
+  if (status === 404 || status === 405 || status === 410) return 'notApi';
+  return status >= 200 && status < REDIRECT_MIN ? null : 'unreachable';
 }
 
 /** The body as text, stopped as soon as it passes `maxBytes`. */
