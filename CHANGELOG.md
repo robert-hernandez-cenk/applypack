@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.59.1] — 2026-10-14
+
+### Added
+- **Sort the jobs list by its column headers.** On Jobs, the Title, Company,
+  Fit, Salary, Status and Fetched headers are links: the first click sorts in
+  the column's natural direction (words A→Z, fit / salary / date best or newest
+  first), a second click reverses it. A sort keeps every filter and goes back to
+  page 1; rows with no value come last; the sorted header shows an arrow and is
+  announced to screen readers. The "Sort by" menu and every earlier sort link
+  still work, and an unknown `sort` value now gives the default order instead of
+  an error (#25).
+
+### Known limits
+- Salary compares the figures as posted: an hourly or non-USD figure is
+  ordered by its own number, not a converted one.
+- With one search selected, Fit sorts on the best score across your searches,
+  as the "Highest fit" option always has.
+
+## [2.59.0] — 2026-10-14
+
+### Added
+- **Job leads from your own Gmail.** Connect Gmail (read-only), name a label
+  (default **Job Leads**), and the listings in the mails under it — Indeed,
+  LinkedIn and any other sender's alerts — become jobs for you, scored against
+  your searches. Hourly, or on **Check now**; each mail is read once and no link
+  in a mail is ever opened. Settings → Job search → Gmail job leads; setup in
+  `docs/gmail-setup.md` (ADR 0071, #22).
+
 ## [2.58.0] — 2026-10-14
 
 ### Added
