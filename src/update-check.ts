@@ -12,7 +12,7 @@ import { parseVersion } from './versions';
  * update is `git pull`, which the user should run knowingly.
  */
 
-const RELEASES_URL = 'https://api.github.com/repos/applypack/applypack/releases/latest';
+const RELEASES_URL = 'https://api.github.com/repos/robert-hernandez-cenk/applypack/releases/latest';
 
 const ReleaseSchema = z.object({ tag_name: z.string() });
 
