@@ -99,6 +99,12 @@
   filter → dedupe → classify → persist → alert sequence. Reused by
   `runFetchJob` and `runHnHiringJob`. `{ classify: false }` stores what
   passes the filter unscored (no AI, no alert) — "Fetch now" while paused.
+- `jobs/run-progress.ts` is pure — what a running job tells `/runs` (ADR 0072):
+  `recordCronRun` hands `fn` a `report(p)` that never throws and writes
+  `cron_run.progress` at most every 5 s; it is the only writer, and it clears
+  the column when the run ends. A job's `label` / `unit` are catalog keys
+  (`runs.running.*`), never words. `web/running-view.ts` and
+  `public/running.mjs` read it back; the card is the fragment `GET /runs/running`.
 - `AiProvider` calls are tool-free unless the request sets `webTools`; only
   `src/verification/verify.ts` does (ADR 0009). Never turn it on for the classifier.
 - `AiProvider.complete()` returns an attempt `{ text, outcome, spend }`, and

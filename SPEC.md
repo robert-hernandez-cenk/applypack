@@ -159,6 +159,14 @@ for the range the chart shows; a "Fetch now" verdict names
 the two gates that took the most, and the wizard's scoring pass says why the
 rest did not match. None of it spends an AI call.
 
+Between the funnel and the run history,  draws a "Running now" card while a job is
+running ([ADR 0072](./docs/adr/0072-running-jobs-report-progress-through-the-run-row.md)): one block per
+run with its stage, a bar ("508 / 663 postings"), the time it has taken, what it kept and set aside,
+an estimate from the recent rate (hidden before 20 items, "no estimate" without a total) and the age
+of its last report, amber past two minutes so a worker that stopped is visible. The classify loop, the
+source walk and the Gmail read report; any other job shows its name and elapsed time. The card refreshes
+itself every five seconds and is absent, and not polled, when nothing runs.
+
 ### The Overview's statistics
 
 The Overview answers three questions without a click, none of them with an

@@ -39,7 +39,7 @@ export async function fetchTick(opts: TickOptions = {}): Promise<void> {
     await recordCronRun('fetch', async () => ({ stats: { skipped: 1, reason: 'overlap' } }));
     return;
   }
-  await recordCronRun('fetch', () => runFetchJob({ lock }));
+  await recordCronRun('fetch', (report) => runFetchJob({ lock, report }));
 }
 
 /**
@@ -54,6 +54,6 @@ export async function checkFolder(companyId: number, opts: Pick<TickOptions, 'st
   const lock = await tryFetchLock();
   if (lock === null) return 'busy';
   // Its matches are alerted as the tick's are: in the interface's language.
-  await inRunLocale(() => recordCronRun('folder-watch', () => runFetchJob({ manual: true, only: (c) => c.id === companyId, lock })));
+  await inRunLocale(() => recordCronRun('folder-watch', (report) => runFetchJob({ manual: true, only: (c) => c.id === companyId, lock, report })));
   return 'done';
 }

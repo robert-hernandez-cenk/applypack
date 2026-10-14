@@ -2,6 +2,7 @@ import { CronRunStatus, Prisma } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { DEFAULT_USER_ID } from '../users/identity';
+import { createReporter, type ReportProgress, type RunProgress } from './run-progress';
 
 /** One source's answer in a fetch tick — which boards took the time and which failed (docs/onboarding-sources.md §1). */
 export type SourceStat = {
@@ -23,10 +24,14 @@ interface RunResult<T> {
  *
  * The wrapped function may either return void (no stats), or return
  * { result, stats } to record structured stats on the row.
+ *
+ * It is handed `report` to say where it is (ADR 0072): saved to the row's
+ * `progress` at most every few seconds, never able to fail the run, and
+ * cleared with the final update.
  */
 export async function recordCronRun<T>(
   name: string,
-  fn: () => Promise<T> | Promise<RunResult<T>> | Promise<void>,
+  fn: (report: ReportProgress) => Promise<T> | Promise<RunResult<T>> | Promise<void>,
   /** Whose run it is, for a recap or a nudge (ADR 0069); absent = the install's. */
   userId?: number,
 ): Promise<void> {
@@ -34,18 +39,30 @@ export async function recordCronRun<T>(
     data: { name, status: CronRunStatus.RUNNING, ...(userId !== undefined && { userId }) },
   });
 
+  const reporter = createReporter({
+    now: Date.now,
+    write: async (p: RunProgress) => {
+      await prisma.cronRun.update({ where: { id: run.id }, data: { progress: p } });
+    },
+    onError: (err) => logger.debug({ err, runId: run.id }, 'cron-run: progress not saved'),
+  });
+
   try {
-    const ret = await fn();
+    const ret = await fn(reporter.report);
     const stats = extractStats(ret);
+    // A write still in flight must land before the final update, or it would put the progress back.
+    await reporter.flush();
     await prisma.cronRun.update({
       where: { id: run.id },
       data: {
         status: CronRunStatus.OK,
         finishedAt: new Date(),
         stats: stats ?? Prisma.JsonNull,
+        progress: Prisma.JsonNull,
       },
     });
   } catch (err) {
+    await reporter.flush();
     const message = err instanceof Error ? err.message : String(err);
     logger.error({ err, name, runId: run.id }, 'cron-run: task failed');
     await prisma.cronRun
@@ -55,6 +72,7 @@ export async function recordCronRun<T>(
           status: CronRunStatus.FAILED,
           finishedAt: new Date(),
           errorMessage: message.slice(0, 1000),
+          progress: Prisma.JsonNull,
         },
       })
       .catch((updateErr) =>

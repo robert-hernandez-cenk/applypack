@@ -84,6 +84,7 @@ export const PERSONAL_ROUTES = [
   'POST /companies/mutes/delete',
   // What the install ran: read-only for a member (install runs, the funnel, their own recaps).
   'GET /runs',
+  'GET /runs/running',
   'GET /runs/fetch-now/:id/state',
   'GET /runs/fetch-now/:id',
   // The person's own settings; the page hides the install-wide sections from a member.

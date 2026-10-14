@@ -2,6 +2,7 @@ import { logger } from '../logger';
 import { inRunLocale } from '../run-locale';
 import { listUserIds } from '../users/store';
 import { recordCronRun, type CronStats } from './cron-run';
+import type { ReportProgress } from './run-progress';
 
 /*
  * A job that is each person's own (the recap, the stale nudge — ADR 0069) runs
@@ -16,12 +17,12 @@ import { recordCronRun, type CronStats } from './cron-run';
 export async function runForUsers(
   name: string,
   userIds: readonly number[],
-  job: (userId: number) => Promise<{ stats: CronStats }>,
+  job: (userId: number, report: ReportProgress) => Promise<{ stats: CronStats }>,
 ): Promise<number> {
   let failed = 0;
   for (const userId of userIds) {
     try {
-      await inRunLocale(() => recordCronRun(name, () => job(userId), userId), userId);
+      await inRunLocale(() => recordCronRun(name, (report) => job(userId, report), userId), userId);
     } catch (err) {
       failed++;
       logger.error({ err, name, userId }, 'cron: a person\'s run failed; the others go on');

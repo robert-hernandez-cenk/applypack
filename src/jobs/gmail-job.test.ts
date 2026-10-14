@@ -7,6 +7,7 @@ import { GoogleError, type GmailStatus } from '../gmail/status';
 import { parseMessage } from '../gmail/message';
 import { fenceClose, fenceOpen } from '../prompt-fence';
 import { runGmailJob, type GmailJobDeps } from './gmail-job';
+import type { ProgressReport } from './run-progress';
 
 const NOW = new Date('2026-10-14T12:00:00Z');
 const GOOGLE = { clientId: 'id', clientSecret: 'secret', redirectUri: 'https://x.example/gmail/callback' };
@@ -267,4 +268,26 @@ test('two people: one’s failure does not touch the other, and each person’s 
   assert.ok(h.runs[0]?.items.every((i) => i.job.companyId === 102));
   assert.equal(h.people.get(1)!.ledger.size, 0);
   assert.equal(h.people.get(2)!.ledger.size, 2);
+});
+
+test('it says how far it has read: one report per mail, then the total, with the listings found so far', async () => {
+  const h = harness();
+  const reports: ProgressReport[] = [];
+  await runGmailJob(1, h.deps, (p) => void reports.push(p));
+  assert.ok(reports.every((p) => p.stage === 'mails' && p.total === 2 && p.unit === 'runs.running.unit.mails'));
+  assert.deepEqual(reports.map((p) => p.done), [0, 1, 2]);
+  assert.deepEqual(reports.map((p) => p.counters?.listings), [0, 1, 2]);
+});
+
+test('the scoring that follows is handed the same report', async () => {
+  const h = harness();
+  let handed: unknown;
+  const run = h.deps.pipeline.run;
+  h.deps.pipeline.run = async (items, profiles, opts, source) => {
+    handed = opts.report;
+    return run(items, profiles, opts, source);
+  };
+  const report = (): void => undefined;
+  await runGmailJob(1, h.deps, report);
+  assert.equal(handed, report);
 });

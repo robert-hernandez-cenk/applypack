@@ -11,6 +11,7 @@ import type * as store from '../gmail/store';
 import { logger } from '../logger';
 import type { ClassifierMode } from '../settings';
 import type { CronStats } from './cron-run';
+import type { ReportProgress } from './run-progress';
 import type { FetchResult, ProcessOptions, ProcessStats } from './process-jobs';
 
 /*
@@ -58,7 +59,7 @@ interface Read {
 
 const knownStatus = (status: string): GmailStatus => (GMAIL_STATUSES as readonly string[]).includes(status) ? (status as GmailStatus) : 'error';
 
-export async function runGmailJob(userId: number, deps: GmailJobDeps): Promise<{ stats: CronStats }> {
+export async function runGmailJob(userId: number, deps: GmailJobDeps, report?: ReportProgress): Promise<{ stats: CronStats }> {
   const skipped = (reason: string): { stats: CronStats } => ({ stats: { skipped: 1, reason } });
   const fail = async (status: FailureStatus): Promise<{ stats: CronStats }> => {
     await deps.store.recordCheck(userId, { status });
@@ -105,7 +106,17 @@ export async function runGmailJob(userId: number, deps: GmailJobDeps): Promise<{
   const reads: Read[] = [];
   let leftOut = 0;
   let failure: FailureStatus | null = null;
+  const reportMails = (): void =>
+    report?.({
+      stage: 'mails',
+      label: 'runs.running.stage.mails',
+      unit: 'runs.running.unit.mails',
+      done: reads.length,
+      total: take.length,
+      counters: { listings: reads.reduce((sum, r) => sum + r.count, 0) },
+    });
   for (const id of take) {
+    reportMails();
     try {
       const mail = readMail(await deps.io.getMessage(access, id));
       const read = (outcome: Read['outcome'], count: number): void => void reads.push({ messageId: id, receivedAt: mail.receivedAt, outcome, count });
@@ -135,13 +146,14 @@ export async function runGmailJob(userId: number, deps: GmailJobDeps): Promise<{
     }
   }
 
+  reportMails();
   let inner: ProcessStats | null = null;
   if (items.length > 0) {
     try {
       inner = await deps.pipeline.run(
         items,
         profiles,
-        { classifierMode: pipeline.classifierMode, classify: true, respectAlertHours: true, groupAlerts: true, ownerId: userId },
+        { classifierMode: pipeline.classifierMode, classify: true, respectAlertHours: true, groupAlerts: true, ownerId: userId, report },
         { id: source.id, name: source.name },
       );
     } catch (err) {

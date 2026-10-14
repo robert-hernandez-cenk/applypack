@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { CronRunStatus } from '@prisma/client';
+import { CronRunStatus, Prisma } from '@prisma/client';
 import { config } from './config';
 import { isDiscordWebhookUrl } from './notify/discord';
 import { prisma } from './db';
@@ -50,6 +50,7 @@ async function failInterruptedCronRuns(): Promise<void> {
       status: CronRunStatus.FAILED,
       finishedAt: new Date(),
       errorMessage: 'interrupted',
+      progress: Prisma.JsonNull,
     },
   });
   if (stale.count > 0) {

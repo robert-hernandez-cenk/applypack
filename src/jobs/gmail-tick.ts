@@ -36,7 +36,7 @@ export async function gmailTick(mode: 'all' | 'requested', opts: GmailTickOption
   if (lock === null) return;
   try {
     // Each person is their own run, in their own language, and one failing does not stop the next.
-    await runForUsers('gmail', userIds, (userId) => runGmailJob(userId, liveGmailDeps()));
+    await runForUsers('gmail', userIds, (userId, report) => runGmailJob(userId, liveGmailDeps(), report));
   } finally {
     await lock.release();
   }

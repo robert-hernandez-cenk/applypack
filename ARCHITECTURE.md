@@ -530,7 +530,8 @@ src/
     folder-watch.ts             ← under the launcher: watches the folders of saved postings, runs the scoped fetch once a change settled
     folder-watch-plan.ts        ← pure: which folders to watch, and how long a burst of changes settles
     blocked-hosts.ts            ← pure: isBlockedPostingHost — the hosts ADR 0005 names, for posting-url.ts and the dataset mapper
-    cron-run.ts                 ← recordCronRun(name, fn) wrapper
+    cron-run.ts                 ← recordCronRun(name, fn(report)) wrapper; saves a job's progress to cron_run.progress (ADR 0072)
+    run-progress.ts             ← pure: the progress shape, the 5 s throttle (createReporter), rate, ETA, staleness
 
   scripts/                      ← hand-run; CI runs route-smoke.ts only
     {fetch,digest,cleanup,stale,hn,discovery}-once.ts ← one cron job now (npm run fetch:once …)

@@ -25,6 +25,7 @@ import { makeFetchPauseProbe } from './fetch-pause';
 import { emptyProcessStats, processNormalizedJobs } from './process-jobs';
 import { tryFetchLock, type FetchLock } from './fetch-lock';
 import { addToFunnel } from './funnel-store';
+import type { ReportProgress } from './run-progress';
 import type { CronStats, SourceStat } from './cron-run';
 
 export interface FetchJobOptions {
@@ -37,6 +38,8 @@ export interface FetchJobOptions {
   /** Live progress for the dashboard's run page. */
   onSource?: (progress: SourceProgress) => void;
   onProcessing?: () => void;
+  /** Where the run is, for the Runs page's "Running now" card (ADR 0072); the worker's runs pass it, "Fetch now" has its own page. */
+  report?: ReportProgress;
   /** The wizard's test search: a subset of the sources, a place typed before any search exists. */
   only?: FetchWalkOptions['only'];
   places?: FetchWalkOptions['places'];
@@ -155,12 +158,15 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
   beginPageChangeTick();
   // What a look at a folder learns about its files is staged the same way (ADR 0062).
   beginFolderTick();
+  const reportSources = (done: number, total: number): void =>
+    opts.report?.({ stage: 'sources', label: 'runs.running.stage.sources', unit: 'runs.running.unit.sources', done, total });
   const fetched = await runAllFetchers(paused, (progress) => {
     sources = progress.done;
     if (isFailureStatus(progress.status)) sourcesFailed++;
     if (progress.status === 'not_modified') sourcesUnchanged++;
     bySource.push({ name: progress.company, status: progress.status, count: progress.count, ms: progress.durationMs });
     opts.onSource?.(progress);
+    reportSources(progress.done, progress.total);
   }, { manual: opts.manual === true, only: opts.only, places: opts.places });
   logger.info(
     { count: fetched.length, sources, sourcesFailed, sourcesUnchanged },
@@ -234,6 +240,7 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
     isCancelled: paused,
     respectAlertHours: true,
     unstored,
+    report: opts.report,
   });
 
   // Only now may this tick's validators be sent, and only if it stored
