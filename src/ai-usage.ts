@@ -177,6 +177,9 @@ export function cleanServerUrl(input: string): { ok: true; url: string } | { ok:
 /**
  * An address that is this machine or a private network — Ollama, LM Studio,
  * llama.cpp's server. `host.docker.internal` is the host seen from a container.
+ * One rule for every use of "local": plain http for the OpenAI-compatible
+ * engine, its cost reading "local" and the crawler tokens it drops, as well as
+ * the local engine's address. 100.64.0.0/10 (Tailscale and similar) counts.
  */
 export function isLocalUrl(url: string): boolean {
   try {
@@ -195,5 +198,6 @@ export function isLocalHost(hostname: string): boolean {
   const octets = host.split('.').map(Number);
   if (octets.length !== 4 || octets.some((o) => !Number.isInteger(o) || o < 0 || o > 255)) return false;
   const [a, b] = octets as [number, number, number, number];
-  return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
+  // 100.64.0.0/10 is carrier-grade NAT, the range Tailscale and similar meshes hand out.
+  return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31) || (a === 100 && b >= 64 && b <= 127);
 }

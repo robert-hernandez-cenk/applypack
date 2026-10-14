@@ -31,6 +31,12 @@ test('one public address among the answers is enough to refuse the name', async 
   assert.deepEqual(await checkLocalAiUrl('https://ollama.example.com', resolve), { ok: false, reason: NOT_LOCAL });
 });
 
+test('a name that resolves into the carrier-grade NAT range is local; just outside it is not', async () => {
+  const { resolve } = fake({ 'ollama.mesh': ['100.100.1.5'], 'ollama.edge': ['100.128.0.1'] });
+  assert.deepEqual(await checkLocalAiUrl('http://ollama.mesh:11434', resolve), { ok: true, url: 'http://ollama.mesh:11434' });
+  assert.deepEqual(await checkLocalAiUrl('http://ollama.edge:11434', resolve), { ok: false, reason: NOT_LOCAL });
+});
+
 test('an IPv4-mapped IPv6 answer is not local, whatever it maps', async () => {
   const { resolve } = fake({ 'ollama.lan': ['::ffff:10.0.0.5'] });
   assert.deepEqual(await checkLocalAiUrl('http://ollama.lan', resolve), { ok: false, reason: NOT_LOCAL });

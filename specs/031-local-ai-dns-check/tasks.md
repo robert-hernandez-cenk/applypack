@@ -67,13 +67,13 @@
 
 ### Tests first
 
-- [ ] T015 [US3] In `src/ai-usage.test.ts` extend the "a local server is this machine or a private network" test: `http://100.64.0.0/v1`, `http://100.100.1.5:11434`, `http://100.127.255.255` local; `http://100.63.255.255`, `http://100.128.0.0` not local. Add `billingOf('openai_api', { openAiBaseUrl: 'http://100.100.1.5:1234/v1', geminiKey: false })` → `'local'` and the `http://100.128.0.1/v1` twin → `'billed'`. In the `checkOpenAiBaseUrl` test: `http://100.100.1.5:1234/v1` is accepted, `http://100.128.0.1/v1` refused with the https text. Run: these FAIL first
-- [ ] T016 [US3] In `src/ai-engine.test.ts` next to the existing OpenAI-compatible-server crawler-token cases, add one whose `openAiLocal` flag is built the way `ai-runtime.ts:getAiEngineEnv` builds it — `isLocalUrl('http://100.100.1.5:1234/v1')` — asserting `aiCrawlerTokens` then drops `gptbot`, and the `http://100.128.0.1/v1` twin keeps it (mirror the neighbours' fixture shape; `getAiEngineEnv` itself imports `config` and is not unit-tested)
+- [x] T015 [US3] In `src/ai-usage.test.ts` extend the "a local server is this machine or a private network" test: `http://100.64.0.0/v1`, `http://100.100.1.5:11434`, `http://100.127.255.255` local; `http://100.63.255.255`, `http://100.128.0.0` not local. Add `billingOf('openai_api', { openAiBaseUrl: 'http://100.100.1.5:1234/v1', geminiKey: false })` → `'local'` and the `http://100.128.0.1/v1` twin → `'billed'`. In the `checkOpenAiBaseUrl` test: `http://100.100.1.5:1234/v1` is accepted, `http://100.128.0.1/v1` refused with the https text. Run: these FAIL first
+- [x] T016 [US3] In `src/ai-engine.test.ts` next to the existing OpenAI-compatible-server crawler-token cases, add one whose `openAiLocal` flag is built the way `ai-runtime.ts:getAiEngineEnv` builds it — `isLocalUrl('http://100.100.1.5:1234/v1')` — asserting `aiCrawlerTokens` then drops `gptbot`, and the `http://100.128.0.1/v1` twin keeps it (mirror the neighbours' fixture shape; `getAiEngineEnv` itself imports `config` and is not unit-tested)
 
 ### Implementation
 
-- [ ] T017 [US3] In `src/ai-usage.ts:isLocalHost` extend the IPv4 line with `|| (a === 100 && b >= 64 && b <= 127)` and the comment "carrier-grade NAT — Tailscale and similar"; make T015/T016 pass; also add `100.64.0.0/10` to the `isLocalUrl` doc comment's list of what counts
-- [ ] T018 [US3] In `src/local-ai-url.test.ts` add `['100.100.1.5']` as an accepted answer and `['100.128.0.1']` as a refused one (the range through the lookup path)
+- [x] T017 [US3] In `src/ai-usage.ts:isLocalHost` extend the IPv4 line with `|| (a === 100 && b >= 64 && b <= 127)` and the comment "carrier-grade NAT — Tailscale and similar"; make T015/T016 pass; also add `100.64.0.0/10` to the `isLocalUrl` doc comment's list of what counts
+- [x] T018 [US3] In `src/local-ai-url.test.ts` add `['100.100.1.5']` as an accepted answer and `['100.128.0.1']` as a refused one (the range through the lookup path)
 
 **Checkpoint**: green; commit `Count 100.64.0.0/10 as the person's own network (#31, US3)`.
 
