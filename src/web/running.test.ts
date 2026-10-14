@@ -73,7 +73,7 @@ describe('refresh', () => {
 });
 
 describe('init', () => {
-  async function run(answers: typeof fetch, opts: { hidden?: () => boolean; onGone?: () => void } = {}) {
+  async function run(answers: typeof fetch, opts: { hidden?: () => boolean; onGone?: () => void; url?: string } = {}) {
     const host = { innerHTML: 'old' };
     const timers: Array<{ fn: () => void; ms: number }> = [];
     let calls = 0;
@@ -81,7 +81,7 @@ describe('init', () => {
       calls++;
       return answers(...args);
     }) as typeof fetch;
-    const started = (await loaded).init(host, { everyMs: 5000, fetchImpl: counted, schedule: (fn, ms) => void timers.push({ fn, ms }), isHidden: opts.hidden ?? (() => false), onGone: opts.onGone ?? (() => undefined) });
+    const started = (await loaded).init(host, { ...(opts.url ? { url: opts.url } : {}), everyMs: 5000, fetchImpl: counted, schedule: (fn, ms) => void timers.push({ fn, ms }), isHidden: opts.hidden ?? (() => false), onGone: opts.onGone ?? (() => undefined) });
     return { host, timers, calls: () => calls, started };
   }
 
@@ -107,6 +107,19 @@ describe('init', () => {
     assert.equal(r.host.innerHTML, '');
     assert.equal(r.timers.length, 1);
     assert.equal(gone, 1);
+  });
+
+  it('asks for the url it was given: the card of one run on /runs/:id (#36)', async () => {
+    const asked: string[] = [];
+    const spy = (async (url: string) => {
+      asked.push(url);
+      return new Response('<section>n</section>', { status: 200 });
+    }) as unknown as typeof fetch;
+    const r = await run(spy, { url: '/runs/7/card' });
+    await r.started;
+    r.timers[0]!.fn();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(asked, ['/runs/7/card']);
   });
 
   it('does not ask while the page is hidden, and tries again later', async () => {

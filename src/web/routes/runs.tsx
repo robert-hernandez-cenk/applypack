@@ -5,6 +5,8 @@ import { Hono } from 'hono';
 import { prisma } from '../../db';
 import { RunsPage } from '../pages/runs';
 import { RunningCard } from '../pages/running-card';
+import { RunStatusBlock, RunStatusPage } from '../pages/run-status';
+import { parseRunId } from '../run-link';
 import { runningView, type RunningView } from '../running-view';
 import { FetchRunPage } from '../pages/fetch-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
@@ -21,6 +23,13 @@ export const runsRoute = new Hono();
 
 /** The runs this person sees: the install's, and the recaps and nudges that were theirs (ADR 0069). */
 const visibleRuns = () => ({ OR: [{ userId: null }, { userId: currentUser().id }] });
+
+/** One run this person may see (#36), or null for an id that is not a run, not theirs or gone: the three look the same. */
+async function loadRun(param: string) {
+  const id = parseRunId(param);
+  if (id === null) return null;
+  return prisma.cronRun.findFirst({ where: { id, ...visibleRuns() } });
+}
 
 /** The ones in flight, laid out for the card. */
 async function loadRunning(): Promise<RunningView[]> {
@@ -106,4 +115,19 @@ runsRoute.get('/runs/fetch-now/:id', (c) => {
     return flashRedirect(run.backUrl, kind, text);
   }
   return c.html(<FetchRunPage run={run} />);
+});
+
+/** The block of one running run, for public/running.mjs on its page: empty once the run is over (or was never theirs). */
+runsRoute.get('/runs/:id/card', async (c) => {
+  const run = await loadRun(c.req.param('id'));
+  c.header('Cache-Control', 'no-store');
+  return run?.status === CronRunStatus.RUNNING ? c.html(<RunStatusBlock view={runningView(run, Date.now())} />) : c.html('');
+});
+
+/** Registered after the literal /runs/running and /runs/fetch-now routes, so `:id` never shadows them. */
+runsRoute.get('/runs/:id', async (c) => {
+  const run = await loadRun(c.req.param('id'));
+  if (!run) return flashRedirect('/runs', 'err', t('runs.status.gone'));
+  const view = run.status === CronRunStatus.RUNNING ? runningView(run, Date.now()) : null;
+  return c.html(<RunStatusPage run={run} view={view} />);
 });

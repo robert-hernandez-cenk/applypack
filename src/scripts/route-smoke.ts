@@ -1523,6 +1523,10 @@ async function runningCardChecks(): Promise<Check[]> {
     },
   });
   const silent = await prisma.cronRun.create({ data: { name: 'smoke-silent', status: 'RUNNING' } });
+  const finished = await prisma.cronRun.create({ data: { name: 'smoke-finished', status: 'OK', finishedAt: new Date(), stats: { fetched: 3, inserted: 1 } } });
+  const failed = await prisma.cronRun.create({ data: { name: 'smoke-failed', status: 'FAILED', finishedAt: new Date(), errorMessage: 'smoke boom' } });
+  const stranger = await prisma.user.create({ data: { oidcSub: 'smoke-run-stranger', name: 'Run stranger', role: 'MEMBER' } });
+  const foreignRun = await prisma.cronRun.create({ data: { name: 'digest', status: 'RUNNING', userId: stranger.id } });
   try {
     const live = await fragment();
     out.push({
@@ -1534,8 +1538,33 @@ async function runningCardChecks(): Promise<Check[]> {
     const page = await app.request('/runs', { headers: ORIGIN });
     const html = await page.text();
     out.push({ route: 'GET /runs holds the card and its host while a run is going', url: '/runs', status: page.status, ok: page.status === 200 && html.includes('id="running-host"') && html.includes('smoke-reported') });
+    // The page of one run (#36): the link on /runs, the page, the poll, then the outcome once it ends.
+    const link = `href="/runs/${reported.id}"`;
+    out.push({ route: 'GET /runs links Live Status for a RUNNING row only', url: '/runs', status: page.status, ok: html.includes(link) && html.includes('Live Status') && !html.includes(`href="/runs/${finished.id}"`) });
+    const statusPage = await app.request(`/runs/${reported.id}`, { headers: ORIGIN });
+    const statusHtml = await statusPage.text();
+    out.push({ route: 'GET /runs/:id draws the progress of a running run and polls its card', url: `/runs/${reported.id}`, status: statusPage.status, ok: statusPage.status === 200 && statusHtml.includes('smoke-reported') && statusHtml.includes('508') && statusHtml.includes(`/runs/${reported.id}/card`) });
+    const card = await app.request(`/runs/${reported.id}/card`, { headers: ORIGIN });
+    const cardHtml = await card.text();
+    out.push({ route: 'GET /runs/:id/card is the block while RUNNING (no store)', url: `/runs/${reported.id}/card`, status: card.status, ok: card.status === 200 && cardHtml.includes('508') && card.headers.get('cache-control') === 'no-store' });
+    const endedPage = await app.request(`/runs/${finished.id}`, { headers: ORIGIN });
+    const endedHtml = await endedPage.text();
+    out.push({ route: 'GET /runs/:id of an ended run shows its outcome and no poll', url: `/runs/${finished.id}`, status: endedPage.status, ok: endedPage.status === 200 && endedHtml.includes('smoke-finished') && endedHtml.includes('/runs"') && !endedHtml.includes('running-host') });
+    const endedCard = await app.request(`/runs/${finished.id}/card`, { headers: ORIGIN });
+    out.push({ route: 'GET /runs/:id/card is empty once the run ended', url: `/runs/${finished.id}/card`, status: endedCard.status, ok: endedCard.status === 200 && (await endedCard.text()) === '' });
+    const failedPage = await app.request(`/runs/${failed.id}`, { headers: ORIGIN });
+    out.push({ route: 'GET /runs/:id of a failed run shows the failure sentence', url: `/runs/${failed.id}`, status: failedPage.status, ok: failedPage.status === 200 && (await failedPage.text()).includes('smoke boom') });
+    // A missing, malformed or foreign run: the same answer, back to the history.
+    const unknown = await app.request('/runs/2147483000', { headers: ORIGIN });
+    const malformed = await app.request('/runs/abc', { headers: ORIGIN });
+    const foreign = await app.request(`/runs/${foreignRun.id}`, { headers: ORIGIN });
+    const foreignCard = await app.request(`/runs/${foreignRun.id}/card`, { headers: ORIGIN });
+    const toHistory = (r: Response): boolean => r.status === 303 && (r.headers.get('location') ?? '').startsWith('/runs');
+    out.push({ route: 'GET /runs/:id of an unknown, malformed or foreign run goes back to /runs', url: '/runs/:id', status: foreign.status, ok: toHistory(unknown) && toHistory(malformed) && toHistory(foreign) && unknown.headers.get('location') === foreign.headers.get('location') });
+    out.push({ route: 'GET /runs/:id/card of a foreign run is empty', url: '/runs/:id/card', status: foreignCard.status, ok: foreignCard.status === 200 && (await foreignCard.text()) === '' });
   } finally {
-    await prisma.cronRun.deleteMany({ where: { id: { in: [reported.id, silent.id] } } });
+    await prisma.cronRun.deleteMany({ where: { id: { in: [reported.id, silent.id, finished.id, failed.id, foreignRun.id] } } });
+    await prisma.user.delete({ where: { id: stranger.id } });
   }
   const after = await fragment();
   out.push({ route: 'GET /runs/running is empty again once the runs ended', url: '/runs/running', status: after.res.status, ok: after.res.status === 200 && after.html === '' });
