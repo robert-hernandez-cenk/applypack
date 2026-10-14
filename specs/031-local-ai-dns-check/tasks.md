@@ -88,7 +88,7 @@
 
 ## Phase 7: Verify
 
-- [ ] T023 Run `export DATABASE_URL=postgresql://x:x@localhost:5433/x && npm run lint:types && npm test && npm run exports:audit` and keep the output; every task above is ticked
+- [x] T023 Run `export DATABASE_URL=postgresql://x:x@localhost:5433/x && npm run lint:types && npm test && npm run exports:audit` and keep the output; every task above is ticked
 - [ ] T024 Review the whole diff (`git diff main...HEAD`): every changed line needed, nothing else touched (`server-models.ts` hosts, `OLLAMA_URL`, the route smoke); record in this file anything left unverified (the real-network lookup, the route smoke which needs a database)
 
 ---
@@ -102,3 +102,15 @@
 ## Implementation strategy
 
 MVP is US1 + US2 (a name that resolves locally can be saved from both places). US3 ships in the same PR because the owner chose it, but it is isolated to one line in `isLocalHost` and its tests, so it can be reverted alone.
+
+## Verification record (2026-10-14)
+
+Fresh runs on the final tree, `DATABASE_URL` set to a dummy value:
+
+- `npm run lint:types` — exit 0.
+- `npm test` — 3807 tests, 3804 pass, 0 fail, 3 skipped (baseline 3798 / 3795; the nine new tests are the lookup matrix, the CGNAT cases and the catalog key).
+- `npm run exports:audit` — exit 0, 0 dead, 0 over-exported.
+- Red-green seen: `local-ai-url.test.ts` failed on the missing module before the module existed; the three CGNAT tests failed on `http://100.64.0.0:11434` before the range was added.
+- The real default resolver, run once outside the tests: `localhost` accepted with no lookup, `ollama.invalid` refused as "could not be found", `https://example.com` refused as not local.
+
+Not verified here: the route smoke (`npm run build && npm run smoke:routes`, needs a database; CI runs it) and a real private name on a real network.
