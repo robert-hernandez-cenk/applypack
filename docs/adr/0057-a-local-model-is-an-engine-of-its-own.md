@@ -92,3 +92,27 @@ When stage C measures the local models: a recommended default and a preset
 is global today, so such a preset needs a per-role order, and that would be
 a new decision. Also revisit when a second local server with its own native
 API is asked for.
+
+**Addendum, 2026-10-14 (#31).** The address is judged by what it resolves to,
+not only by how it is spelled. A name that is local by its text
+(`localhost`, `*.local`, `host.docker.internal`, an address in range) is
+accepted as before, without a lookup. Any other name (`ollama.lan`) is looked
+up when the address is saved and accepted only if every address it answers
+with is local: one public record refuses it, and a name that does not resolve
+(or does not answer within five seconds) is refused with its own message. The
+check is `local-ai-url.ts:checkLocalAiUrl`, which takes the resolver as an
+argument; `ai-usage.ts` stays pure and keeps the rule itself,
+`isLocalHost`.
+
+The range gained 100.64.0.0/10 (carrier-grade NAT: Tailscale and similar), by
+the owner's choice on the issue. It is one rule for every use of "local", so
+it also lets the OpenAI-compatible engine take plain http to such an address,
+reads its cost as local, and drops OpenAI's robots.txt tokens for it
+(`aiCrawlerTokens`, ADR 0036 addendum 2026-09-28).
+
+Limits, kept on purpose. The check runs when the address is saved: a record
+that changes afterwards is not watched (the DNS-rebinding residual of
+`jobs/posting-url.ts`, which pins nothing either). `OLLAMA_URL` from the
+environment is not checked. An IPv4-mapped IPv6 answer (`::ffff:10.0.0.5`) is
+refused, the stricter side. The addresses the wizard scans for a running
+server are unchanged.
