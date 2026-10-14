@@ -8,15 +8,15 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Confirm the baseline: `npm run lint:types` and `npm test` pass on the untouched branch (recorded at worktree creation: 3795 pass, 3 skipped, 0 fail with `DATABASE_URL` set)
+- [x] T001 Confirm the baseline: `npm run lint:types` and `npm test` pass on the untouched branch (recorded at worktree creation: 3795 pass, 3 skipped, 0 fail with `DATABASE_URL` set)
 
 ## Phase 2: Foundational — one range rule, one cleanup (behavior-preserving)
 
 **Purpose**: the shared pieces every story builds on. No behavior changes here: the existing `src/ai-usage.test.ts` and `src/ai-engine.test.ts` must pass unchanged.
 
-- [ ] T002 In `src/ai-usage.ts` extract `export function isLocalHost(hostname: string): boolean` — the body of today's `isLocalUrl` after the URL parse (lowercase, strip `[`/`]`, then `localhost` / `*.localhost` / `*.local` / `host.docker.internal`, the IPv6 branch `::1` or `^(fe80|fc|fd)`, the four-octet IPv4 ranges 127/8, 10/8, 192.168/16, 172.16/12); make `isLocalUrl(url)` parse the URL (false on a throw) and return `isLocalHost(new URL(url).hostname)`
-- [ ] T003 In `src/ai-usage.ts` add `export function cleanServerUrl(input: string)` returning `{ ok: true; url } | { ok: false; reason }` — the parse / scheme (`engine.url.scheme`) / credentials (`engine.url.noKey`) / `${origin}${pathname minus trailing slashes}` half of today's `checkOpenAiBaseUrl`; make `checkOpenAiBaseUrl` call it and add only the `engine.url.https` rule (an `http:` address that is not `isLocalUrl`). Leave `checkLocalAiUrl` where it is for now (it still calls `checkOpenAiBaseUrl`); US2 removes it
-- [ ] T004 Run `npm run lint:types && npm test`: all green with no test edited
+- [x] T002 In `src/ai-usage.ts` extract `export function isLocalHost(hostname: string): boolean` — the body of today's `isLocalUrl` after the URL parse (lowercase, strip `[`/`]`, then `localhost` / `*.localhost` / `*.local` / `host.docker.internal`, the IPv6 branch `::1` or `^(fe80|fc|fd)`, the four-octet IPv4 ranges 127/8, 10/8, 192.168/16, 172.16/12); make `isLocalUrl(url)` parse the URL (false on a throw) and return `isLocalHost(new URL(url).hostname)`
+- [x] T003 In `src/ai-usage.ts` add `export function cleanServerUrl(input: string)` returning `{ ok: true; url } | { ok: false; reason }` — the parse / scheme (`engine.url.scheme`) / credentials (`engine.url.noKey`) / `${origin}${pathname minus trailing slashes}` half of today's `checkOpenAiBaseUrl`; make `checkOpenAiBaseUrl` call it and add only the `engine.url.https` rule (an `http:` address that is not `isLocalUrl`). Leave `checkLocalAiUrl` where it is for now (it still calls `checkOpenAiBaseUrl`); US2 removes it
+- [x] T004 Run `npm run lint:types && npm test`: all green with no test edited
 
 **Checkpoint**: tree green, no behavior changed; commit `Share the local-address rule and the server-address cleanup (#31)`.
 

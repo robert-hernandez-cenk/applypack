@@ -151,6 +151,16 @@ export function billingOf(id: AiProviderId, facts: BillingFacts): AiBilling {
  * key at all.
  */
 export function checkOpenAiBaseUrl(input: string): { ok: true; url: string } | { ok: false; reason: string } {
+  const cleaned = cleanServerUrl(input);
+  if (!cleaned.ok) return cleaned;
+  if (cleaned.url.startsWith('http:') && !isLocalUrl(cleaned.url)) {
+    return { ok: false, reason: t('engine.url.https') };
+  }
+  return cleaned;
+}
+
+/** A typed server address made one we can send to: http(s), no credentials, no trailing slash, query or fragment. */
+export function cleanServerUrl(input: string): { ok: true; url: string } | { ok: false; reason: string } {
   let url: URL;
   try {
     url = new URL(input.trim());
@@ -161,11 +171,7 @@ export function checkOpenAiBaseUrl(input: string): { ok: true; url: string } | {
     return { ok: false, reason: t('engine.url.scheme') };
   }
   if (url.username || url.password) return { ok: false, reason: t('engine.url.noKey') };
-  const clean = `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
-  if (url.protocol === 'http:' && !isLocalUrl(clean)) {
-    return { ok: false, reason: t('engine.url.https') };
-  }
-  return { ok: true, url: clean };
+  return { ok: true, url: `${url.origin}${url.pathname.replace(/\/+$/, '')}` };
 }
 
 /**
@@ -187,12 +193,16 @@ export function checkLocalAiUrl(input: string): { ok: true; url: string } | { ok
  * llama.cpp's server. `host.docker.internal` is the host seen from a container.
  */
 export function isLocalUrl(url: string): boolean {
-  let host: string;
   try {
-    host = new URL(url).hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    return isLocalHost(new URL(url).hostname);
   } catch {
     return false;
   }
+}
+
+/** The same rule on a bare hostname or address literal — what a name resolves to is judged by it too. */
+export function isLocalHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host === 'host.docker.internal') return true;
   // An IPv6 literal: loopback, link-local, unique-local.
   if (host.includes(':')) return host === '::1' || /^(fe80|fc|fd)/.test(host);
