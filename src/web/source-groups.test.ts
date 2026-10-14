@@ -25,6 +25,8 @@ test('rows the user brings are their own source, never an aggregator the wizard 
   assert.equal(bringsRows('IMPORT'), true);
   // A folder is read on the tick, so it has a switch; its rows are the user's all the same.
   assert.deepEqual([sourceFamily('FOLDER'), isAggregator({ atsType: 'FOLDER' }), bringsRows('FOLDER'), fetchedSource('FOLDER')], ['own', false, true, true]);
+  // A person's Gmail label (ADR 0071) is read by its own job, so it has no switch and no company row.
+  assert.deepEqual([sourceFamily('GMAIL'), isAggregator({ atsType: 'GMAIL' }), bringsRows('GMAIL'), fetchedSource('GMAIL')], ['own', false, true, false]);
   assert.equal(bringsRows('FEED') || bringsRows('REMOTIVE') || bringsRows('MANUAL'), false);
 });
 

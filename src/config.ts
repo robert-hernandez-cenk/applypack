@@ -75,6 +75,10 @@ export const ConfigSchema = z.object({
   OIDC_SESSION_SECRET: optionalText,
   OIDC_SESSION_HOURS: optionalText,
   WEB_PUBLIC_URL: optionalText,
+  // The Google client behind "Connect Gmail" (ADR 0071, docs/gmail-setup.md).
+  // Both set = the feature is on; either empty = the card says it is not set up.
+  GOOGLE_CLIENT_ID: optionalText,
+  GOOGLE_CLIENT_SECRET: optionalText,
   // production = one JSON object a line (the image and compose set it, for
   // `docker compose logs` and any log collector); anything else = pino-pretty,
   // for a person reading `npm start` or a dev watcher in a terminal.

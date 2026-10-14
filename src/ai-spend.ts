@@ -229,6 +229,7 @@ const FEATURE_LABEL = {
   classifier: 'spend.feature.classifier',
   prefilter: 'spend.feature.prefilter',
   'posting-extract': 'spend.feature.postingExtract',
+  'gmail-extract': 'spend.feature.gmailExtract',
   'posting-brief': 'spend.feature.postingBrief',
   'resume-scan': 'spend.feature.resumeScan',
   'resume-structure': 'spend.feature.resumeStructure',

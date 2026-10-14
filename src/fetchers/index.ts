@@ -424,6 +424,10 @@ export async function fetchOne(
       // Rows the user uploaded on /jobs/import (ADR 0062): stored then, and
       // the row is never active.
       return [];
+    case AtsType.GMAIL:
+      // A person's job leads from their own Gmail label (ADR 0071): read by
+      // jobs/gmail-job.ts, never by the tick, and the row is never active.
+      return [];
     case AtsType.FOLDER:
       // A folder a tool writes into, or one the user saves postings into
       // (ADR 0062): read from the disk, no request. What it learns about each

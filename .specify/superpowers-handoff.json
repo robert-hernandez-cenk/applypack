@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-14T04:16:46Z",
+  "updated_at": "2026-10-14T04:18:23Z",
   "feature_directory": "specs/022-gmail-job-leads",
   "source_of_truth": {
     "constitution": ".specify/memory/constitution.md",
@@ -11,7 +11,7 @@
   "supersedes": [
     "speckit.implement"
   ],
-  "executor": "speckit",
+  "executor": "superpowers",
   "capabilities": [
     "executing-plans",
     "test-driven-development",
@@ -19,8 +19,8 @@
     "requesting-code-review",
     "finishing-a-development-branch"
   ],
-  "status": "ready",
-  "blocked_reason": null,
+  "status": "blocked",
+  "blocked_reason": "Missing required Spec Kit artifacts: specs/022-gmail-job-leads/spec.md,specs/022-gmail-job-leads/plan.md,specs/022-gmail-job-leads/tasks.md",
   "artifact_owner": "claude",
   "review_only_agents": [],
   "notes": null,

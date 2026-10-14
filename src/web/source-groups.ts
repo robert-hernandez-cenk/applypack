@@ -24,9 +24,9 @@ const OWN = new Set(['FEED', 'CAREER_PAGE', 'BROWSER_PAGE']);
  * source, like an aggregator, each named on its own row (`bringsRows`, read
  * by employer.ts).
  */
-const ROW_SOURCES = new Set(['IMPORT', 'FOLDER']);
+const ROW_SOURCES = new Set(['IMPORT', 'FOLDER', 'GMAIL']);
 /** Kinds the tick never reads: a pasted job, a page the user pastes (TASKS N8), an imported file. */
-const NOT_FETCHED = new Set(['MANUAL', 'BROWSER_PAGE', 'IMPORT']);
+const NOT_FETCHED = new Set(['MANUAL', 'BROWSER_PAGE', 'IMPORT', 'GMAIL']);
 
 /**
  * A kind the tick fetches, so a pill on the Sources grid can switch it off.
