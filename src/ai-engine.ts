@@ -73,7 +73,7 @@ export function preferWebTools(chain: readonly AiProviderId[]): AiProviderId[] {
  * `openai_api` serves api.openai.com and a server on this machine alike: it
  * carries OpenAI's tokens, and `aiCrawlerTokens` drops them when its address
  * is local. `local_api` is a model on this machine by construction — its
- * address must be local (ai-usage.ts:checkLocalAiUrl) — and is nobody's
+ * address must be local (local-ai-url.ts:checkLocalAiUrl) — and is nobody's
  * crawler (ADR 0036 addendum 2026-09-28).
  *
  * Anthropic publishes three names (support.claude.com, read 2026-09-16):

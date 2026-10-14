@@ -3736,6 +3736,7 @@
   "engine.url.noKey": "No incluyas la clave en la dirección; tiene su propio campo.",
   "engine.url.https": "Un servidor en internet requiere https://, porque con http simple la clave viajaría sin cifrar.",
   "engine.url.notLocal": "El motor local se comunica con un servidor en este equipo o en tu propia red; uno en internet va en el motor compatible con OpenAI.",
+  "engine.url.noHost": "No se encontró ese nombre: revisa la dirección y que el servidor esté en tu red.",
   "overview.packs.title": "Listos para enviar ({n})",
   "overview.packs.prepared": "preparado <when/>",
   "overview.packs.preparedMatch": "coincidencia {score} · preparado <when/>",

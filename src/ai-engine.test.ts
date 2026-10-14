@@ -18,6 +18,7 @@ import {
   type AiEngineEnv,
 } from './ai-engine';
 import { AI_TASKS } from './ai-tasks';
+import { isLocalUrl } from './ai-usage';
 
 const ENV: AiEngineEnv = {
   provider: 'claude_code',
@@ -292,6 +293,17 @@ describe('a local OpenAI-compatible server', () => {
     const remote: AiEngineEnv = { ...local, openAiLocal: false, hasOpenAiKey: true };
     const openai = resolveAiEngine({ order: ['openai_api'], models: {} }, remote);
     assert.ok(aiCrawlerTokens(bindingProviders(openai, remote.provider, remote), remote).includes('gptbot'));
+  });
+
+  it('is local on the carrier-grade NAT range too, so it binds no OpenAI token there either', () => {
+    // ai-runtime.ts:getAiEngineEnv sets openAiLocal from isLocalUrl; this is that, without the config import.
+    const onMesh: AiEngineEnv = { ...local, openAiLocal: isLocalUrl('http://100.100.1.5:1234/v1') };
+    const engine = resolveAiEngine({ order: ['openai_api'], models: {} }, onMesh);
+    assert.deepEqual(aiCrawlerTokens(bindingProviders(engine, onMesh.provider, onMesh), onMesh), []);
+
+    const outside: AiEngineEnv = { ...local, openAiLocal: isLocalUrl('http://100.128.0.1:1234/v1'), hasOpenAiKey: true };
+    const openai = resolveAiEngine({ order: ['openai_api'], models: {} }, outside);
+    assert.ok(aiCrawlerTokens(bindingProviders(openai, outside.provider, outside), outside).includes('gptbot'));
   });
 
   it('goes first on "Use it", with the stored list behind it and one model in every slot', () => {

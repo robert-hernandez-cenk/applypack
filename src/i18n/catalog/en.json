@@ -3736,6 +3736,7 @@
   "engine.url.noKey": "Leave the key out of the address; it has its own field.",
   "engine.url.https": "A server on the internet takes https:// — plain http would send the key in the clear.",
   "engine.url.notLocal": "The local engine talks to a server on this machine or your own network; one on the internet goes in the OpenAI-compatible engine.",
+  "engine.url.noHost": "That name could not be found — check the address, and that the server is on this network.",
   "overview.packs.title": "Ready to send ({n})",
   "overview.packs.prepared": "prepared <when/>",
   "overview.packs.preparedMatch": "match {score} · prepared <when/>",

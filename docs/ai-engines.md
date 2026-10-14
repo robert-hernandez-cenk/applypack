@@ -247,6 +247,13 @@ network — ADR 0057. No key, no bill, and the text never leaves.
   keeps meaning hosted calls. Its calls get three times the usual time.
 - **Docker:** `http://host.docker.internal:11434` as the address; on Linux
   Ollama must also listen beyond loopback (`OLLAMA_HOST=0.0.0.0`).
+- **A name works too.** `http://ollama.lan:11434` is saved when the name
+  resolves and every address it answers with is on this machine or your own
+  network: `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`,
+  `100.64.0.0/10` (Tailscale and similar), or the IPv6 loopback, link-local and
+  unique-local ranges. One public address among them, or a name that does not
+  resolve, is refused. It is checked when you save; `OLLAMA_URL` in `.env` is
+  not.
 
 ## Codex CLI (ChatGPT subscription)
 

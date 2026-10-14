@@ -97,7 +97,8 @@ import { checkForUpdate } from '../../update-check';
 import { isNewer } from '../../versions';
 import { isReapplyChoice } from '../../employer';
 import { forgetUpdateNotice } from '../update-notice';
-import { billingOf, checkLocalAiUrl, checkOpenAiBaseUrl, isLocalUrl, type AiBilling } from '../../ai-usage';
+import { billingOf, checkOpenAiBaseUrl, isLocalUrl, type AiBilling } from '../../ai-usage';
+import { checkLocalAiUrl } from '../../local-ai-url';
 import { billingNotes } from '../../ai-spend';
 import { engineTroubles } from '../../ai-health';
 import { troubleLine } from '../usage-hints';
@@ -753,7 +754,7 @@ settingsRoute.post('/settings/ai/local', async (c) => {
     await setLocalContextTokens(tokens);
     return flashRedirect('/settings?tab=ai', 'ok', t('settingsRoute.local.contextSet', { tokens }));
   }
-  const checked = checkLocalAiUrl(typeof form.baseUrl === 'string' ? form.baseUrl : '');
+  const checked = await checkLocalAiUrl(typeof form.baseUrl === 'string' ? form.baseUrl : '');
   if (!checked.ok) return flashRedirect('/settings?tab=ai', 'err', t('settingsRoute.local.notSaved', { reason: checked.reason }));
   await setLocalAiUrl(checked.url);
   forgetAiProbe();

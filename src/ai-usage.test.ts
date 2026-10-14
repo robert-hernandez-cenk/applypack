@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addUsage, billingOf, checkLocalAiUrl, checkOpenAiBaseUrl, count, hasUsage, isLocalUrl, NO_USAGE } from './ai-usage';
+import { addUsage, billingOf, checkOpenAiBaseUrl, count, hasUsage, isLocalUrl, NO_USAGE } from './ai-usage';
 
 test('a count is what the vendor reported, or null', () => {
   assert.equal(count(1204), 1204);
@@ -39,12 +39,24 @@ test('a local server is this machine or a private network, nothing that merely l
     'http://172.20.1.1/v1',
     'http://host.docker.internal:11434/v1',
     'http://ollama.local:11434/v1',
+    // 100.64.0.0/10 (carrier-grade NAT, Tailscale): both ends of the range.
+    'http://100.64.0.0:11434',
+    'http://100.100.1.5:11434',
+    'http://100.127.255.255:11434',
   ]) {
     assert.equal(isLocalUrl(url), true, url);
   }
-  for (const url of ['https://api.openai.com/v1', 'https://fd-ai.example.com/v1', 'http://172.32.0.1/v1', 'not a url']) {
+  for (const url of ['https://api.openai.com/v1', 'https://fd-ai.example.com/v1', 'http://172.32.0.1/v1', 'http://100.63.255.255', 'http://100.128.0.0', 'not a url']) {
     assert.equal(isLocalUrl(url), false, url);
   }
+});
+
+test('a server on the carrier-grade NAT range is local for the cost and for plain http', () => {
+  const facts = { geminiKey: false };
+  assert.equal(billingOf('openai_api', { ...facts, openAiBaseUrl: 'http://100.100.1.5:1234/v1' }), 'local');
+  assert.equal(billingOf('openai_api', { ...facts, openAiBaseUrl: 'http://100.128.0.1:1234/v1' }), 'billed');
+  assert.deepEqual(checkOpenAiBaseUrl('http://100.100.1.5:1234/v1'), { ok: true, url: 'http://100.100.1.5:1234/v1' });
+  assert.equal(checkOpenAiBaseUrl('http://100.128.0.1:1234/v1').ok, false);
 });
 
 
@@ -56,12 +68,4 @@ test('a server address is http(s) without a key in it, and plain http only on th
   for (const bad of ['', 'localhost:11434/v1', 'ftp://127.0.0.1/v1', 'javascript:alert(1)', 'http://user:sk-1@127.0.0.1/v1', 'http://api.example.com/v1']) {
     assert.equal(checkOpenAiBaseUrl(bad).ok, false, bad);
   }
-});
-
-test("the local engine's address is Ollama's root, on this machine or the user's network", () => {
-  assert.deepEqual(checkLocalAiUrl('http://127.0.0.1:11434'), { ok: true, url: 'http://127.0.0.1:11434' });
-  assert.deepEqual(checkLocalAiUrl('http://127.0.0.1:11434/v1/'), { ok: true, url: 'http://127.0.0.1:11434' });
-  assert.deepEqual(checkLocalAiUrl('http://host.docker.internal:11434/api'), { ok: true, url: 'http://host.docker.internal:11434' });
-  assert.equal(checkLocalAiUrl('https://ollama.example.com').ok, false);
-  assert.equal(checkLocalAiUrl('localhost:11434').ok, false);
 });

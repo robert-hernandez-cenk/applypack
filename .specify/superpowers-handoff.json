@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-14T12:13:25Z",
-  "feature_directory": "specs/029-jobs-by-source",
+  "updated_at": "2026-10-14T15:36:52Z",
+  "feature_directory": "specs/031-local-ai-dns-check",
   "source_of_truth": {
     "constitution": ".specify/memory/constitution.md",
-    "spec": "specs/029-jobs-by-source/spec.md",
-    "plan": "specs/029-jobs-by-source/plan.md",
-    "tasks": "specs/029-jobs-by-source/tasks.md"
+    "spec": "specs/031-local-ai-dns-check/spec.md",
+    "plan": "specs/031-local-ai-dns-check/plan.md",
+    "tasks": "specs/031-local-ai-dns-check/tasks.md"
   },
   "supersedes": [
     "speckit.implement"
