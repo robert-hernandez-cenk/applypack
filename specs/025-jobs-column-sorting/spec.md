@@ -63,7 +63,7 @@ The person can see which column the list is sorted by and in which direction, an
 
 - Old links and bookmarks with the existing `sort` values (`fetchedAt_desc`, `fitScore_desc`, `postedAt_desc`, `title_asc`) keep working and highlight the matching header where one exists.
 - An unknown or malformed `sort` value is treated as the default order (recently fetched), as today.
-- With a single search selected, the Fit column shows that search's score; sorting by Fit follows the score the person sees.
+- With a single search selected, the Fit column shows that search's score, but sorting by Fit uses the person's best score across their searches — the same as the existing "Highest fit" order. Aligning the two is a follow-up.
 - Postings from aggregators carry their employer separately from the source; Company sorts by the name shown, not the source's name.
 - On narrow screens, hidden columns have no header to click; the "Sort by" menu still reaches the main orders.
 
@@ -80,7 +80,7 @@ The person can see which column the list is sorted by and in which direction, an
 - **FR-007**: The sorted header MUST show a direction indicator and expose its sort state to assistive technology; unsorted sortable headers MUST expose none.
 - **FR-008**: The Location header MUST NOT be sortable.
 - **FR-009**: Every sort value accepted today MUST keep working with the same meaning; the existing "Sort by" menu MUST remain.
-- **FR-010**: Company MUST sort by the company name the list shows (the employer where the source is an aggregator, else the company), Salary by the lower bound of the posted range, Status in the order of the status tabs.
+- **FR-010**: Company MUST sort by the company name the list shows (the employer where the source is an aggregator, else the company), Salary by the lower bound of the posted range, Status in a fixed order of the statuses (New, Alerted, Applied, Dismissed, Saved).
 - **FR-011**: New visible words MUST be present in every interface language.
 
 ### Key Entities
