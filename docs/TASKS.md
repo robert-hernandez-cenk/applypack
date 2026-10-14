@@ -2848,3 +2848,32 @@ it moves. Stage 0 carries no tag; the others are a minor each.
   were last taken on 2026-09-02 or 2026-09-09, before the redesign.
 - Tune by eye what no number decides: the canvas tint, the sidebar's ground,
   the title size.
+
+---
+
+## 23. Page target for resume tailoring (issue #38, 2026-10-14; in review)
+
+Owner's ask: a veteran's resume runs four pages or more and the tailoring flow has no control over
+length. Spec, plan and tasks: `specs/038-resume-length-control/`; decision: [ADR 0073](./adr/0073-page-target-for-tailoring.md).
+
+### 23.1 Facts established (don't re-derive)
+
+- The normal Compare posts `full`, so the removals come from `matchResumeToJob`'s own call, not only
+  from the lazy suggestions call; both prompts needed the block.
+- `RULE_REMOVALS` already says "delete or shorten"; `PACE_SUGGESTIONS` caps it at ~8 removals. The only
+  length notion before this was `parse-warnings.ts` (`CHARS_PER_PAGE` 3 500, a warning past 2 pages).
+- Output budget: full match 12 000 + 8 000 thinking headroom against a ~21 300 non-streaming ceiling.
+
+### 23.2 Decisions
+
+- [x] Page target on the launcher (Keep as is / 1 / 2 / 3), not a separate "Shorten" action or a meter alone.
+- [x] Suggest-and-apply: nothing is trimmed automatically; cuts go through `gateRemovals`.
+- [x] Stored as `breakdown.pages`, part of the memo key; no `PROMPT_VERSION` bump (prompts for *Keep as is* are byte-identical).
+- [x] Pack (`src/pack/`) untouched.
+
+### 23.3 Implementation order
+
+- [x] `length.ts` + tests, marker, memo key, prompts, launcher control, stored target on the match card.
+- [x] Editor meter (`public/length.mjs` mirror, parity test, `target-page.mjs:paintLength`).
+- [x] ADR 0073, where-to-look rows, CHANGELOG, patch release 2.59.5.
+- [ ] Verification with a live engine on a real 4-page resume (SC-001) — owner.

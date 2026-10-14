@@ -77,11 +77,11 @@ description: "Task list for the page target for resume tailoring (#38)"
 
 ## Phase 6: Polish and cross-cutting
 
-- [ ] T029 [P] Add the docs rows to `docs/where-to-look.md` (where the page target lives: `length.ts`, `length.mjs`, launcher control, marker; how the user sets it) and keep `src/docs-paths.test.ts` green
-- [ ] T030 [P] Write `docs/adr/0073-page-target-for-tailoring.md` (context: veteran resumes of 4+ pages; decision: target as marker + user-message block, suggest-and-apply, estimate character-based, no `PROMPT_VERSION` bump and why; consequences; non-goals) using the `adr-writer` skill's template, and add its line to `docs/adr/README.md`
-- [ ] T031 [P] Add a section to `docs/TASKS.md` for this feature (facts, decisions, order; items ticked as shipped) following its existing convention
-- [ ] T032 Add a CHANGELOG entry and bump the version as a PATCH release only (see `release-discipline` skill and the patch-only feedback memory): `package.json` / lockfile version per repo practice; do NOT tag or release before merge
-- [ ] T033 `npm run lint:types && npm test && npm run exports:audit` and `src/env-example.test.ts` (no env change expected); fix any dead export (e.g. a helper only the test uses)
+- [x] T029 [P] Add the docs rows to `docs/where-to-look.md` (where the page target lives: `length.ts`, `length.mjs`, launcher control, marker; how the user sets it) and keep `src/docs-paths.test.ts` green
+- [x] T030 [P] Write `docs/adr/0073-page-target-for-tailoring.md` (context: veteran resumes of 4+ pages; decision: target as marker + user-message block, suggest-and-apply, estimate character-based, no `PROMPT_VERSION` bump and why; consequences; non-goals) using the `adr-writer` skill's template, and add its line to `docs/adr/README.md`
+- [x] T031 [P] Add a section to `docs/TASKS.md` for this feature (facts, decisions, order; items ticked as shipped) following its existing convention
+- [x] T032 Add a CHANGELOG entry and bump the version as a PATCH release only (see `release-discipline` skill and the patch-only feedback memory): `package.json` / lockfile version per repo practice; do NOT tag or release before merge
+- [x] T033 `npm run lint:types && npm test && npm run exports:audit` and `src/env-example.test.ts` (no env change expected); fix any dead export (e.g. a helper only the test uses)
 - [ ] T034 Run `quickstart.md` §1–§2 and paste the real output; run §3 route smoke only on a throwaway database (`npm run build && npm run smoke:routes`) — if no throwaway database is available, list it as unverified
 - [ ] T035 Browser check per quickstart §4 at desktop and 375 px widths (launcher control, meter, Apply all lowering the figure) with a screenshot; if no AI engine/resume is available, verify the launcher and meter on a seeded comparison and list SC-001 as unverified
 - [ ] T036 Commit docs and release note: `Document the page target, ADR 0073 (#38)`; tick T029–T036
