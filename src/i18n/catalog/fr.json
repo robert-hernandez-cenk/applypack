@@ -4152,7 +4152,7 @@
   "gmail.disconnectConfirm": "Déconnecter Gmail ? L’accès est révoqué et la connexion enregistrée est supprimée. Les offres déjà trouvées sont conservées.",
   "gmail.checkNow": "Vérifier maintenant",
   "gmail.checkQueued": "Une vérification est en attente ; elle démarre dans la minute.",
-  "gmail.account": "Connecté en tant que {email}",
+  "gmail.account": "Connecté en tant que <account/>",
   "gmail.labelLabel": "Libellé à lire",
   "gmail.labelHint": "Le libellé Gmail que portent vos e-mails d’alertes emploi. Laissez vide pour Job Leads.",
   "gmail.labelSave": "Enregistrer le libellé",

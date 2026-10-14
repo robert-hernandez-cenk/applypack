@@ -4152,7 +4152,7 @@
   "gmail.disconnectConfirm": "¿Desconectar Gmail? Se revoca el acceso y se borra la conexión guardada. Las ofertas ya encontradas se conservan.",
   "gmail.checkNow": "Comprobar ahora",
   "gmail.checkQueued": "Hay una comprobación en cola; empieza en menos de un minuto.",
-  "gmail.account": "Conectado como {email}",
+  "gmail.account": "Conectado como <account/>",
   "gmail.labelLabel": "Etiqueta que leer",
   "gmail.labelHint": "La etiqueta de Gmail que llevan tus correos de alertas de empleo. Déjala vacía para usar Job Leads.",
   "gmail.labelSave": "Guardar etiqueta",

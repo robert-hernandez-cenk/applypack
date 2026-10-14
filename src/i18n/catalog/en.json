@@ -4152,7 +4152,7 @@
   "gmail.disconnectConfirm": "Disconnect Gmail? Access is revoked and the saved connection is deleted. Jobs already found stay.",
   "gmail.checkNow": "Check now",
   "gmail.checkQueued": "A check is queued; it starts within a minute.",
-  "gmail.account": "Connected as {email}",
+  "gmail.account": "Connected as <account/>",
   "gmail.labelLabel": "Label to read",
   "gmail.labelHint": "The Gmail label your job-alert mails carry. Leave it empty for Job Leads.",
   "gmail.labelSave": "Save label",
