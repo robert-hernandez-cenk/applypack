@@ -45,8 +45,8 @@ None — no schema, no new dependency, no shared plumbing beyond what User Story
 **Independent Test**: in each of the four languages the title, info, "Company boards" and footer are worded; "Greenhouse"/"RemoteOK" stay as written; no bar navigates.
 
 - [x] T008 [US2] In `src/web/pages/overview.tsx` set `translate="no"` on a row's label span only when the entry is not worded: `source !== COMPANY_BOARDS && !wordedSource(source)` (`wordedSource` from `../source-groups`) — Gmail, Folder, Import, Manual, Feed and Careers page follow the language, vendor and aggregator names do not
-- [ ] T009 [P] [US2] Update `docs/where-to-look.md`: extend the Overview row that says "See how many jobs match over time, and what the matches ask for" to mention **Jobs by source** (grouped by source kind, vendor boards merged; `overview-numbers.ts:topSources`), and add `topSources` beside `topTerms` wherever the file names the Overview's stack list
-- [ ] T010 [US2] Run `npm run i18n:browser` only if the English catalog change requires the generated browser copy (it should not: no `browser.*` key was added) and confirm `git status` shows no generated-file drift
+- [x] T009 [P] [US2] Update `docs/where-to-look.md`: extend the Overview row that says "See how many jobs match over time, and what the matches ask for" to mention **Jobs by source** (grouped by source kind, vendor boards merged; `overview-numbers.ts:topSources`), and add `topSources` beside `topTerms` wherever the file names the Overview's stack list
+- [x] T010 [US2] Run `npm run i18n:browser` only if the English catalog change requires the generated browser copy (it should not: no `browser.*` key was added) and confirm `git status` shows no generated-file drift
 
 **Checkpoint**: both stories work; docs match.
 
