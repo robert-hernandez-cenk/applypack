@@ -2,8 +2,10 @@
  * The "Running now" card on /runs (ADR 0072). The card is server-rendered; this
  * module only asks for it again every few seconds and swaps it in. An empty
  * answer means nothing runs any more: the card is removed and polling stops.
- * A failed request keeps the card as it was and tries again. Without script
- * the page reloads itself instead (layout.tsx refreshWithoutScript).
+ * A failed request, or an answer that is not the card (a sign-in page the gate
+ * redirected to), keeps the card as it was and tries again. When the card is
+ * gone the page is loaded again, so the history shows the run that ended.
+ * Without script the page reloads itself instead (layout.tsx refreshWithoutScript).
  * Pure around its injected fetch / timer / visibility — tested from
  * src/web/running.test.ts.
  */
@@ -21,7 +23,9 @@ export async function refresh(host, url, fetchImpl) {
   let state = 'keep';
   let body = '';
   try {
-    const resp = await fetchImpl(url, { headers: { Accept: 'text/html' }, credentials: 'same-origin' });
+    // No `Accept: text/html`: the sign-in gate answers a page request with a redirect, and a poll with a 401.
+    const resp = await fetchImpl(url, { credentials: 'same-origin' });
+    if (resp.redirected) return 'keep';
     body = await resp.text();
     state = nextState(resp.ok, body);
   } catch {
@@ -40,11 +44,15 @@ export async function init(
     fetchImpl = (...args) => fetch(...args),
     schedule = (fn, ms) => void setTimeout(fn, ms),
     isHidden = () => document.hidden,
+    onGone = () => location.reload(),
   } = {},
 ) {
   const tick = async () => {
     // A background tab asks nothing; it catches up on the next beat after it is shown.
-    if (!isHidden() && (await refresh(host, url, fetchImpl)) === 'remove') return;
+    if (!isHidden() && (await refresh(host, url, fetchImpl)) === 'remove') {
+      onGone();
+      return;
+    }
     schedule(tick, everyMs);
   };
   schedule(tick, everyMs);

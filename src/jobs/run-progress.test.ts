@@ -162,8 +162,20 @@ describe('createReporter', () => {
     const writes: RunProgress[] = [];
     const releases: Array<() => void> = [];
     let hold = false;
+    let pending: (() => void) | null = null;
+    let cleared = 0;
     const reporter = createReporter({
       now: () => now,
+      timer: {
+        set: (fn) => {
+          pending = fn;
+          return 1;
+        },
+        clear: () => {
+          cleared++;
+          pending = null;
+        },
+      },
       write: (p) => {
         if (opts.fail) return Promise.reject(new Error('db down'));
         writes.push(p);
@@ -176,6 +188,8 @@ describe('createReporter', () => {
       writes,
       releases,
       tick: (ms: number) => void (now += ms),
+      beat: () => pending?.(),
+      cleared: () => cleared,
       hold: () => void (hold = true),
     };
   }
@@ -248,6 +262,43 @@ describe('createReporter', () => {
     const h = harness({ fail: true });
     assert.doesNotThrow(() => h.reporter.report(report()));
     await assert.doesNotReject(h.reporter.flush());
+  });
+
+  it('sends the latest report again after the interval when nothing was written, with a fresh stamp', async () => {
+    const h = harness();
+    h.reporter.report(report({ done: 0 }));
+    await settle();
+    h.tick(1_000);
+    h.reporter.report(report({ done: 9 }));
+    await settle();
+    assert.equal(h.writes.length, 1);
+    h.tick(WRITE_INTERVAL_MS);
+    h.beat();
+    await settle();
+    assert.equal(h.writes.length, 2);
+    assert.equal(h.writes[1]!.done, 9);
+    assert.equal(h.writes[1]!.updatedAt, iso(T0 + 1_000 + WRITE_INTERVAL_MS));
+  });
+
+  it('does not write on a beat when a write just happened', async () => {
+    const h = harness();
+    h.reporter.report(report({ done: 0 }));
+    await settle();
+    h.tick(WRITE_INTERVAL_MS - 1);
+    h.beat();
+    await settle();
+    assert.equal(h.writes.length, 1);
+  });
+
+  it('stops beating after flush', async () => {
+    const h = harness();
+    h.reporter.report(report({ done: 0 }));
+    await h.reporter.flush();
+    assert.equal(h.cleared(), 1);
+    h.tick(WRITE_INTERVAL_MS * 2);
+    h.beat();
+    await settle();
+    assert.equal(h.writes.length, 1);
   });
 
   it('writes nothing after flush', async () => {

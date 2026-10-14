@@ -1,4 +1,4 @@
-import { etaSeconds, fraction, isStale, parseProgress } from '../jobs/run-progress';
+import { COUNTER_NAMES, etaSeconds, fraction, isStale, parseProgress, type CounterName } from '../jobs/run-progress';
 
 /**
  * A RUNNING cron_run laid out for the "Running now" card. Pure: the page
@@ -7,13 +7,11 @@ import { etaSeconds, fraction, isStale, parseProgress } from '../jobs/run-progre
  * enough to call the run stalled (ADR 0072).
  */
 
-/** The order counters are shown in. Postgres keeps a JSON object's keys by length, not as written, so the view orders them; a name not listed follows, alphabetically. */
-const COUNTER_ORDER = ['kept', 'setAside', 'classified', 'errors', 'listings'];
-
+/** Postgres keeps a JSON object's keys by length, not as written, so the view puts the counters in `COUNTER_NAMES` order; a name not in it follows, alphabetically. */
 function orderedCounters(counters: Record<string, number> | undefined): Array<[string, number]> {
   const rank = (name: string): number => {
-    const i = COUNTER_ORDER.indexOf(name);
-    return i === -1 ? COUNTER_ORDER.length : i;
+    const i = COUNTER_NAMES.indexOf(name as CounterName);
+    return i === -1 ? COUNTER_NAMES.length : i;
   };
   return Object.entries(counters ?? {}).sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b));
 }

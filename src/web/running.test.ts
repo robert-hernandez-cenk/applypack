@@ -12,6 +12,7 @@ type Mod = {
       fetchImpl: typeof fetch;
       schedule: (fn: () => void, ms: number) => void;
       isHidden?: () => boolean;
+      onGone?: () => void;
     },
   ) => Promise<void>;
 };
@@ -46,6 +47,21 @@ describe('refresh', () => {
     assert.equal(await (await loaded).refresh(host, '/runs/running', reply(500, 'boom')), 'keep');
     assert.equal(host.innerHTML, 'old');
   });
+  it('keeps the card when the answer is a redirect (a sign-in page), whatever it holds', async () => {
+    const host = { innerHTML: 'old' };
+    const redirected = (async () => Object.assign(new Response('<html>sign in</html>', { status: 200 }), { redirected: true })) as unknown as typeof fetch;
+    assert.equal(await (await loaded).refresh(host, '/runs/running', redirected), 'keep');
+    assert.equal(host.innerHTML, 'old');
+  });
+  it('asks for the fragment without claiming to want a page', async () => {
+    let init: RequestInit | undefined;
+    const spy = (async (_url: string, i?: RequestInit) => {
+      init = i;
+      return new Response('', { status: 200 });
+    }) as unknown as typeof fetch;
+    await (await loaded).refresh({ innerHTML: '' }, '/runs/running', spy);
+    assert.equal(JSON.stringify(init?.headers ?? {}).includes('text/html'), false);
+  });
   it('keeps the card when the request throws', async () => {
     const host = { innerHTML: 'old' };
     const failing = (async () => {
@@ -57,7 +73,7 @@ describe('refresh', () => {
 });
 
 describe('init', () => {
-  async function run(answers: typeof fetch, opts: { hidden?: () => boolean } = {}) {
+  async function run(answers: typeof fetch, opts: { hidden?: () => boolean; onGone?: () => void } = {}) {
     const host = { innerHTML: 'old' };
     const timers: Array<{ fn: () => void; ms: number }> = [];
     let calls = 0;
@@ -65,7 +81,7 @@ describe('init', () => {
       calls++;
       return answers(...args);
     }) as typeof fetch;
-    const started = (await loaded).init(host, { everyMs: 5000, fetchImpl: counted, schedule: (fn, ms) => void timers.push({ fn, ms }), isHidden: opts.hidden ?? (() => false) });
+    const started = (await loaded).init(host, { everyMs: 5000, fetchImpl: counted, schedule: (fn, ms) => void timers.push({ fn, ms }), isHidden: opts.hidden ?? (() => false), onGone: opts.onGone ?? (() => undefined) });
     return { host, timers, calls: () => calls, started };
   }
 
@@ -82,13 +98,15 @@ describe('init', () => {
     assert.equal(r.timers.length, 2);
   });
 
-  it('stops polling once the card is gone', async () => {
-    const r = await run(reply(200, ''));
+  it('stops polling once the card is gone and says so, so the page can show the ended run', async () => {
+    let gone = 0;
+    const r = await run(reply(200, ''), { onGone: () => void gone++ });
     await r.started;
     r.timers[0]!.fn();
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(r.host.innerHTML, '');
     assert.equal(r.timers.length, 1);
+    assert.equal(gone, 1);
   });
 
   it('does not ask while the page is hidden, and tries again later', async () => {

@@ -1,11 +1,11 @@
 /** @jsxImportSource hono/jsx */
+import { CronRunStatus } from '@prisma/client';
 import { currentUser } from '../current-user';
 import { Hono } from 'hono';
 import { prisma } from '../../db';
 import { RunsPage } from '../pages/runs';
 import { RunningCard } from '../pages/running-card';
 import { runningView, type RunningView } from '../running-view';
-import { CronRunStatus } from '@prisma/client';
 import { FetchRunPage } from '../pages/fetch-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { FETCH_RUN_STEPS, activeFetchRun, getFetchRun } from '../fetch-runs';
@@ -19,10 +19,13 @@ const RUNS_LIMIT = 100;
 
 export const runsRoute = new Hono();
 
-/** The runs in flight that this person may see — the install's, and the recaps and nudges that were theirs (ADR 0069) — laid out for the card. */
+/** The runs this person sees: the install's, and the recaps and nudges that were theirs (ADR 0069). */
+const visibleRuns = () => ({ OR: [{ userId: null }, { userId: currentUser().id }] });
+
+/** The ones in flight, laid out for the card. */
 async function loadRunning(): Promise<RunningView[]> {
   const rows = await prisma.cronRun.findMany({
-    where: { status: CronRunStatus.RUNNING, OR: [{ userId: null }, { userId: currentUser().id }] },
+    where: { status: CronRunStatus.RUNNING, ...visibleRuns() },
     orderBy: { startedAt: 'asc' },
     select: { id: true, name: true, startedAt: true, progress: true },
   });
@@ -34,8 +37,7 @@ runsRoute.get('/runs', async (c) => {
   const now = new Date();
   const [runs, funnel, sources, running] = await Promise.all([
     prisma.cronRun.findMany({
-      // The install's runs, and the recaps and nudges that were this person's (ADR 0069).
-      where: { OR: [{ userId: null }, { userId: currentUser().id }] },
+      where: visibleRuns(),
       orderBy: { startedAt: 'desc' },
       take: RUNS_LIMIT,
     }),

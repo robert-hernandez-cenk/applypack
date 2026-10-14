@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { MessageKey } from '../i18n/catalog';
 
 /**
  * What a running job tells the Runs page about itself (ADR 0072). The worker
@@ -37,8 +38,23 @@ const RunProgressSchema = z.object({
 
 export type RunProgress = z.infer<typeof RunProgressSchema>;
 
-/** What a job passes to `report`: the reporter adds the stamps and the samples. */
-export type ProgressReport = Pick<RunProgress, 'stage' | 'label' | 'unit' | 'done' | 'total' | 'counters'>;
+/** The counters a job may report, in the order the card shows them. */
+export const COUNTER_NAMES = ['kept', 'setAside', 'classified', 'errors', 'listings'] as const;
+export type CounterName = (typeof COUNTER_NAMES)[number];
+
+/**
+ * What a job passes to `report`: the reporter adds the stamps and the samples.
+ * The label and the unit are catalog keys and the counters a closed set, so a
+ * misspelling does not compile instead of vanishing from the card.
+ */
+export interface ProgressReport {
+  stage: string;
+  label: MessageKey;
+  unit: MessageKey;
+  done?: number;
+  total?: number;
+  counters?: Partial<Record<CounterName, number>>;
+}
 
 export type ReportProgress = (p: ProgressReport) => void;
 
@@ -84,13 +100,28 @@ export interface ReporterDeps {
   now: () => number;
   /** Told once per failed write; the job goes on regardless. */
   onError?: (err: unknown) => void;
+  /** Where the heartbeat's timer comes from; the real one is unref'd, so it never holds a process open. */
+  timer?: { set(fn: () => void, ms: number): unknown; clear(handle: unknown): void };
 }
+
+const realTimer: NonNullable<ReporterDeps['timer']> = {
+  set: (fn, ms) => {
+    const handle = setTimeout(fn, ms);
+    handle.unref();
+    return handle;
+  },
+  clear: (handle) => clearTimeout(handle as NodeJS.Timeout),
+};
 
 /**
  * Throttles a job's reports into writes. `report` is synchronous and never
  * throws; one write is in flight at a time, and a stage change that arrives
- * meanwhile is sent when it lands. `flush` waits for what is in flight and
- * closes the reporter, so a write cannot land after the run's final update.
+ * meanwhile is sent when it lands. While the run goes on, a heartbeat every
+ * interval sends the latest report again when nothing was written: the last
+ * counts of a burst are not left behind, and a long stretch with no report (one
+ * slow posting) still says the worker is alive. `flush` stops the heartbeat,
+ * waits for what is in flight and closes the reporter, so a write cannot land
+ * after the run's final update.
  */
 export function createReporter(deps: ReporterDeps): { report: ReportProgress; flush: () => Promise<void> } {
   let stage: string | null = null;
@@ -100,6 +131,9 @@ export function createReporter(deps: ReporterDeps): { report: ReportProgress; fl
   let inFlight: Promise<void> | null = null;
   let waiting: RunProgress | null = null;
   let closed = false;
+  let latest: RunProgress | null = null;
+  let beat: unknown = null;
+  const timer = deps.timer ?? realTimer;
 
   const send = (p: RunProgress): void => {
     lastWrite = { at: deps.now(), stage: p.stage };
@@ -113,6 +147,20 @@ export function createReporter(deps: ReporterDeps): { report: ReportProgress; fl
         if (next && !closed) send(next);
       });
   };
+
+  const arm = (): void => {
+    if (beat === null && !closed) beat = timer.set(heartbeat, WRITE_INTERVAL_MS);
+  };
+  function heartbeat(): void {
+    beat = null;
+    if (closed || latest === null) return;
+    const now = deps.now();
+    if (!inFlight && lastWrite !== null && now - lastWrite.at >= WRITE_INTERVAL_MS) {
+      latest = { ...latest, updatedAt: new Date(now).toISOString() };
+      send(latest);
+    }
+    arm();
+  }
 
   const report: ReportProgress = (r) => {
     if (closed) return;
@@ -129,6 +177,8 @@ export function createReporter(deps: ReporterDeps): { report: ReportProgress; fl
       updatedAt: new Date(now).toISOString(),
       samples,
     };
+    latest = next;
+    arm();
     if (inFlight) {
       // Only a stage change is worth holding for: a count is out of date by the time it would land.
       if (lastWrite?.stage !== r.stage) waiting = next;
@@ -140,6 +190,8 @@ export function createReporter(deps: ReporterDeps): { report: ReportProgress; fl
   const flush = async (): Promise<void> => {
     closed = true;
     waiting = null;
+    if (beat !== null) timer.clear(beat);
+    beat = null;
     while (inFlight) await inFlight;
   };
 

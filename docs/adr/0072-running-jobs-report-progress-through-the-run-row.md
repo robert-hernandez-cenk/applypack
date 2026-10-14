@@ -23,18 +23,24 @@ runs the web process started.
 - **A job reports through a callback, never a write.** `recordCronRun` hands `fn` a `report(p)` that
   is synchronous and cannot throw (`jobs/run-progress.ts:createReporter`): at most one write in flight,
   at most one write every 5 s inside a stage, a change of stage always written (held for the write in
-  flight), a failed write logged at debug and dropped. The wrapper awaits the write in flight before
-  the final update, so a late write cannot put the progress back. A job that never calls it behaves as
+  flight), a failed write logged at debug and dropped. A heartbeat every 5 s sends the latest report
+  again when nothing was written, so the last counts of a burst are not lost and a long stretch with
+  no report (one slow posting) still reads as a live worker. The wrapper stops the heartbeat and
+  awaits the write in flight before the final update, so a late write cannot put the progress back. A job that never calls it behaves as
   before; the classify loop, the source walk and the Gmail read call it, every other job shows its name
   and elapsed time.
 - **The estimate is the recent rate.** The samples span minutes (one per 30 s, 12 kept), so the time
   left follows what the model is doing now, not the average since the start; it is hidden below 20
   items and reads "no estimate" when there is no total.
 - **Staleness is the answer to a crashed worker.** The card shows the age of the last report and turns
-  amber past two minutes. A reaper for rows left `RUNNING` by a crash is not part of this.
+  amber past two minutes. Rows left `RUNNING` by a crash are already failed at the worker's next boot
+  (`init.ts:failInterruptedCronRuns`, which now clears `progress` too); until then the card says so.
+  A reaper that acts sooner is not part of this.
 - **The dashboard polls a fragment.** `GET /runs/running` is the card rendered on the server (personal
   route: the install's runs and the person's own, as `/runs`); `public/running.mjs` swaps it in every
-  5 s while the tab is visible, stops when it comes back empty, and without script the page reloads
+  5 s while the tab is visible. When it comes back empty the page is loaded again, so the history
+  shows the run that ended, and polling stops; a redirect to the sign-in page is never swapped in. A
+  page opened while nothing runs draws no card and polls nothing. Without script the page reloads
   itself every 30 s while a run is going.
 
 ## Considered and rejected
