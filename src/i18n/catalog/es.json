@@ -1080,6 +1080,8 @@
   "jobs.sort.fit": "Mayor compatibilidad",
   "jobs.sort.posted": "Publicadas recientemente",
   "jobs.sort.title": "Título A-Z",
+  "jobs.sort.byColumn": "Ordenar por {column}",
+  "jobs.sort.reverseColumn": "Invertir el orden de {column}",
   "jobs.apply": "Aplicar",
   "jobs.filters": "Filtros",
   "jobs.filter.search": "Búsqueda",

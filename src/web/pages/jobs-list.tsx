@@ -45,6 +45,7 @@ import {
   type FacetChips,
   type JobsFilters,
 } from '../job-facets';
+import { ariaSort, nextSort, type SortColumn } from '../job-sort';
 import { AdzunaLabel, FranceTravailLine } from './attribution';
 import { VERDICT_TONE } from './verification-card';
 import type { MessageKey } from '../../i18n/catalog';
@@ -114,6 +115,21 @@ const SORT_OPTIONS: { value: string; label: MessageKey }[] = [
   { value: 'postedAt_desc', label: 'jobs.sort.posted' },
   { value: 'title_asc', label: 'jobs.sort.title' },
 ];
+
+/** A sortable header (#25): a link to the list in the order a click would give, the arrow on the column it is sorted by. */
+function sortHeader(filters: JobsFilters, column: SortColumn, label: string) {
+  const sorted = ariaSort(filters.sort, column);
+  return (
+    <a
+      href={jobsHref({ ...filters, sort: nextSort(filters.sort, column) })}
+      title={t(sorted ? 'jobs.sort.reverseColumn' : 'jobs.sort.byColumn', { column: label })}
+      class="inline-flex items-center gap-1 hover:text-ink"
+    >
+      {label}
+      {sorted && <span aria-hidden="true">{sorted === 'ascending' ? '↑' : '↓'}</span>}
+    </a>
+  );
+}
 
 export const JobsListPage: FC<JobsListProps> = ({
   jobs,
@@ -383,14 +399,23 @@ export const JobsListPage: FC<JobsListProps> = ({
                       'w-[11%]',
                       'w-[8%]',
                     ]}
+                    ariaSort={[
+                      ariaSort(filters.sort, 'title'),
+                      ariaSort(filters.sort, 'company'),
+                      undefined,
+                      ariaSort(filters.sort, 'fitScore'),
+                      ariaSort(filters.sort, 'salary'),
+                      ariaSort(filters.sort, 'status'),
+                      ariaSort(filters.sort, 'fetchedAt'),
+                    ]}
                     columns={[
-                      t('jobs.column.title'),
-                      t('common.company'),
+                      sortHeader(filters, 'title', t('jobs.column.title')),
+                      sortHeader(filters, 'company', t('common.company')),
                       t('common.location'),
-                      t('jobs.column.fit'),
-                      <span class="block text-right">{t('jobs.column.salary')}</span>,
-                      t('jobs.column.status'),
-                      <span class="block text-right">{t('jobs.column.fetched')}</span>,
+                      sortHeader(filters, 'fitScore', t('jobs.column.fit')),
+                      <span class="block text-right">{sortHeader(filters, 'salary', t('jobs.column.salary'))}</span>,
+                      sortHeader(filters, 'status', t('jobs.column.status')),
+                      <span class="block text-right">{sortHeader(filters, 'fetchedAt', t('jobs.column.fetched'))}</span>,
                     ]}
                   >
                     {jobs.map((j) => {

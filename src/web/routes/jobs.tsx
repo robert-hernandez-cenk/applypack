@@ -17,6 +17,7 @@ import {
   postedSince,
   tallyFacets,
 } from '../job-facets';
+import { normalizeSort, sortOrderBy } from '../job-sort';
 import { getUserSettings } from '../../settings';
 import { allStages, parseStageConfig } from '../stage-config';
 import { classifyExistingJob, type Rescored } from '../../jobs/classify-existing';
@@ -124,9 +125,8 @@ const ListQuerySchema = z.object({
     .optional()
     .transform((v) => (v === '' || v === undefined ? '' : v)),
   q: z.string().optional().default(''),
-  sort: z
-    .enum(['fetchedAt_desc', 'fitScore_desc', 'postedAt_desc', 'title_asc'])
-    .default('fetchedAt_desc'),
+  // A link made before columns could sort still reads; a value nobody lists is the default order.
+  sort: z.string().optional().transform(normalizeSort),
   verified: z
     .string()
     .optional()
@@ -249,7 +249,7 @@ jobsRoute.get('/jobs', async (c) => {
   // A status tab's count is what the tab would show: every filter but the status itself.
   const { status: _status, ...anyStatus } = mine;
 
-  const orderBy = sortToOrderBy(sort);
+  const orderBy = sortOrderBy(sort);
 
   const [rows, facetRows, statusGroups, activeProfile, activeProfiles, mutedHidden] = await Promise.all([
     prisma.userJob.findMany({
@@ -1209,21 +1209,6 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
 function addresseeFromVerification(evidence: unknown, companyName: string): { suggested: string | null; finding: string | null } {
   const finding = readEvidence(evidence).find((e) => e.check === 'named_humans' && e.signal === 'legit')?.finding.trim() ?? null;
   return { suggested: finding ? addresseeFromFinding(finding, companyName) : null, finding };
-}
-
-/** The list is the person's rows: the score is theirs, the dates and the title are the posting's. */
-function sortToOrderBy(sort: string): Prisma.UserJobOrderByWithRelationInput[] {
-  switch (sort) {
-    case 'fitScore_desc':
-      return [{ fitScore: { sort: 'desc', nulls: 'last' } }, { job: { fetchedAt: 'desc' } }];
-    case 'postedAt_desc':
-      return [{ job: { postedAt: 'desc' } }];
-    case 'title_asc':
-      return [{ job: { title: 'asc' } }];
-    case 'fetchedAt_desc':
-    default:
-      return [{ job: { fetchedAt: 'desc' } }];
-  }
 }
 
 /**

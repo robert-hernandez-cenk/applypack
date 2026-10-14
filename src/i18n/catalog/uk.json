@@ -1080,6 +1080,8 @@
   "jobs.sort.fit": "Найвища відповідність",
   "jobs.sort.posted": "Нещодавно розміщені",
   "jobs.sort.title": "Назва A–Z",
+  "jobs.sort.byColumn": "Сортувати за: {column}",
+  "jobs.sort.reverseColumn": "Змінити напрямок сортування: {column}",
   "jobs.apply": "Застосувати",
   "jobs.filters": "Фільтри",
   "jobs.filter.search": "Пошук",
