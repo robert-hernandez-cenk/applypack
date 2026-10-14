@@ -536,6 +536,9 @@ process runs one AI call on a progress page (the engine's resume model: the
 slot on `/settings` → AI & costs, else `ai-engine.ts:defaultModelFor`) that
 fills headline, seniority, years, skill tags, the primary stack, role types,
 industries and job-agnostic `issues`. The first upload becomes the default.
+A Reactive Resume export (`.json`, versions 4–6) or a resume pulled from the
+person's own instance with their API key is stored as the Markdown it is
+written out to (`original` and `text` alike, ADR 0073); the key is never kept.
 
 `ResumeMatch` is one comparison of a resume against a job, triggered from
 `/jobs/:id` → "Resume match" → Compare. The dropdown preselects a resume in

@@ -71,8 +71,8 @@
 
 ## Phase 6: Polish & cross-cutting
 
-- [ ] T022 [P] Add rows to `docs/where-to-look.md` ("A Reactive Resume file or instance → a resume") and a `CLAUDE.md` bullet for `reactive-resume*.ts` / `pull-stash.ts` in the File rules list; add a short README/docs mention where resume formats are listed.
-- [ ] T023 [P] Add a `CHANGELOG.md` entry for the next PATCH version (highest tag + 0.0.1; patch only, per the fork's rule), and bump `package.json` / `package-lock.json` to match at release time only (not in this PR unless the repo's flow does it before merge).
+- [x] T022 [P] Add rows to `docs/where-to-look.md` ("A Reactive Resume file or instance → a resume") and a `CLAUDE.md` bullet for `reactive-resume*.ts` / `pull-stash.ts` in the File rules list; add a short README/docs mention where resume formats are listed.
+- [x] T023 [P] `CHANGELOG.md` entry and `package.json` / `package-lock.json` bump to 2.59.5 (patch only, per the fork rule; the last feature PR bumped in-branch the same way).
 - [ ] T024 Run the full quickstart (`quickstart.md` §1–§4) on a scratch data folder, record real output for the PR, and list what could not be verified (real Reactive Resume instance/export). Tick the verification tasks and commit `Mark #39 verification tasks complete`.
 
 ## Dependencies & execution order
