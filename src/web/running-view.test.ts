@@ -55,6 +55,11 @@ describe('runningView', () => {
     ]);
   });
 
+  it('orders the counters the same way whatever order they were stored in', () => {
+    const p = runningView(row(stored({ counters: { errors: 2, kept: 41, zzz: 1, setAside: 380, classified: 126 } })), START + 3_010_000).progress;
+    assert.deepEqual(p?.counters.map(([name]) => name), ['kept', 'setAside', 'classified', 'errors', 'zzz']);
+  });
+
   it('estimates from the window rate: 108 items in 100 s, 155 left', () => {
     const p = runningView(row(stored()), START + 3_010_000).progress;
     assert.equal(p?.etaSeconds, 144);

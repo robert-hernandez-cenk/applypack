@@ -882,6 +882,7 @@ async function main(): Promise<void> {
   rows.push(...(await notificationIsolationChecks()));
   rows.push(...(await roleSweep(f)));
   rows.push(...(await folderChecks()));
+  rows.push(...(await runningCardChecks()));
   rows.push(await packAgainCheck(f.jobId));
   rows.push(await packCancelCheck(f.jobId));
   rows.push(...(await engineTroubleChecks()));
@@ -1496,6 +1497,48 @@ async function importChecks(): Promise<Check[]> {
   check('POST /jobs/import/sources/:id/delete (the source and its jobs)', '/jobs/import/sources/:id/delete', removed, removed.status === 303 && (await imported()) === 0);
 
   await setFetchingEnabled(wasFetching);
+  return out;
+}
+
+/**
+ * The "Running now" card (ADR 0072, #32): nothing running = an empty fragment
+ * and no card on /runs; a RUNNING row that reported draws the stage and the
+ * count in both the fragment and the page; a row that never reported draws
+ * its name alone; another person's own run is not drawn for this one.
+ */
+async function runningCardChecks(): Promise<Check[]> {
+  const out: Check[] = [];
+  const fragment = async (): Promise<{ res: Response; html: string }> => {
+    const res = await app.request('/runs/running', { headers: ORIGIN });
+    return { res, html: await res.text() };
+  };
+  const idle = await fragment();
+  out.push({ route: 'GET /runs/running with nothing running (empty, no store)', url: '/runs/running', status: idle.res.status, ok: idle.res.status === 200 && idle.html === '' && idle.res.headers.get('cache-control') === 'no-store' });
+  const nowIso = new Date().toISOString();
+  const reported = await prisma.cronRun.create({
+    data: {
+      name: 'smoke-reported',
+      status: 'RUNNING',
+      progress: { stage: 'classify', label: 'runs.running.stage.classify', unit: 'runs.running.unit.postings', done: 508, total: 663, startedStageAt: nowIso, updatedAt: nowIso, counters: { kept: 41 }, samples: [[0, Date.now() - 600_000]] },
+    },
+  });
+  const silent = await prisma.cronRun.create({ data: { name: 'smoke-silent', status: 'RUNNING' } });
+  try {
+    const live = await fragment();
+    out.push({
+      route: 'GET /runs/running draws a run that reported and one that did not',
+      url: '/runs/running',
+      status: live.res.status,
+      ok: live.res.status === 200 && live.html.includes('id="running-now"') && live.html.includes('smoke-reported') && live.html.includes('508') && live.html.includes('663') && live.html.includes('smoke-silent'),
+    });
+    const page = await app.request('/runs', { headers: ORIGIN });
+    const html = await page.text();
+    out.push({ route: 'GET /runs holds the card and its host while a run is going', url: '/runs', status: page.status, ok: page.status === 200 && html.includes('id="running-host"') && html.includes('smoke-reported') });
+  } finally {
+    await prisma.cronRun.deleteMany({ where: { id: { in: [reported.id, silent.id] } } });
+  }
+  const after = await fragment();
+  out.push({ route: 'GET /runs/running is empty again once the runs ended', url: '/runs/running', status: after.res.status, ok: after.res.status === 200 && after.html === '' });
   return out;
 }
 

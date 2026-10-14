@@ -130,6 +130,7 @@ of truth when the two disagree.
 - 0069 What a person is told, where, and what they muted is their own; what runs the install is the install's *(amends 0041, 0056, 0061, 0063: destinations, mutes, language and pack settings are per person)*
 - 0070 Administrators run the install; members work in their own space *(completes 0065 and 0069: roles, the users page; employer mode is administrators' only)*
 - 0071 Job leads are read from the person's own mailbox, read-only, and are theirs alone *(builds on 0005, 0062, 0067: Gmail label → that person's jobs; the refresh token is a new accessor-only secret)*
+- 0072 A running job reports its progress through its own run row *(builds on 0003, 0069, 0070: `cron_run.progress`, a throttled reporter, a polled fragment on /runs)*
 
 Check a proposal against these before touching process layout, sources,
 scheduling, profiles, how the AI is called, the resume score or employer

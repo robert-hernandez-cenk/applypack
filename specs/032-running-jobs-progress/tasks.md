@@ -73,11 +73,11 @@ description: "Task list for the live progress card for running jobs (#32)"
 
 ## Phase 6: Polish and cross-cutting
 
-- [ ] T023 [P] Write `docs/adr/0072-running-jobs-report-progress-through-the-run-row.md` with the adr-writer template (context: worker memory invisible to web; decision: `cron_run.progress`, throttled reporter, fragment polling; alternatives rejected from research.md R1–R3) and add it to `docs/adr/README.md`.
-- [ ] T024 [P] Add rows to `docs/where-to-look.md` (progress reporter: `src/jobs/run-progress.ts`, `cron-run.ts`; the card: `src/web/pages/running-card.tsx`, `/runs/running`, `public/running.mjs`) and one line each to `ARCHITECTURE.md` (data flow: worker → `cron_run.progress` → fragment) and `SPEC.md` (Runs page). Add a short file-rules bullet to `CLAUDE.md` for `run-progress.ts` (pure; the only writer is `cron-run.ts`; labels are catalog keys).
-- [ ] T025 Extend `src/scripts/route-smoke.ts`: `GET /runs/running` returns 200 and an empty body with no running row; after inserting a RUNNING row with a valid `progress` it returns a fragment containing `id="running-now"`; the route also passes the pseudo-language page sweep and the admin-policy test (`src/users/admin-policy.test.ts`).
-- [ ] T026 Run `npm run build` and the route smoke on a throwaway database; run the quickstart.md manual steps 1–6 on a scratch `APPLYPACK_DATA_DIR` (browser check at desktop and phone width, with and without script); record anything not verified for the PR.
-- [ ] T027 Final: `npm run lint:types && npm test && npm run exports:audit`; commit `Document the progress card, ADR 0072 and smoke step (#32)`; tick T023–T027.
+- [x] T023 [P] Write `docs/adr/0072-running-jobs-report-progress-through-the-run-row.md` with the adr-writer template (context: worker memory invisible to web; decision: `cron_run.progress`, throttled reporter, fragment polling; alternatives rejected from research.md R1–R3) and add it to `docs/adr/README.md`.
+- [x] T024 [P] Add rows to `docs/where-to-look.md` (progress reporter: `src/jobs/run-progress.ts`, `cron-run.ts`; the card: `src/web/pages/running-card.tsx`, `/runs/running`, `public/running.mjs`) and one line each to `ARCHITECTURE.md` (data flow: worker → `cron_run.progress` → fragment) and `SPEC.md` (Runs page). Add a short file-rules bullet to `CLAUDE.md` for `run-progress.ts` (pure; the only writer is `cron-run.ts`; labels are catalog keys).
+- [x] T025 Extend `src/scripts/route-smoke.ts`: `GET /runs/running` returns 200 and an empty body with no running row; after inserting a RUNNING row with a valid `progress` it returns a fragment containing `id="running-now"`; the route also passes the pseudo-language page sweep and the admin-policy test (`src/users/admin-policy.test.ts`).
+- [x] T026 Run `npm run build` and the route smoke on a throwaway database; run the quickstart.md manual steps 1–6 on a scratch `APPLYPACK_DATA_DIR` (browser check at desktop and phone width, with and without script); record anything not verified for the PR.
+- [x] T027 Final: `npm run lint:types && npm test && npm run exports:audit`; commit `Document the progress card, ADR 0072 and smoke step (#32)`; tick T023–T027.
 
 ## Dependencies and order
 
