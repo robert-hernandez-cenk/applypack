@@ -36,7 +36,7 @@ five reasons that sit in the OpenAI-compatible route itself:
   other five in the chain. It speaks Ollama's native `POST /api/chat`, the one
   route that takes `options.num_ctx`. Its address is `AppSettings.localAiUrl`
   (`OLLAMA_URL` the fallback), and must be on this machine or the user's own
-  network (`ai-usage.ts:checkLocalAiUrl`): the engine is called local because
+  network (`local-ai-url.ts:checkLocalAiUrl`): the engine is called local because
   it is. So it is billed as local, and it binds no robots.txt token.
   LM Studio and the rest stay on the OpenAI-compatible engine.
 - **The window is set on every call** (`AppSettings.localContextTokens`,

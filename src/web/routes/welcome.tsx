@@ -36,7 +36,8 @@ import {
   resolveAiEngine,
   withEngineFirst,
 } from '../../ai-engine';
-import { checkLocalAiUrl, checkOpenAiBaseUrl, isLocalUrl } from '../../ai-usage';
+import { checkOpenAiBaseUrl, isLocalUrl } from '../../ai-usage';
+import { checkLocalAiUrl } from '../../local-ai-url';
 import { findLocalServers, listOllamaModels, listServerModels, preferredModel } from '../../server-models';
 import { AI_KEY_ENV_VARS, MAX_AI_KEY_LENGTH, providerTakesKey } from '../../ai-keys';
 import { createResume, getResume, listResumes, type ResumeSummary } from '../../resume/store';
@@ -215,8 +216,10 @@ welcomeRoute.post('/welcome/ai/key', async (c) => {
 welcomeRoute.post('/welcome/ai/local', async (c) => {
   const form = await c.req.parseBody();
   const engine = form.engine === 'local_api' ? 'local_api' : 'openai_api';
-  const checked = engine === 'local_api' ? checkLocalAiUrl(typeof form.base === 'string' ? form.base : '') : checkOpenAiBaseUrl(typeof form.base === 'string' ? form.base : '');
-  if (!checked.ok || !isLocalUrl(checked.url)) return flashRedirect(AI_STEP, 'err', t('welcome.flash.notLocal'));
+  const base = typeof form.base === 'string' ? form.base : '';
+  // The local engine's check has already proved the server local, possibly through a name it resolved.
+  const checked = engine === 'local_api' ? await checkLocalAiUrl(base) : checkOpenAiBaseUrl(base);
+  if (!checked.ok || (engine === 'openai_api' && !isLocalUrl(checked.url))) return flashRedirect(AI_STEP, 'err', t('welcome.flash.notLocal'));
   const listed = engine === 'local_api' ? await listOllamaModels(checked.url) : await listServerModels(checked.url, undefined);
   if ('reason' in listed) return flashRedirect(AI_STEP, 'err', t('welcome.flash.localUnlisted', { reason: listed.reason }));
   const model = typeof form.model === 'string' ? form.model.trim() : '';

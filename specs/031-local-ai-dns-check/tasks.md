@@ -51,9 +51,9 @@
 
 **Independent Test**: both routes `await` the same function; the wizard's OpenAI-compatible path still requires a local address by its text; the route smoke's `http://127.0.0.1:9` posts still pass.
 
-- [ ] T012 [US2] In `src/web/routes/settings.tsx` replace the `checkLocalAiUrl` import from `../../ai-usage` with one from `../../local-ai-url` (keep `billingOf`, `checkOpenAiBaseUrl`, `isLocalUrl`, `type AiBilling` from `../../ai-usage`) and `await` it in `POST /settings/ai/local`
-- [ ] T013 [US2] In `src/web/routes/welcome.tsx` import `checkLocalAiUrl` from `../../local-ai-url` (keep `checkOpenAiBaseUrl`, `isLocalUrl` from `../../ai-usage`); in `POST /welcome/ai/local` read `base` once, `await checkLocalAiUrl(base)` for `local_api` and `checkOpenAiBaseUrl(base)` otherwise, and apply `!isLocalUrl(checked.url)` ONLY for `openai_api` (a comment says why: for `local_api` the check already proved the server local, possibly through a name)
-- [ ] T014 [US2] Delete `checkLocalAiUrl` (and its doc comment) from `src/ai-usage.ts`; grep `src/` for any remaining import of it from `ai-usage` and fix; run `npm run lint:types && npm run exports:audit`
+- [x] T012 [US2] In `src/web/routes/settings.tsx` replace the `checkLocalAiUrl` import from `../../ai-usage` with one from `../../local-ai-url` (keep `billingOf`, `checkOpenAiBaseUrl`, `isLocalUrl`, `type AiBilling` from `../../ai-usage`) and `await` it in `POST /settings/ai/local`
+- [x] T013 [US2] In `src/web/routes/welcome.tsx` import `checkLocalAiUrl` from `../../local-ai-url` (keep `checkOpenAiBaseUrl`, `isLocalUrl` from `../../ai-usage`); in `POST /welcome/ai/local` read `base` once, `await checkLocalAiUrl(base)` for `local_api` and `checkOpenAiBaseUrl(base)` otherwise, and apply `!isLocalUrl(checked.url)` ONLY for `openai_api` (a comment says why: for `local_api` the check already proved the server local, possibly through a name)
+- [x] T014 [US2] Delete `checkLocalAiUrl` (and its doc comment) from `src/ai-usage.ts`; grep `src/` for any remaining import of it from `ai-usage` and fix; run `npm run lint:types && npm run exports:audit`
 
 **Checkpoint**: green; `lookupAddresses`, `isLocalHost`, `cleanServerUrl` all read outside their file (audit passes); commit `Save the local engine's address through the lookup (#31, US2)`.
 
@@ -81,7 +81,7 @@
 
 ## Phase 6: Docs and polish
 
-- [ ] T019 [P] In `src/ai-engine.ts` change the comment pointer `(ai-usage.ts:checkLocalAiUrl)` to `(local-ai-url.ts:checkLocalAiUrl)`
+- [x] T019 [P] In `src/ai-engine.ts` change the comment pointer `(ai-usage.ts:checkLocalAiUrl)` to `(local-ai-url.ts:checkLocalAiUrl)`
 - [ ] T020 [P] In `docs/where-to-look.md` change `ai-usage.ts:checkLocalAiUrl` in the local-engine row to `local-ai-url.ts:checkLocalAiUrl` and add "a name is resolved first: every address must be local" to that row; add one row for "what counts as a local address" → `ai-usage.ts:isLocalHost` / `isLocalUrl` (100.64/10 included) if no row names it
 - [ ] T021 In `docs/adr/0057-a-local-model-is-an-engine-of-its-own.md` change the reference on line 39 to `local-ai-url.ts:checkLocalAiUrl` and append a dated addendum `**Addendum, 2026-10-14 (#31).**` recording: the address is looked up when saved (every returned address must be local; an unresolvable name is refused; a local-by-text name is not looked up), the 100.64.0.0/10 widening and its reach (`isLocalUrl` is shared, so the LM Studio http rule, its "local" cost and the crawler tokens follow), and the limits (save time only / DNS rebinding not pinned, `OLLAMA_URL` unchecked, IPv4-mapped answers refused). Wording as the file's other addenda, no real hostnames
 - [ ] T022 Grep `README.md`, `SPEC.md`, `ARCHITECTURE.md`, `docs/ai-engines.md`, `docs/TASKS.md` and the catalog's `engine.url.notLocal` neighbours for prose saying the local engine only accepts addresses "on this machine or your own network" by text/IP; update any that now misdescribe the rule (a name that resolves locally counts); if `CHANGELOG.md` carries per-PR `Unreleased` entries, add one line there

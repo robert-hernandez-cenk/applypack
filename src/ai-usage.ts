@@ -175,20 +175,6 @@ export function cleanServerUrl(input: string): { ok: true; url: string } | { ok:
 }
 
 /**
- * The Ollama address typed for the local engine (ADR 0057): its root, on this
- * machine or the user's own network — the engine is called local because it
- * is. A pasted `/v1` or `/api` is dropped: the native API lives at the root.
- */
-export function checkLocalAiUrl(input: string): { ok: true; url: string } | { ok: false; reason: string } {
-  const checked = checkOpenAiBaseUrl(input);
-  if (!checked.ok) return checked;
-  if (!isLocalUrl(checked.url)) {
-    return { ok: false, reason: t('engine.url.notLocal') };
-  }
-  return { ok: true, url: checked.url.replace(/\/(v1|api)$/, '') };
-}
-
-/**
  * An address that is this machine or a private network — Ollama, LM Studio,
  * llama.cpp's server. `host.docker.internal` is the host seen from a container.
  */
