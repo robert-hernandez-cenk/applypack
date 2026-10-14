@@ -75,3 +75,7 @@
 
 {"event":"artifact_drift_detected","timestamp":"2026-10-14T16:56:09.9344610Z","actor":"claude","feature_directory":"specs/032-running-jobs-progress","drifted_artifacts":[{"path":"tasks.md","old_sha256":"ec5220e16023869013a61bbe96dd72d373e512d771031d2cbc66c7e0324a9e0b","new_sha256":"6f64b7884e92d60d0345e292d489a3ca190ca9f355fe11737c64a42d4362001a"}]}
 
+{"timestamp":"2026-10-14T18:07:42.7804653Z","action":"handoff","status":"ready","feature_directory":"specs/032-running-jobs-progress","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261014T1807427287515Z-ready"}
+
+{"timestamp":"2026-10-14T18:07:54.0689335Z","action":"handoff","status":"ready","feature_directory":"specs/036-live-status-page","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261014T1807540356314Z-ready"}
+
