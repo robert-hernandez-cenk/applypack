@@ -94,7 +94,7 @@ Format: `- [ ] T### [P?] [US?] description with file path`. `[P]` = different fi
 - [x] T043 Run `npm run exports:audit`; remove or use any export it flags in `src/gmail/*`.
 - [x] T044 Run `npm run lint:types && npm test`, `npm run build`, `npm run smoke:routes` (throwaway DB, per `.github/workflows/test.yml`), `npm audit --omit=dev --audit-level=high`; record the output in the PR body.
 - [x] T045 Walk `quickstart.md` "Automated" steps; mark the "Manual (live)" and "Manual (two people)" steps as unverified in the PR unless a Google account is available.
-- [ ] T046 Mark every finished box in this file; commit `Mark #22 verification tasks complete`.
+- [x] T046 Mark every finished box in this file; commit `Mark #22 verification tasks complete`.
 
 ## Dependencies & order
 

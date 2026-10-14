@@ -63,6 +63,7 @@ at the last two weeks the first time, and never reads the same mail twice.
 | The card says | What it means |
 | --- | --- |
 | Google ended this connection | access was revoked, or the client is still in Testing (7 days). Publish it, then **Reconnect** |
+| The last check failed (and the log says `accessNotConfigured`) | the Gmail API is not enabled in the Google Cloud project (step 1.2); enable it and press **Check now** |
 | No label with this name exists | the name in the field does not match a Gmail label; fix it there or in Gmail |
 | Google could not be reached / allowance used up | transient; the next check tries again |
 | No AI engine is set up | set one up under Settings → AI |

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GoogleError } from './status';
 import { alternativeMail, attachmentMail, b64url, emptyMail, htmlMail, htmlOnlyMail, singlePartMail } from './fixtures/mails';
-import { BODY_CHARS, MAX_LINKS, parseMessage, readMail } from './message';
+import { BODY_CHARS, MAX_LINKS, RAW_CHARS, parseMessage, readMail } from './message';
 
 const read = (m: unknown) => readMail(parseMessage(m));
 
@@ -89,4 +89,22 @@ test('the text is cut at the budget, and links past the cap get no marker', () =
 test('a reply that is not a message is refused', () => {
   assert.throws(() => parseMessage({ nothing: true }), GoogleError);
   assert.throws(() => parseMessage('<html>'), GoogleError);
+});
+
+test('a hostile mail cannot hold the reader up: markup built to make a pattern rescan itself is cut and bounded', () => {
+  const started = Date.now();
+  read(htmlMail('<a '.repeat(100_000)));
+  assert.ok(Date.now() - started < 1500, `took ${Date.now() - started} ms`);
+});
+
+test('past the size cap a mail is not read, so a link after it is not offered', () => {
+  const mail = read(htmlMail(`${'x '.repeat(RAW_CHARS)}<a href="https://late.example/x">late</a>`));
+  assert.deepEqual(mail.links, []);
+});
+
+test('a card wrapped whole in one link still keeps its link', () => {
+  const card = `<a href="https://jobs.example/c/1"><table><tr><td>${'Senior Backend Engineer at Acme, Austin. '.repeat(50)}</td></tr></table></a>`;
+  const mail = read(htmlMail(card));
+  assert.deepEqual(mail.links, ['https://jobs.example/c/1']);
+  assert.match(mail.text, /\[#1\]/);
 });

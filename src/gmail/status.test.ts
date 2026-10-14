@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { HttpError } from '../http';
 import { t } from '../i18n/t';
-import { GMAIL_STATUSES, GoogleError, statusKey, statusOf } from './status';
+import { GMAIL_STATUSES, GoogleError, errorReason, statusKey, statusOf } from './status';
 
 const http = (status: number, body = ''): HttpError => new HttpError(`HTTP ${status} for https://example.test/x`, status, 'https://example.test/x', body);
 
@@ -40,4 +40,17 @@ test('anything else is a plain error, never its text', () => {
 test('every status has a sentence in the catalog, and unknown ones fall back to the error sentence', () => {
   for (const status of GMAIL_STATUSES) assert.notEqual(t(statusKey(status)), statusKey(status), status);
   assert.equal(statusKey('something-new'), statusKey('error'));
+});
+
+test('a Gmail API the operator never enabled is a setup error, not Google ending a person’s access', () => {
+  const disabled = '{"error":{"code":403,"message":"Gmail API has not been used in project 123 before or it is disabled.","errors":[{"reason":"accessNotConfigured"}],"status":"PERMISSION_DENIED"}}';
+  assert.equal(statusOf(http(403, disabled)), 'error');
+  assert.equal(statusOf(http(403, '{"error":{"status":"PERMISSION_DENIED","details":[{"reason":"SERVICE_DISABLED"}]}}')), 'error');
+});
+
+test('the reason Google gave is available for the log, from either error shape, and only that', () => {
+  assert.equal(errorReason(http(403, '{"error":{"errors":[{"reason":"accessNotConfigured","message":"private words"}]}}')), 'accessNotConfigured');
+  assert.equal(errorReason(http(400, '{"error":"invalid_grant","error_description":"Token has been expired or revoked."}')), 'invalid_grant');
+  assert.equal(errorReason(http(503, '<html>')), undefined);
+  assert.equal(errorReason(new Error('boom')), undefined);
 });

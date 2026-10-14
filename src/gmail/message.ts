@@ -17,6 +17,13 @@ import { GoogleError } from './status';
 export const BODY_CHARS = 12_000;
 /** How many different addresses a mail may offer; a digest has a dozen at most. */
 export const MAX_LINKS = 60;
+/**
+ * How much of a part is read at all. A digest is tens of kilobytes; a mail can be
+ * twenty-five megabytes, and anyone can send one to an address a Gmail filter
+ * labels. Patterns run over this much and no more, and the ones below are bounded
+ * besides: a pattern that rescans from every `<a` took a minute on a megabyte of them.
+ */
+export const RAW_CHARS = 200_000;
 
 interface Header {
   name: string;
@@ -79,7 +86,8 @@ function senderName(from: string): string {
 /** The first part of this type that holds text, skipping attachments. */
 function findText(part: Part, mimeType: string): string | null {
   if (part.filename === '' && part.mimeType === mimeType && part.body.data) {
-    const text = Buffer.from(part.body.data, 'base64url').toString('utf8');
+    // Four base64 characters make three bytes: cut before decoding, so a huge part is never held as text.
+    const text = Buffer.from(part.body.data.slice(0, Math.ceil((RAW_CHARS * 4) / 3)), 'base64url').toString('utf8').slice(0, RAW_CHARS);
     if (text.trim() !== '') return text;
   }
   for (const child of part.parts) {
@@ -106,7 +114,8 @@ class Links {
   }
 }
 
-const ANCHOR = /<a\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')[^>]*>([\s\S]*?)<\/a>/gi;
+/** Every part of it bounded: a tag, an address and the words inside a link (a whole job card may sit in one). */
+const ANCHOR = /<a\b[^>]{0,200}?\bhref\s*=\s*(?:"([^"]{0,2000})"|'([^']{0,2000})')[^>]{0,200}>([\s\S]{0,3000}?)<\/a>/gi;
 const BARE_URL = /https?:\/\/[^\s<>"'\])]+/gi;
 const TRAILING_PUNCTUATION = /[.,;:!?]+$/;
 

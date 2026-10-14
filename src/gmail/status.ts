@@ -22,9 +22,12 @@ export class GoogleError extends Error {
 
 const QUOTA_REASONS = /rateLimitExceeded|userRateLimitExceeded|dailyLimitExceeded|quotaExceeded/;
 const REVOKED = /invalid_grant|unauthorized_client|invalid_token/;
+/** The operator never enabled the Gmail API for the project: a setup mistake, not anyone's access ending. */
+const NOT_ENABLED = /accessNotConfigured|SERVICE_DISABLED/;
 
 function httpStatus(err: HttpError): FailureStatus {
   const body = err.body ?? '';
+  if (err.status === 403 && NOT_ENABLED.test(body)) return 'error';
   if (err.status === 401 || REVOKED.test(body)) return 'access_ended';
   if (err.status === 429 || (err.status === 403 && QUOTA_REASONS.test(body))) return 'quota';
   if (err.status === 403) return 'access_ended';
@@ -55,4 +58,24 @@ const KEYS: Record<GmailStatus, MessageKey> = {
 /** The catalog key for a stored status; a word this version does not know reads as a plain error. */
 export function statusKey(status: string): MessageKey {
   return Object.hasOwn(KEYS, status) ? KEYS[status as GmailStatus] : KEYS.error;
+}
+
+/**
+ * The reason code Google put on a failure (`accessNotConfigured`, `invalid_grant`), for the log
+ * beside the status. Only that word: Google's message text is not read out, and a body that is
+ * not JSON gives nothing.
+ */
+export function errorReason(err: unknown): string | undefined {
+  if (!(err instanceof HttpError) || !err.body) return undefined;
+  let json: unknown;
+  try {
+    json = JSON.parse(err.body);
+  } catch {
+    return undefined;
+  }
+  const error = (json as { error?: unknown } | null)?.error;
+  if (typeof error === 'string') return error;
+  const listed = (error as { errors?: { reason?: unknown }[]; details?: { reason?: unknown }[] } | null | undefined);
+  const reason = [...(listed?.errors ?? []), ...(listed?.details ?? [])].map((e) => e.reason).find((r) => typeof r === 'string');
+  return typeof reason === 'string' ? reason : undefined;
 }

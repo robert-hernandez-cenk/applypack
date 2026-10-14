@@ -6,7 +6,7 @@ import { parseMessage, readMail } from '../gmail/message';
 import { buildGmailExtractPrompt, GMAIL_MAX_TOKENS } from '../gmail/prompt';
 import { ledgerCutoff, pickMessages, searchQuery, windowStart } from '../gmail/query';
 import type { GoogleSettings } from '../gmail/settings';
-import { GMAIL_STATUSES, statusOf, type FailureStatus, type GmailStatus } from '../gmail/status';
+import { GMAIL_STATUSES, errorReason, statusOf, type FailureStatus, type GmailStatus } from '../gmail/status';
 import type * as store from '../gmail/store';
 import { logger } from '../logger';
 import type { ClassifierMode } from '../settings';
@@ -94,7 +94,7 @@ export async function runGmailJob(userId: number, deps: GmailJobDeps): Promise<{
     listed = await deps.io.listMessages(access, labelId, searchQuery(windowStart(now, connection.lastCheckAt)));
   } catch (err) {
     const status = statusOf(err);
-    logger.warn({ userId, status }, 'gmail-job: could not reach the label');
+    logger.warn({ userId, status, reason: errorReason(err) }, 'gmail-job: could not reach the label');
     return fail(status);
   }
 
@@ -130,7 +130,7 @@ export async function runGmailJob(userId: number, deps: GmailJobDeps): Promise<{
       read(parsed.listings.length > 0 ? 'listings' : 'none', parsed.listings.length);
     } catch (err) {
       failure = statusOf(err);
-      logger.warn({ userId, status: failure }, 'gmail-job: a mail could not be read');
+      logger.warn({ userId, status: failure, reason: errorReason(err) }, 'gmail-job: a mail could not be read');
       break;
     }
   }
