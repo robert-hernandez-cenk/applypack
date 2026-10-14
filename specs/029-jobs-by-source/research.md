@@ -6,6 +6,12 @@
 - **Rationale**: every `Job` belongs to a `Company` row; aggregators are one synthetic row each, vendors one per board, and the user's own sources (`GMAIL`, `FOLDER`, `IMPORT`, `MANUAL`, `FEED`, …) their own hidden or visible rows. `atsType` is therefore the "kind of source" the issue asks for, with no schema change.
 - **Alternatives**: `Job.sourceFile` / `Company.name` (too fine: one entry per board or file, not "company boards"); a new `Job.source` column (schema change for data we already have).
 
+## Per person (ADR 0067)
+
+- **Decision**: the panel reads the same rows as the stack card — `user_job` filtered by `userId` — and adds nothing that crosses people.
+- **Rationale**: a Gmail posting is stored with its reader as `ownerId` (`jobs/gmail-job.ts` → `processNormalizedJobs`), and `process-jobs.ts` creates a `user_job` row only for that owner, so it cannot reach another person's matches. Gmail's company row is per person and hidden (`AtsType.GMAIL`). The counts are therefore already one person's, and each person's "Gmail" bar counts only their own connector. The query's `userId` filter is the contract; a test fixture with two people guards it (tasks T015).
+- **Alternatives**: filtering the bar by "is Gmail connected" in the page (redundant: no rows means no bar).
+
 ## What the "Company boards" merge is
 
 - **Decision**: `sourceFamily(atsType) === 'vendor'` (`src/web/source-groups.ts`) → one entry.

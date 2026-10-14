@@ -1,7 +1,18 @@
 import { JobStatus, type Prisma } from '@prisma/client';
 import { prisma } from '../db';
 import { funnelView, readCounts, sumDays, type FunnelView } from '../funnel';
-import { KPI_STATUSES, SPARK_DAYS, kpiTrends, readStackParam, topTerms, type KpiStatus, type KpiTrend, type TermCount } from './overview-numbers';
+import {
+  KPI_STATUSES,
+  SPARK_DAYS,
+  kpiTrends,
+  readStackParam,
+  topSources,
+  topTerms,
+  type KpiStatus,
+  type KpiTrend,
+  type SourceCount,
+  type TermCount,
+} from './overview-numbers';
 import { techKey } from './tech-label';
 import {
   RANGES,
@@ -35,6 +46,8 @@ const STACK_DAYS = 30;
 /** Bars in the "by stack" list, and options in the chart's filter. */
 const STACK_BARS = 8;
 const STACK_OPTIONS = 12;
+/** Bars in the "by source" list. */
+const SOURCE_BARS = 8;
 
 
 /**
@@ -80,6 +93,8 @@ export interface OverviewStats {
   funnel: FunnelView;
   /** What the last 30 days' matches name, most named first, and how many matches that is out of. */
   stack: { terms: TermCount[]; matches: number };
+  /** The same matches by where they came from — every match counts, with or without a technology. */
+  sources: { entries: SourceCount[]; matches: number };
   activity: OverviewActivity;
   /** When a fetch — the hourly one or "Fetch now" — last started. */
   lastCheckedAt: Date | null;
@@ -117,9 +132,9 @@ export async function loadOverviewStats(
     prisma.userJob
       .findMany({
         where: { AND: [WAS_MATCH, { userId, job: { AND: [unmuted], fetchedAt: { gte: sinceStack } } }] },
-        select: { techMatch: true, job: { select: { fetchedAt: true } } },
+        select: { techMatch: true, job: { select: { fetchedAt: true, company: { select: { atsType: true } } } } },
       })
-      .then((rows) => rows.map(({ job, techMatch }) => ({ techMatch, fetchedAt: job.fetchedAt }))),
+      .then((rows) => rows.map(({ job, techMatch }) => ({ techMatch, fetchedAt: job.fetchedAt, atsType: job.company.atsType }))),
     prisma.userJob.count({ where: { userId, job: { AND: [unmuted], fetchedAt: { gte: since24h } } } }),
     prisma.userJob.count({ where: { userId, alertedAt: { gte: since24h }, job: unmuted } }),
     // "Latest 2d ago" under a zero: when it last happened at all, not only inside the 24 hours.
@@ -171,6 +186,7 @@ export async function loadOverviewStats(
     },
     funnel: funnelView(sumDays(funnelDays, days, now)),
     stack: { terms: options.slice(0, STACK_BARS), matches: matchRows.length },
+    sources: { entries: topSources(matchRows, SOURCE_BARS), matches: matchRows.length },
     activity: {
       fetched24h,
       lastFetchedAt: latest._max.fetchedAt,

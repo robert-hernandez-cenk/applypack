@@ -1,3 +1,4 @@
+import { sourceFamily } from './source-groups';
 import { DEFAULT_RANGE, countByDay, dailySeries, type RangeKey } from './stats-series';
 import { techKey } from './tech-label';
 
@@ -81,6 +82,34 @@ export function topTerms(rows: readonly { techMatch: readonly string[] }[], max:
   const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, max);
   const top = sorted[0]?.[1] ?? 0;
   return sorted.map(([term, count]) => ({ term, count, share: top > 0 ? Math.round((count / top) * 100) : 0 }));
+}
+
+/** The one bar every per-company vendor board is counted under; the page words it. */
+export const COMPANY_BOARDS = 'COMPANY_BOARDS';
+
+export interface SourceCount {
+  /** `COMPANY_BOARDS`, or the `AtsType` of the one source. */
+  source: string;
+  /** Matches that came through it. */
+  count: number;
+  /** 0–100 against the most productive source: the bar's width. */
+  share: number;
+}
+
+/**
+ * Where the matches came from, most first. The boards a person watches are
+ * one bar however many there are; every other kind stands alone. A tie keeps
+ * the alphabet's order, so the list does not reshuffle between two page loads.
+ */
+export function topSources(rows: readonly { atsType: string }[], max: number): SourceCount[] {
+  const counts = new Map<string, number>();
+  for (const { atsType } of rows) {
+    const source = sourceFamily(atsType) === 'vendor' ? COMPANY_BOARDS : atsType;
+    counts.set(source, (counts.get(source) ?? 0) + 1);
+  }
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, max);
+  const top = sorted[0]?.[1] ?? 0;
+  return sorted.map(([source, count]) => ({ source, count, share: top > 0 ? Math.round((count / top) * 100) : 0 }));
 }
 
 /** The Overview's own link: the chart's range and technology ride in the URL, the defaults stay out of it. */

@@ -47,6 +47,7 @@ The panel looks and behaves like "Jobs by stack" so it needs no explanation, and
 ### Edge Cases
 
 - Matches are counted the way the stack panel counts them: the person's own kept postings of the last 30 days, muted employers left out, whatever the person did with them since.
+- Two people on one install see two different panels: a person who has not connected Gmail has no Gmail bar, and a posting found through someone else's Gmail never appears in their counts (a Gmail posting belongs to the person whose label it came from).
 - A source that is switched off or whose company row was removed still counts for matches already stored in the window.
 - The shares are relative to the matches in the window, so a source that names no technology still counts here (unlike the stack panel, which counts only matches naming technologies).
 - A single source only: the panel shows one full bar rather than hiding.
@@ -64,6 +65,7 @@ The panel looks and behaves like "Jobs by stack" so it needs no explanation, and
 - **FR-007**: Source names MUST be those the dashboard already uses elsewhere, in the reader's language where the dashboard words them.
 - **FR-008**: The panel's bars MUST NOT be links, and "Jobs by stack" MUST be unchanged.
 - **FR-009**: New visible words MUST be present in every interface language.
+- **FR-010**: The panel MUST count only the signed-in person's own matches. Sources that are per person — above all Gmail, whose label and connection belong to one person — MUST show only for the person who has them, and MUST never add to another person's counts or total.
 
 ### Key Entities
 
@@ -77,6 +79,7 @@ The panel looks and behaves like "Jobs by stack" so it needs no explanation, and
 - **SC-002**: The entry counts add up to the total stated in the panel's footer (when no more than eight sources exist).
 - **SC-003**: With any number of vendor boards, the panel shows them as a single entry.
 - **SC-004**: The Overview's other panels show the same numbers as before the change.
+- **SC-005**: With two people on an install, one with Gmail connected, the other without, the second person's panel has no Gmail entry and its total excludes every posting the first found through Gmail.
 
 ## Assumptions
 

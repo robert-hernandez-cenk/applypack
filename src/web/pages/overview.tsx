@@ -31,9 +31,11 @@ import type { HeldLine } from '../held-line';
 import type { NextThing } from '../next-things';
 import { jobHref } from '../job-tabs';
 import type { ReadyPack } from '../../pack/store';
-import { KPI_STATUSES, overviewHref, type KpiStatus } from '../overview-numbers';
+import { COMPANY_BOARDS, KPI_STATUSES, overviewHref, type KpiStatus } from '../overview-numbers';
 import type { OverviewStats } from '../overview-stats';
 import { placeLine } from '../place-line';
+import { sourceLabel } from '../source-names';
+import { wordedSource } from '../source-groups';
 import { techLabel } from '../tech-label';
 import type { WorkplaceCode } from '../../location';
 import { FetchNowButton } from './fetch-run';
@@ -379,6 +381,37 @@ export const OverviewPage: FC<OverviewProps> = ({
               </ul>
               <p data-ui="hint" class="mt-4 border-t border-line pt-3 text-meta text-ink-faint">
                 {t('overview.stack.outOf', { n: stats.stack.matches })}
+              </p>
+            </Card>
+          )}
+
+          {stats.sources.entries.length > 0 && (
+            <Card>
+              <CardHeader title={t('overview.jobsBySource')} info={t('overview.theSourcesBehindTheMatches')}>
+                <span class="shrink-0 text-note text-ink-faint">{t('overview.n30Days')}</span>
+              </CardHeader>
+              <ul class="space-y-2.5">
+                {stats.sources.entries.map((entry) => {
+                  const name = entry.source === COMPANY_BOARDS ? t('overview.source.companyBoards') : sourceLabel(entry.source);
+                  return (
+                    <li class="flex items-center gap-3 text-sm">
+                      <span
+                        translate={entry.source === COMPANY_BOARDS || wordedSource(entry.source) ? undefined : 'no'}
+                        title={name}
+                        class="w-24 shrink-0 truncate text-ink"
+                      >
+                        {name}
+                      </span>
+                      <span class="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-overlay" aria-hidden="true">
+                        <span class="block h-full rounded-full bg-accent" style={`width:${Math.max(3, entry.share)}%`} />
+                      </span>
+                      <span class="w-8 shrink-0 text-right tabular-nums text-ink-muted">{formatNumber(entry.count)}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p data-ui="hint" class="mt-4 border-t border-line pt-3 text-meta text-ink-faint">
+                {t('overview.source.outOf', { n: stats.sources.matches })}
               </p>
             </Card>
           )}
