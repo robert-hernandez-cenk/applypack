@@ -29,6 +29,11 @@ init(document.getElementById('running-host'), { url: '${liveStatusPath(id)}/card
 export const RunStatusBlock: FC<{ view: RunningView }> = ({ view }) => (
   <Card class="!p-4">
     <RunningBlock row={view} />
+    {view.progress === null && (
+      <p data-ui="hint" class="mt-2 text-note text-ink-faint">
+        {t('runs.status.waiting')}
+      </p>
+    )}
   </Card>
 );
 
@@ -44,11 +49,6 @@ export const RunStatusPage: FC<{ run: RunRow; view: RunningView | null }> = ({ r
         <div id="running-host">
           <RunStatusBlock view={view} />
         </div>
-        {view.progress === null && (
-          <p data-ui="hint" class="mt-3 text-note text-ink-faint">
-            {t('runs.status.waiting')}
-          </p>
-        )}
         <script type="module" dangerouslySetInnerHTML={{ __html: bootScript(run.id) }} />
       </>
     ) : (

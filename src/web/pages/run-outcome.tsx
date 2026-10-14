@@ -21,26 +21,26 @@ export interface RunRow {
 /** What happened in a run, in words: the failure line, or the stats sentence, or a dash. The same cell on /runs and on /runs/:id. */
 export const RunOutcome: FC<{ run: RunRow }> = ({ run: r }) => (
   <>
-      {r.errorMessage ? (
-        <div>
-          <p class="text-note leading-5 text-danger">{failedRunLine(r.name, r.errorMessage)}</p>
-          <details class="mt-1">
-            <summary class="cursor-pointer text-meta text-ink-faint transition-colors duration-150 hover:text-ink">{t('runs.details')}</summary>
-            <pre class="mt-1 whitespace-pre-wrap break-words font-mono text-meta leading-5 text-ink-muted">{r.errorMessage}</pre>
-          </details>
-        </div>
-      ) : r.stats ? (
-        <>
-          <StatsCell name={r.name} stats={r.stats} />
-          {unscoredRun(r.status, r.stats) && (
-            <p class="mt-1 text-note leading-5 text-warn">
-              {tRich('runs.unscored', {}, { a: (words) => <a href="/settings?tab=ai" class="underline">{words}</a> })}
-            </p>
-          )}
-        </>
-      ) : (
-        <span class="text-meta text-ink-faint">—</span>
-      )}
+    {r.errorMessage ? (
+      <div>
+        <p class="text-note leading-5 text-danger">{failedRunLine(r.name, r.errorMessage)}</p>
+        <details class="mt-1">
+          <summary class="cursor-pointer text-meta text-ink-faint transition-colors duration-150 hover:text-ink">{t('runs.details')}</summary>
+          <pre class="mt-1 whitespace-pre-wrap break-words font-mono text-meta leading-5 text-ink-muted">{r.errorMessage}</pre>
+        </details>
+      </div>
+    ) : r.stats ? (
+      <>
+        <StatsCell name={r.name} stats={r.stats} />
+        {unscoredRun(r.status, r.stats) && (
+          <p class="mt-1 text-note leading-5 text-warn">
+            {tRich('runs.unscored', {}, { a: (words) => <a href="/settings?tab=ai" class="underline">{words}</a> })}
+          </p>
+        )}
+      </>
+    ) : (
+      <span class="text-meta text-ink-faint">—</span>
+    )}
   </>
 );
 
