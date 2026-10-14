@@ -61,6 +61,8 @@ export const PERSONAL_ROUTES = [
   // Resumes and what hangs off them.
   'GET /resumes',
   'POST /resumes',
+  'POST /resumes/reactive/list',
+  'POST /resumes/reactive/import',
   'POST /resumes/:id/replace',
   'POST /resumes/:id/compare-format',
   'GET /resumes/:id',

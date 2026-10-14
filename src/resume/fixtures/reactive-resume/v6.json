@@ -1,0 +1,62 @@
+{
+  "picture": { "hidden": false, "url": "https://example.com/me.png", "size": 80 },
+  "basics": {
+    "name": "Alex Rivera",
+    "headline": "Senior Backend Engineer",
+    "email": "alex@example.com",
+    "phone": "+1 555 0100",
+    "location": "Austin, TX",
+    "website": { "url": "https://alex.example.com", "label": "Portfolio" },
+    "customFields": []
+  },
+  "summary": {
+    "title": "Summary", "hidden": false,
+    "content": "<p>Backend engineer with 9 years building payment systems &amp; APIs.</p><p>Led teams of up to 6.</p>"
+  },
+  "sections": {
+    "profiles": { "title": "Profiles", "hidden": false, "items": [
+      { "id": "p1", "hidden": false, "network": "GitHub", "username": "arivera", "website": { "url": "https://github.com/arivera", "label": "" } }
+    ] },
+    "experience": { "title": "Experience", "hidden": false, "items": [
+      { "id": "e1", "hidden": false, "company": "Northwind Pay", "position": "Senior Engineer", "location": "Remote",
+        "period": "March 2022 – Present", "dates": { "start": "2022-03", "end": null, "present": true },
+        "website": { "url": "", "label": "" },
+        "description": "<ul><li><p>Cut settlement latency by 40%</p></li><li><p>Moved 12 services to Kubernetes</p></li></ul>",
+        "roles": [] },
+      { "id": "e2", "hidden": false, "company": "Contoso Labs", "position": "", "location": "Dallas, TX",
+        "period": "2016 – 2022", "dates": { "start": "2016", "end": "2022", "present": false },
+        "website": { "url": "", "label": "" }, "description": "",
+        "roles": [
+          { "id": "r1", "position": "Tech Lead", "period": "2019 – 2022", "dates": { "start": "2019", "end": "2022", "present": false }, "description": "<p>Owned the billing platform.</p>" },
+          { "id": "r2", "position": "Engineer", "period": "2016 – 2019", "dates": { "start": "2016", "end": "2019", "present": false }, "description": "" }
+        ] },
+      { "id": "e3", "hidden": true, "company": "Hidden Corp", "position": "Secret Role", "location": "", "period": "", "dates": { "start": null, "end": null, "present": false }, "website": { "url": "", "label": "" }, "description": "<p>Should never appear</p>", "roles": [] }
+    ] },
+    "education": { "title": "Education", "hidden": false, "items": [
+      { "id": "d1", "hidden": false, "school": "University of Texas", "degree": "BSc", "area": "Computer Science", "grade": "", "location": "Austin, TX", "period": "2008 – 2012", "dates": { "start": "2008", "end": "2012", "present": false }, "website": { "url": "", "label": "" }, "description": "" }
+    ] },
+    "skills": { "title": "Skills", "hidden": false, "items": [
+      { "id": "s1", "hidden": false, "name": "Languages", "proficiency": "Expert", "level": 5, "keywords": ["TypeScript", "Go", "SQL"] },
+      { "id": "s2", "hidden": false, "name": "Infrastructure", "proficiency": "", "level": 4, "keywords": ["Kubernetes", "PostgreSQL"] }
+    ] },
+    "projects": { "title": "Projects", "hidden": false, "items": [
+      { "id": "j1", "hidden": false, "name": "ledger-kit", "period": "2021", "dates": { "start": "2021", "end": null, "present": false }, "website": { "url": "https://example.com/ledger-kit", "label": "" }, "description": "<p>Open-source double-entry library.</p>" }
+    ] },
+    "languages": { "title": "Languages", "hidden": false, "items": [
+      { "id": "l1", "hidden": false, "language": "English", "fluency": "Native", "level": 5 },
+      { "id": "l2", "hidden": false, "language": "Spanish", "fluency": "Professional", "level": 4 }
+    ] },
+    "certifications": { "title": "Certifications", "hidden": false, "items": [
+      { "id": "c1", "hidden": false, "title": "CKA", "issuer": "CNCF", "date": "June 2023", "dates": { "start": "2023-06", "end": null, "present": false }, "website": { "url": "", "label": "" }, "description": "" }
+    ] },
+    "awards": { "title": "Awards", "hidden": true, "items": [
+      { "id": "a1", "hidden": false, "title": "Hidden Section Award", "awarder": "Nobody", "date": "2020", "dates": { "start": "2020", "end": null, "present": false }, "website": { "url": "", "label": "" }, "description": "" }
+    ] },
+    "interests": { "title": "Interests", "hidden": false, "items": [] },
+    "publications": { "title": "Publications", "hidden": false, "items": [] },
+    "volunteer": { "title": "Volunteer", "hidden": false, "items": [] },
+    "references": { "title": "References", "hidden": false, "items": [] }
+  },
+  "customSections": [],
+  "metadata": { "template": "azurill", "layout": {}, "page": {}, "design": {}, "typography": {}, "notes": "" }
+}

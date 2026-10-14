@@ -388,6 +388,18 @@
   inputs only — ADR 0021); `store.ts` is the only file that touches Prisma.
   Called by the dashboard and, since ADR 0063, by the worker's pack runner
   (`src/pack/prepare.ts`); no other worker job imports it (ADR 0008).
+- `src/resume/reactive-resume.ts` is a Reactive Resume export read to Markdown
+  (ADR 0073) and is pure: v4 / v5 / v6 are told apart by shape, hidden
+  sections and items never reach the text, `stripHtml` runs once per field.
+  `reactive-resume-url.ts` is pure (the address, and `reachable`: a member is
+  refused a private name or address, an administrator is
+  not — the one person of a local install is one); `reactive-resume-api.ts` is the ONLY file that calls a person's
+  instance — `x-api-key`, no redirect followed, a time and a size limit — and
+  `web/pull-stash.ts` holds the key in memory for ten minutes, taken once.
+  The key is in no page, flash, log field or row. `.json` is read inside
+  `readResumeUpload`, never added to `ACCEPTED_EXTENSIONS` (screening intake
+  reads that list). The shapes are written from the published schema and have
+  not been checked against a live instance.
 - A comparison has two shapes (ADR 0029): `matchResumeToJob(..., {mode})`
   runs the quick check (`fast`, the function's default: keywords + alignment
   + gates + red flags — everything `score.ts` reads) or the full report

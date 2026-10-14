@@ -36,6 +36,9 @@ const READ_FAILURES = {
   notZip: 'resume.read.notZip',
   unsupported: 'resume.read.unsupported',
   tooShort: 'resume.read.tooShort',
+  badJson: 'resume.read.badJson',
+  notReactiveResume: 'resume.read.notReactiveResume',
+  reactiveEmpty: 'resume.read.reactiveEmpty',
 } as const satisfies Record<string, MessageKey>;
 
 type ReadFailure = keyof typeof READ_FAILURES;

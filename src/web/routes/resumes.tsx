@@ -56,7 +56,14 @@ import { ResumeDetailPage } from '../pages/resume-detail';
 import { FormatComparePage } from '../pages/format-compare';
 import { compareFormats, formatSides } from '../format-compare';
 import { loadLineDiff } from '../../resume/line-diff';
-import { ResumesPage } from '../pages/resumes';
+import { ReactivePickPage, ResumesPage } from '../pages/resumes';
+import { ResumeTextError } from '../../resume/docx-text';
+import { markdownResume, reactiveResumeText } from '../../resume/resume-text';
+import { getInstanceResume, InstanceError, listInstanceResumes, type InstanceFailure } from '../../resume/reactive-resume-api';
+import { parseInstanceUrl, reachable, type InstanceUrlFailure, type Reach } from '../../resume/reactive-resume-url';
+import { stashPull, takePull } from '../pull-stash';
+import { isAdmin } from '../../users/admin-policy';
+import type { MessageKey } from '../../i18n/catalog';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { claimRun, startRun, updateRun } from '../target-runs';
 import { runFailure } from '../run-failure';
@@ -66,6 +73,7 @@ import {
   nameFromFilename,
   readResumeUpload,
   resumeUploadLimit,
+  type UploadedResumeFile,
 } from '../upload';
 import { t } from '../../i18n/t';
 
@@ -101,21 +109,108 @@ resumesRoute.post('/resumes', resumeUploadLimit('/resumes'), onceGuard(() => 're
   const form = await c.req.parseBody();
   const upload = await readResumeUpload(form);
   if ('error' in upload) return flashRedirect('/resumes', 'err', upload.error);
+  const name =
+    typeof form.name === 'string' && form.name.trim().length > 0
+      ? form.name.trim().slice(0, MAX_RESUME_NAME_CHARS)
+      : nameFromFilename(upload.sourceFilename);
+  return saveUploaded(c, upload, name);
+});
+
+/** A new resume from an upload, or the one it repeats; its scan runs behind the page. */
+async function saveUploaded(c: Context, upload: UploadedResumeFile, name: string): Promise<Response> {
   // R16: the same text again is not a second resume, and not a second scan to pay for.
   const same = await findResumeWithText(currentUser().id, upload.text);
   if (same) {
     return flashRedirect(`/resumes/${same.id}`, 'warn', t('resume.flash.sameAsExisting', { name: same.name, version: same.version }));
   }
-  const name =
-    typeof form.name === 'string' && form.name.trim().length > 0
-      ? form.name.trim().slice(0, MAX_RESUME_NAME_CHARS)
-      : nameFromFilename(upload.sourceFilename);
   const resume = await createResume(currentUser().id, { name, ...upload });
   return startScanRun(c, resume, {
     subtitle: t('resume.run.scanSubtitle', { name }),
     onScanned: () => t('resume.flash.uploaded', { name }),
     onFailed: t('resume.flash.uploadedScanFailed', { name }),
   });
+}
+
+/*
+ * A resume pulled from the person's own Reactive Resume instance (ADR 0073):
+ * list with their key, pick, import. The key is held by pull-stash.ts for the
+ * step between, and is in no flash, log field or page.
+ */
+
+const URL_FAILURE = {
+  empty: 'resumes.reactive.fail.empty',
+  invalid: 'resumes.reactive.fail.invalid',
+  scheme: 'resumes.reactive.fail.scheme',
+  credentials: 'resumes.reactive.fail.credentials',
+} as const satisfies Record<InstanceUrlFailure, MessageKey>;
+
+const REACH_FAILURE = {
+  privateAddress: 'resumes.reactive.fail.privateAddress',
+  noHost: 'resumes.reactive.fail.noHost',
+} as const satisfies Record<Exclude<Reach, { ok: true }>['code'], MessageKey>;
+
+const INSTANCE_FAILURE = {
+  unauthorized: 'resumes.reactive.fail.unauthorized',
+  notApi: 'resumes.reactive.fail.notApi',
+  redirect: 'resumes.reactive.fail.redirect',
+  tooLarge: 'resumes.reactive.fail.tooLarge',
+  timeout: 'resumes.reactive.fail.timeout',
+  unreachable: 'resumes.reactive.fail.unreachable',
+} as const satisfies Record<InstanceFailure, MessageKey>;
+
+const formText = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+
+/** One person's pull at a time (a slow instance holds nobody else up). */
+const pullGuard = onceGuard(() => `resumes:reactive:${currentUser().id}`, () => '/resumes');
+
+/** Only an administrator may aim the server at its own network; on a local install the one person is one. */
+const mayReachInward = (): boolean => isAdmin(currentUser());
+
+resumesRoute.post('/resumes/reactive/list', pullGuard, async (c) => {
+  const form = await c.req.parseBody();
+  const key = formText(form.key);
+  const address = parseInstanceUrl(formText(form.url));
+  if (!address.ok) return flashRedirect('/resumes', 'err', t(URL_FAILURE[address.code]));
+  if (!key) return flashRedirect('/resumes', 'err', t('resumes.reactive.fail.noKey'));
+  const user = currentUser();
+  const reach = await reachable(address.base, { privileged: mayReachInward() });
+  if (!reach.ok) return flashRedirect('/resumes', 'err', t(REACH_FAILURE[reach.code]));
+  let found;
+  try {
+    found = await listInstanceResumes(address.base, key);
+  } catch (err) {
+    if (err instanceof InstanceError) return flashRedirect('/resumes', 'err', t(INSTANCE_FAILURE[err.code]));
+    throw err;
+  }
+  if (found.length === 0) {
+    return flashRedirect('/resumes', 'warn', t('resumes.reactive.fail.none', { host: address.base.host }));
+  }
+  const pull = stashPull({ userId: user.id, base: address.base.href, key, ids: found.map((r) => r.id) });
+  logger.info({ resumes: found.length, host: address.base.host }, 'resume: listed from a Reactive Resume instance');
+  return c.html(<ReactivePickPage pull={pull} host={address.base.host} resumes={found} />);
+});
+
+resumesRoute.post('/resumes/reactive/import', pullGuard, async (c) => {
+  const form = await c.req.parseBody();
+  const id = formText(form.id);
+  // Taken whatever happens next: a key is used for one import.
+  const pull = takePull(formText(form.pull), currentUser().id);
+  if (!pull) return flashRedirect('/resumes', 'err', t('resumes.reactive.fail.expired'));
+  if (!pull.ids.includes(id)) return flashRedirect('/resumes', 'err', t('resumes.reactive.fail.pickOne'));
+  try {
+    // The name is looked up again and the person's standing read again: the check at list time is ten minutes old.
+    const base = new URL(pull.base);
+    const reach = await reachable(base, { privileged: mayReachInward() });
+    if (!reach.ok) return flashRedirect('/resumes', 'err', t(REACH_FAILURE[reach.code]));
+    const got = await getInstanceResume(base, pull.key, id);
+    const read = reactiveResumeText(got.data);
+    const name = (got.name || read.name || t('upload.defaultName')).slice(0, MAX_RESUME_NAME_CHARS);
+    return await saveUploaded(c, markdownResume(name, read.text), name);
+  } catch (err) {
+    if (err instanceof InstanceError) return flashRedirect('/resumes', 'err', t(INSTANCE_FAILURE[err.code]));
+    if (err instanceof ResumeTextError) return flashRedirect('/resumes', 'err', err.reason());
+    throw err;
+  }
 });
 
 resumesRoute.post('/resumes/:id/replace', resumeUploadLimit('/resumes'), onceGuard((c) => `resumes:replace:${c.req.param('id')}`, (c) => `/resumes/${c.req.param('id')}`), async (c) => {

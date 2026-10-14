@@ -17,6 +17,7 @@ import {
   Input,
   MarkIcon,
   PageHeader,
+  Radio,
   SectionTitle,
   Select,
   SUBMIT_ONCE,
@@ -31,6 +32,9 @@ import type { FlashMessage } from '../flash';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
 import { t } from '../../i18n/t';
+
+/** What the upload card takes: the resume formats and a Reactive Resume export (ADR 0073). */
+const UPLOAD_TYPES = [...ACCEPTED_EXTENSIONS, '.json'];
 
 export interface ResumeRow {
   id: number;
@@ -89,6 +93,11 @@ export const ResumesPage: FC<{
     <Disclosure variant="button" summary={t('resumes.uploadAResume')} open={resumes.length === 0} class="mb-4">
       <Card class="mt-3">
         <ResumeUploadForm />
+      </Card>
+    </Disclosure>
+    <Disclosure variant="button" summary={t('resumes.reactive.summary')} class="mb-4">
+      <Card class="mt-3">
+        <ReactiveImportForm />
       </Card>
     </Disclosure>
 
@@ -332,6 +341,48 @@ const StrengthCell: FC<{ resume: ResumeRow }> = ({ resume }) =>
     </div>
   );
 
+/** Address and API key of a Reactive Resume instance; the next page lists the resumes found there (ADR 0073). */
+const ReactiveImportForm: FC = () => (
+  <form
+    method="post"
+    action="/resumes/reactive/list"
+    onsubmit={SUBMIT_ONCE}
+    class="grid gap-3 sm:grid-cols-[1.4fr_1fr_auto]"
+  >
+    <Field label={t('resumes.reactive.url')} hint={t('resumes.reactive.urlHint')}>
+      <Input type="text" name="url" required placeholder="https://rxresu.me" translate="no" inputmode="url" autocomplete="off" spellcheck="false" />
+    </Field>
+    <Field label={t('resumes.reactive.key')} hint={t('resumes.reactive.keyHint')}>
+      <Input type="password" name="key" required autocomplete="off" spellcheck="false" />
+    </Field>
+    <div class="flex items-end">
+      <Button class="w-full">{t('resumes.reactive.list')}</Button>
+    </div>
+    <Hint class="sm:col-span-3">{t('resumes.reactive.v4Hint')}</Hint>
+  </form>
+);
+
+/** The resumes found on the instance; the key is not on this page, only the id of the short-lived entry that holds it. */
+export const ReactivePickPage: FC<{ pull: string; host: string; resumes: { id: string; name: string }[] }> = ({ pull, host, resumes }) => (
+  <Layout title={t('resumes.reactive.pickTitle')} active="resumes">
+    <PageHeader title={t('resumes.reactive.pickTitle')} back={{ href: '/resumes', label: t('nav.resumes') }}>
+      {t('resumes.reactive.pickIntro', { host })}
+    </PageHeader>
+    <Card>
+      <form method="post" action="/resumes/reactive/import" onsubmit={SUBMIT_ONCE} class="grid gap-3">
+        <input type="hidden" name="pull" value={pull} />
+        {resumes.map((r, i) => (
+          <Radio name="id" value={r.id} required={i === 0} title={<span translate="no">{r.name}</span>} />
+        ))}
+        <div class="flex items-center gap-3">
+          <Button>{t('resumes.reactive.import')}</Button>
+          <a href="/resumes" class="text-sm text-ink-muted hover:text-ink">{t('resumes.reactive.cancel')}</a>
+        </div>
+      </form>
+    </Card>
+  </Layout>
+);
+
 /** Shared by /resumes and the Settings card. Posts to /resumes and lands on the new resume. */
 const ResumeUploadForm: FC = () => (
   <form
@@ -344,12 +395,12 @@ const ResumeUploadForm: FC = () => (
     <Field label={t('resumes.name')} hint={t('resumes.blankTakenFromTheFile')}>
       <Input type="text" name="name" placeholder={t('resumes.namePlaceholder')} maxlength="100" />
     </Field>
-    <Field label={t('resumes.file')} hint={t('upload.fileHint', { types: ACCEPTED_EXTENSIONS.join(', '), mb: MAX_UPLOAD_MB })}>
+    <Field label={t('resumes.file')} hint={t('upload.fileHint', { types: UPLOAD_TYPES.join(', '), mb: MAX_UPLOAD_MB })}>
       <Input
         type="file"
         name="file"
         required
-        accept={ACCEPTED_EXTENSIONS.join(',')}
+        accept={UPLOAD_TYPES.join(',')}
         class={FILE_INPUT_CLASS}
       />
     </Field>
@@ -357,7 +408,7 @@ const ResumeUploadForm: FC = () => (
       <Button class="w-full">{t('resumes.uploadScan')}</Button>
     </div>
     <Hint class="sm:col-span-3">
-      {t('resumes.oneCallToTheResume')}
+      {t('resumes.oneCallToTheResume')} {t('resumes.reactiveFileHint')}
     </Hint>
   </form>
 );
