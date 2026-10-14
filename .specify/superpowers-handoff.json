@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-14T18:08:03.4397843Z",
-  "feature_directory": "specs/036-live-status-page",
+  "updated_at": "2026-10-14T23:34:27.0095978Z",
+  "feature_directory": "specs/038-resume-length-control",
   "source_of_truth": {
     "constitution": ".specify/memory/constitution.md",
-    "spec": "specs/036-live-status-page/spec.md",
-    "plan": "specs/036-live-status-page/plan.md",
-    "tasks": "specs/036-live-status-page/tasks.md"
+    "spec": "specs/038-resume-length-control/spec.md",
+    "plan": "specs/038-resume-length-control/plan.md",
+    "tasks": "specs/038-resume-length-control/tasks.md"
   },
   "supersedes": [
     "speckit.implement"
   ],
-  "executor": "superpowers",
+  "executor": "speckit",
   "capabilities": [
     "executing-plans",
     "test-driven-development",
@@ -19,16 +19,11 @@
     "requesting-code-review",
     "finishing-a-development-branch"
   ],
-  "status": "executing",
+  "status": "ready",
   "blocked_reason": null,
   "artifact_owner": "claude",
   "review_only_agents": [],
   "notes": null,
-  "last_snapshot_id": "20261014T1808034166839Z-executing",
-  "instructions": "Use /speckit-superpowers-bridge (Claude Code) or $speckit-superpowers-bridge (Codex). The bridge orchestrates native Superpowers skills against tasks.md; do not run speckit.implement and do not invoke superpowers:writing-plans / :brainstorming for an active Spec Kit feature.",
-  "artifacts_sha256": {
-    "spec.md": "bc6b4e1bde4363b69c67259210f7149eb9a488304cad29b3251a445a70508b16",
-    "plan.md": "08c21038f3e846c78f54667a171343c1d169b24b763a61a0619ba0de04d4f5f8",
-    "tasks.md": "bce47f048fa25a6b702dd769706eba966d1c7e291667e9a3da088fed10629668"
-  }
+  "last_snapshot_id": "20261014T2334269782707Z-ready",
+  "instructions": "Use /speckit-superpowers-bridge (Claude Code) or $speckit-superpowers-bridge (Codex). The bridge orchestrates native Superpowers skills against tasks.md; do not run speckit.implement and do not invoke superpowers:writing-plans / :brainstorming for an active Spec Kit feature."
 }

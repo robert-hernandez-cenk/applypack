@@ -83,3 +83,11 @@
 
 {"timestamp":"2026-10-14T18:08:04.1353775Z","action":"guard","status":"allow","feature_directory":"specs/036-live-status-page","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
 
+{"timestamp":"2026-10-14T23:32:00.0791701Z","action":"guard","status":"allow","feature_directory":"specs/036-live-status-page","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.plan"}
+
+{"timestamp":"2026-10-14T23:33:31.7143108Z","action":"guard","status":"allow","feature_directory":"specs/036-live-status-page","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.tasks"}
+
+{"timestamp":"2026-10-14T23:34:19.1986278Z","action":"handoff","status":"ready","feature_directory":"specs/036-live-status-page","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261014T2334191493238Z-ready"}
+
+{"timestamp":"2026-10-14T23:34:27.0189937Z","action":"handoff","status":"ready","feature_directory":"specs/038-resume-length-control","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261014T2334269782707Z-ready"}
+
