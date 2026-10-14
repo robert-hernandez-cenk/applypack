@@ -49,7 +49,7 @@ A person on hosted Reactive Resume or on their own server enters the instance ad
 
 ### User Story 3 - Members cannot aim the server at its own network (Priority: P2)
 
-On an install shared by several people, a member who types an address that points inside the server's own network (this machine, a private range, a link-local address) is refused. Administrators, and anyone using the single-person local install, may use such addresses, because self-hosted Reactive Resume usually lives there.
+On an install shared by several people, a member who types an address that points inside the server's own network (this machine, a private range, a link-local address) is refused. Administrators may use such addresses (the one person on a local install is one), because self-hosted Reactive Resume usually lives there.
 
 **Why this priority**: Without it the live pull is a way for any member to make the server call internal services.
 
@@ -58,7 +58,7 @@ On an install shared by several people, a member who types an address that point
 **Acceptance Scenarios**:
 
 1. **Given** a member on a shared install, **When** they enter an address that resolves to a loopback, private or link-local address, **Then** it is refused with a message saying why, and no request is made to it.
-2. **Given** an administrator or the local install, **When** they enter the same address, **Then** it is allowed.
+2. **Given** an administrator, **When** they enter the same address, **Then** it is allowed.
 3. **Given** an address that is not http or https, or that carries a user name or password, **When** it is entered, **Then** it is refused for everyone.
 4. **Given** an instance that answers with a redirect, **When** the request is made, **Then** the redirect is not followed and the person is told.
 
@@ -90,7 +90,7 @@ On an install shared by several people, a member who types an address that point
 - **FR-009**: The live pull MUST work against the hosted service and against self-hosted instances at any address, including a path prefix.
 - **FR-010**: The API key MUST be sent only to the entered instance, held only for the short wait between listing and picking, and MUST NOT be stored, logged, echoed into a page or put in a link.
 - **FR-011**: Only http and https addresses without embedded credentials MUST be accepted; redirects MUST NOT be followed; each request MUST have a time limit and a size limit.
-- **FR-012**: For members of a shared install, an address that resolves to a loopback, private or link-local address MUST be refused before any request is made; administrators and the local install MAY use them.
+- **FR-012**: For members of a shared install, an address that resolves to a loopback, private or link-local address MUST be refused before any request is made; only administrators MAY use them.
 - **FR-013**: Failures of the live pull (wrong key, no answer, not Reactive Resume, instance without the API, redirect, too large, too slow) MUST each give a distinct plain message, and an instance without the API MUST point to the file route.
 - **FR-014**: Every string the person reads MUST be in the interface's language catalogs.
 - **FR-015**: The feature MUST NOT write to, change or sync with the Reactive Resume instance, and MUST NOT remember the instance between visits.

@@ -31,7 +31,7 @@ Sources: docs.rxresu.me (JSON schema guide, API reference, "Accessing the previo
 
 ## R5 — Outbound safety
 
-- **Decision**: `parseInstanceUrl` (pure): http/https only, no userinfo, host non-empty, trailing slash trimmed, query/fragment dropped, path prefix kept (self-hosted behind `/resume`). Policy: `isPrivateHost(url.hostname)` is the pure first gate; after it, `lookupAddresses` and `isPrivateIp` on every address. Members get both gates; administrators and `localInstall()` skip them. Requests use `redirect: 'manual'` (a 3xx is the "redirect" message), `AbortController` 10 s, body read through a byte cap of 5 MB.
+- **Decision**: `parseInstanceUrl` (pure): http/https only, no userinfo, host non-empty, trailing slash trimmed, query/fragment dropped, path prefix kept (self-hosted behind `/resume`). Policy: `isPrivateHost(url.hostname)` is the pure first gate; after it, `lookupAddresses` and `isPrivateIp` on every address. Members get both gates; administrators skip them (a local install's one person is one; reviewed: `localInstall()` alone would let every member of a launcher install aim the server inward). Requests use `redirect: 'manual'` (a 3xx is the "redirect" message), `AbortController` 10 s, body read through a byte cap of 5 MB.
 - **Reuse**: `jobs/posting-url.ts` already exports the address predicates and resolver; `checkPostingUrl` is not reused (it carries ADR 0005 host rules that do not apply).
 - **Residual risk** (same as the posting fetcher): DNS rebinding between lookup and connect is not pinned; accepted and written in the ADR.
 - **Alternatives**: block private addresses for everyone (rejected: self-hosted instances live there); admin-only feature (rejected: members have resumes too).

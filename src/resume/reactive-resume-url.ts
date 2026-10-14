@@ -44,7 +44,7 @@ export type Reach = { ok: true } | { ok: false; code: 'privateAddress' | 'noHost
 
 /**
  * Whether the server may call this instance for this person. An administrator
- * or the local install may call anywhere — a self-hosted instance usually
+ * may call anywhere (the one person of a local install is one) — a self-hosted instance usually
  * lives on the network. A member may not call a private name or address, nor
  * a name that resolves to one.
  */

@@ -47,6 +47,7 @@ export async function readResumeUpload(
     if (extname(file.name).toLowerCase() === JSON_EXTENSION) {
       // Not in ACCEPTED_EXTENSIONS: that list also gates screening intake (ADR 0073).
       const { text } = reactiveResumeFromBytes(original);
+      logger.info({ file: file.name, bytes: original.length, chars: text.length }, 'resume: Reactive Resume export parsed');
       return markdownResume(basename(file.name, extname(file.name)), text);
     }
     const started = Date.now();

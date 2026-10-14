@@ -20,7 +20,7 @@ Expect: v4/v5/v6 fixtures read to Markdown; hidden items absent; HTML flattened;
 
 ## 3. Live route, against a stand-in
 
-Run the stand-in used by `reactive-resume-api.test.ts` (or any server answering `GET /api/openapi/resumes` and `/resumes/{id}` with `x-api-key`), enter its `http://127.0.0.1:<port>` and a key on `/resumes`. Expect the picker, then the saved resume. Repeat as a member on a non-local install: the loopback address is refused.
+Run the stand-in used by `reactive-resume-api.test.ts` (or any server answering `GET /api/openapi/resumes` and `/resumes/{id}` with `x-api-key`), enter its `http://127.0.0.1:<port>` and a key on `/resumes`. Expect the picker, then the saved resume. Repeat as a member: the loopback address is refused, whatever the install.
 
 ## 4. Route smoke
 

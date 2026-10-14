@@ -32,7 +32,7 @@ marker. A self-hosted instance also answers an API with the owner's key.
   than followed, ten seconds, five megabytes, no other header.
 - **Members cannot aim the server inward.** For a member, an address that is private, loopback or
   link-local, or a name that resolves to one, is refused before any request (the same predicates as
-  the posting-URL guard, `jobs/posting-url.ts`). Administrators and the local install may reach them —
+  the posting-URL guard, `jobs/posting-url.ts`). Only administrators may reach them (the one person of a local install is one) —
   a self-hosted instance usually lives there.
 
 ## Considered and rejected

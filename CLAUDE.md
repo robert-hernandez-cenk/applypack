@@ -392,8 +392,8 @@
   (ADR 0073) and is pure: v4 / v5 / v6 are told apart by shape, hidden
   sections and items never reach the text, `stripHtml` runs once per field.
   `reactive-resume-url.ts` is pure (the address, and `reachable`: a member is
-  refused a private name or address, an administrator or `localInstall()` is
-  not); `reactive-resume-api.ts` is the ONLY file that calls a person's
+  refused a private name or address, an administrator is
+  not — the one person of a local install is one); `reactive-resume-api.ts` is the ONLY file that calls a person's
   instance — `x-api-key`, no redirect followed, a time and a size limit — and
   `web/pull-stash.ts` holds the key in memory for ten minutes, taken once.
   The key is in no page, flash, log field or row. `.json` is read inside

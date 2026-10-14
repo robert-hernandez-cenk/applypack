@@ -22,7 +22,6 @@ import { promises as fs } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
-import { localInstall } from '../local/install';
 import { Hono } from 'hono';
 import { app } from '../web/app';
 import { withCurrentUser } from '../web/current-user';
@@ -1344,15 +1343,15 @@ async function resumeIsolationChecks(ownResumeId: number): Promise<Check[]> {
   const ownerList = await app.request('/resumes', { headers: ORIGIN });
   add('GET /resumes for the owner (not the other person\'s resume)', '/resumes', ownerList.status, ownerList.status === 200 && !(await ownerList.text()).includes('Teammate resume'));
 
-  // ADR 0073: a member is kept off the server's own network — a local install has no other people to keep out.
+  // ADR 0073: a member is kept off the server's own network, whatever the install.
   const inward = await reactiveStandIn(reactiveExport('Smoke Inward'));
   try {
     const refused = await asMate.request('/resumes/reactive/list', form({ url: inward.url, key: 'rr_smoke_key' }));
     add(
-      'POST /resumes/reactive/list by a member to a loopback address (refused, no request made; a local install allows it)',
+      'POST /resumes/reactive/list by a member to a loopback address (refused, no request made)',
       '/resumes/reactive/list',
       refused.status,
-      localInstall() ? refused.status === 200 : refused.status === 303 && inward.hits() === 0,
+      refused.status === 303 && inward.hits() === 0,
     );
   } finally {
     inward.close();

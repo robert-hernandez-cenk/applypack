@@ -68,16 +68,16 @@ function when(item: Rec): string {
 
 const hiddenItem = (x: Rec): boolean => x.hidden === true || x.visible === false;
 
-/** A heading line: `parts` joined, empty ones dropped, with the place in brackets and the dates after a dot. */
+/** A heading line: the place in brackets and the dates after a dot; no line at all for an item that names nothing. */
 function heading(level: number, main: string, place: string, dates: string): string {
+  if (!main) return '';
   const where = place ? `${main} (${place})` : main;
-  return `${'#'.repeat(level)} ${[where, dates].filter(Boolean).join(' · ')}`.trimEnd();
+  return `${'#'.repeat(level)} ${[where, dates].filter(Boolean).join(' · ')}`;
 }
 
-const websiteOf = (item: Rec): string => {
-  const w = rec(item.website ?? item.url);
-  return pick(w, 'url', 'href') || text(item.website) || text(item.url);
-};
+/** A link written as text, or as `{ url }` (v5, v6) or `{ href }` (v4). */
+const linkOf = (x: unknown): string => (typeof x === 'string' ? text(x) : pick(rec(x), 'url', 'href'));
+const websiteOf = (item: Rec): string => linkOf(item.website) || linkOf(item.url);
 
 type Block = string[];
 
@@ -213,7 +213,7 @@ function customSection(sec: Rec): { title: string; lines: Block } | null {
   const items = list(sec.items).map(rec).filter((i) => !hiddenItem(i));
   const lines = [
     ...body(sec.recipient, sec.content),
-    ...items.flatMap((i) => body(i.name ?? i.title, i.description ?? i.summary)),
+    ...items.flatMap((i) => body(pick(i, 'name', 'title'), pick(i, 'description', 'summary'))),
   ];
   return lines.length > 0 ? { title: pick(sec, 'title', 'name') || pick(sec, 'type') || 'Notes', lines } : null;
 }
@@ -237,7 +237,8 @@ export function readReactiveResume(json: unknown): ReactiveResumeRead {
     const lines = items.flatMap((i) => kind.item(i)).filter(Boolean);
     if (lines.length > 0) blocks.push([`## ${pick(sec, 'title', 'name') || kind.title}`, ...lines]);
   }
-  for (const c of list(json.customSections)) {
+  // v5 and v6 keep them in `customSections`, v4 in `sections.custom`, an object keyed by id.
+  for (const c of [...list(json.customSections), ...Object.values(rec(sections.custom))]) {
     const custom = customSection(rec(c));
     if (custom) blocks.push([`## ${custom.title}`, ...custom.lines]);
   }

@@ -131,3 +131,43 @@ test('a missing name falls back to an empty one for the caller to fill', () => {
   assert.equal(got.name, '');
   assert.ok(got.markdown.startsWith('## Summary'));
 });
+
+test('an item that names nothing leaves no bare heading behind', () => {
+  const got = readReactiveResume({
+    basics: { name: 'Ann' },
+    summary: { content: '<p>Summary text of some length</p>' },
+    sections: {
+      experience: { items: [{ company: '', position: '', dates: { start: '2020', end: null, present: true }, description: '<p>Did a thing</p>' }] },
+      projects: { items: [{ name: '', description: '' }] },
+    },
+  });
+  assert.ok(got.ok);
+  assert.ok(!/^#+\s*$/m.test(got.markdown), 'a bare heading');
+  assert.ok(!/^#{3,4} (·|\d)/m.test(got.markdown), 'a heading of dates alone');
+  assert.ok(!got.markdown.includes('## Projects'), 'a section with nothing in it');
+});
+
+test('an empty field does not hide the one it falls back to', () => {
+  const got = readReactiveResume({
+    basics: { name: 'Ann', website: { url: '', label: '' }, url: { href: 'https://ann.example.com' } },
+    summary: { content: '<p>Summary</p>' },
+    sections: {},
+    customSections: [{ title: 'Extras', items: [{ name: '', title: 'Chess club', description: '', summary: '<p>Captain</p>' }] }],
+  });
+  assert.ok(got.ok);
+  assert.ok(got.markdown.includes('https://ann.example.com'));
+  assert.ok(got.markdown.includes('## Extras\nChess club\nCaptain'));
+});
+
+test('v4 custom sections are read from sections.custom', () => {
+  const got = readReactiveResume({
+    basics: { name: 'Ann' },
+    sections: {
+      summary: { content: '<p>Summary</p>', visible: true },
+      custom: { abc: { name: 'Achievements', visible: true, items: [{ name: 'Won the hackathon', summary: '<p>First place</p>', visible: true }, { name: 'Hidden', visible: false }] } },
+    },
+  });
+  assert.ok(got.ok);
+  assert.ok(got.markdown.includes('## Achievements\nWon the hackathon\nFirst place'));
+  assert.ok(!got.markdown.includes('Hidden'));
+});
