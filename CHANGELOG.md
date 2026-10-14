@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.59.3] — 2026-10-14
+
+### Changed
+- **The local model's address can be a name.** The **Ollama address** (on
+  `/settings` and in the welcome wizard) now accepts a name such as
+  `http://ollama.lan:11434` when that name resolves, and every address it
+  answers with is on this machine or your own network. A name with even one
+  public address, a name that does not resolve, and a lookup that takes longer
+  than five seconds are refused, with a message of their own. An address that
+  is local by its spelling (`localhost`, `*.local`, an address in range) is
+  accepted as before, with no lookup. It is checked when you save; `OLLAMA_URL`
+  in `.env` is not (#31).
+- **Tailscale addresses count as your own network.** `100.64.0.0/10` is local
+  everywhere the dashboard asks: the Ollama address, plain `http://` for an
+  OpenAI-compatible server there, its cost shown as local, and OpenAI's
+  robots.txt tokens dropped for it (#31).
+
 ## [2.59.2] — 2026-10-14
 
 ### Added
