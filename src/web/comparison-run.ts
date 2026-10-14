@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import { hashShortId } from '../text-utils';
 import { briefForPosting, briefLine } from '../resume/brief';
+import type { PageTarget } from '../resume/length';
 import { findReusableMatch, matchResumeToJob } from '../resume/match';
 import type { MatchEvidence, MatchMode } from '../resume/match-mode';
 import { reuseNotice } from '../resume/match-reuse';
@@ -30,6 +31,8 @@ export interface ComparisonRequest {
   mode: MatchMode;
   /** R1: the owner's facts and other resumes, or the text alone — a file on the Tailor resume page may not be theirs. */
   evidence: MatchEvidence;
+  /** ADR 0073: the pages the resume should fit; `keep` for every caller without the control. */
+  pages: PageTarget;
   rebuild: boolean;
   force: boolean;
   /** Where a finished run sends the user. */
@@ -54,7 +57,7 @@ export async function startComparison(c: Context, req: ComparisonRequest): Promi
   // replace. A full report asked of a stored quick check needs only the
   // suggestions call.
   if (!req.force && !rebuild) {
-    const reused = await findReusableMatch(resume.userId, jobId, resume.id, text, mode, req.evidence);
+    const reused = await findReusableMatch(resume.userId, jobId, resume.id, text, mode, req.evidence, req.pages);
     if (reused?.decision === 'reuse') {
       return flashRedirect(req.resultUrl(reused.row.id), 'warn', reuseNotice(formatRelative(reused.row.createdAt)), {
         rerun: true,
@@ -72,7 +75,7 @@ export async function startComparison(c: Context, req: ComparisonRequest): Promi
   // Same job, same resume, same text, same mode is the same comparison, so a
   // second submit joins the run in flight rather than paying for it twice.
   const { run, joined } = claimRun(
-    `match:${jobId}:${resume.id}:${mode}:${rebuild ? 'rebuild' : 'frame'}:${hashShortId(text)}`,
+    `match:${jobId}:${resume.id}:${mode}:${req.pages}:${rebuild ? 'rebuild' : 'frame'}:${hashShortId(text)}`,
     { steps: ['brief', matchStep(mode)], jobTitle: job.title, resumeName: resume.name, jobId },
   );
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
@@ -92,7 +95,7 @@ export async function startComparison(c: Context, req: ComparisonRequest): Promi
  */
 export async function runComparison(runId: string, req: ComparisonRequest, lead: RunStep[] = []): Promise<void> {
   if (!req.force && !req.rebuild) {
-    const reused = await findReusableMatch(req.resume.userId, req.jobId, req.resume.id, req.text, req.mode, req.evidence);
+    const reused = await findReusableMatch(req.resume.userId, req.jobId, req.resume.id, req.text, req.mode, req.evidence, req.pages);
     if (reused?.decision === 'reuse') {
       updateRun(runId, {
         stage: 'done',
@@ -138,6 +141,7 @@ async function compare(runId: string, req: ComparisonRequest): Promise<void> {
     draft: req.draft ?? text !== resume.text,
     mode,
     evidence: req.evidence,
+    pages: req.pages,
     rebuild,
     brief: briefed,
     onError: (r) => {

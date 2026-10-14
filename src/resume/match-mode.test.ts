@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFrameReason } from './keyword-frame';
+import { readPageTarget } from './length';
 import { readMatchEvidence, parseMatchMode, readMatchMode, storedBreakdown, withSuggestionsMode } from './match-mode';
 import { scoreMatch } from './score';
 
@@ -20,9 +21,11 @@ test('readMatchMode: the marker, and "full" for rows written before it', () => {
   assert.equal(readMatchMode(null), 'full');
 });
 
-test('storedBreakdown carries the score parts and all five markers', () => {
+test('storedBreakdown carries the score parts and all six markers', () => {
   const bd = scoreMatch([], null, 0);
-  const stored = storedBreakdown(bd, { promptVersion: 6, mode: 'fast', frame: 'rebuild', verificationId: 12, evidence: 'text' });
+  const stored = storedBreakdown(bd, { promptVersion: 6, mode: 'fast', frame: 'rebuild', verificationId: 12, evidence: 'text', pages: 2 });
+  assert.equal(readPageTarget(stored), 2);
+  assert.equal(readPageTarget({ mode: 'full' }), 'keep', 'a row from before the marker has no target');
   assert.equal(stored.score, bd.score);
   assert.equal(stored.promptVersion, 6);
   assert.equal(stored.mode, 'fast');
@@ -33,7 +36,7 @@ test('storedBreakdown carries the score parts and all five markers', () => {
   assert.equal(readMatchEvidence(stored), 'text');
   // A row from before the marker used the owner's evidence (R1).
   assert.equal(readMatchEvidence({ mode: 'full' }), 'own');
-  assert.equal(storedBreakdown(bd, { promptVersion: 6, mode: 'fast', frame: null, verificationId: null, evidence: 'own' }).verificationId, null);
+  assert.equal(storedBreakdown(bd, { promptVersion: 6, mode: 'fast', frame: null, verificationId: null, evidence: 'own', pages: 'keep' }).verificationId, null);
 });
 
 test('withSuggestionsMode flips a stored JSON to full, stamps the verification and keeps everything else', () => {

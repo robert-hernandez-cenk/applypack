@@ -10,6 +10,7 @@ import { hashShortId } from '../../text-utils';
 import { classifyInBackground } from '../../jobs/classify-existing';
 import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MAX_POSTING_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
+import { parsePageTarget } from '../../resume/length';
 import { parseMatchMode } from '../../resume/match-mode';
 import { runComparison, startComparison } from '../comparison-run';
 import { listPickableJobs } from '../job-pick';
@@ -35,6 +36,8 @@ const TargetFormSchema = ManualJobSchema.extend({
   description: z.string().trim().default(''),
   /** The quick check unless "Full analysis" was pressed (ADR 0029). */
   mode: z.unknown().transform(parseMatchMode),
+  /** The pages the resume should fit; anything else keeps its length (ADR 0073). */
+  pages: z.unknown().transform(parsePageTarget),
   ...ResumeSourceFields,
 });
 
@@ -124,6 +127,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
       text: resume.text,
       mode: f.mode,
       evidence: resume.evidence,
+      pages: f.pages,
       rebuild: false,
       force: false,
       resultUrl: (matchId) => `/jobs/${job.id}/target?match=${matchId}`,
@@ -156,7 +160,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   // The posting text and the resolved resume are what was submitted; a second
   // POST of the same pair joins the run instead of paying twice (issue #76).
   const { run, joined } = claimRun(
-    `target:${resume.id}:${f.mode}:${hashShortId(f.description)}`,
+    `target:${resume.id}:${f.mode}:${f.pages}:${hashShortId(f.description)}`,
     { steps, jobTitle: title || t('target.run.detectingRole'), resumeName: resume.name },
   );
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
@@ -214,6 +218,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
         text: resume.text,
         mode: f.mode,
         evidence: resume.evidence,
+        pages: f.pages,
         rebuild: false,
         force: false,
         resultUrl: (matchId) => `/jobs/${job.id}/target?match=${matchId}`,

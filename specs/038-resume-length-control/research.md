@@ -30,7 +30,7 @@ Seams were read in the code before planning. Two differ from the first sketch; b
 
 ### D6. Cut-cap scaling
 - **Decision**: `cutBudget(overshootChars)` — roughly one removal per ~600 chars over, floored at the default 8 and capped at 40 — passed to the model as a number in the block. The caps are code constants; `gateRemovals` is unchanged.
-- **Output budget**: more removals mean more output. `SUGGESTIONS_MAX_TOKENS` is 10 000 and `MATCH_MAX_TOKENS` must be checked in implementation; if the cap needs to rise with a target it rises only when a target is set (task T008).
+- **Output budget** (decided in T008): the answer budget grows only when a target is set, by 120 tokens per extra removal beyond the default 8 (`length.ts:lengthExtraTokens`, at most 32 × 120 = 3 840). The full match budget is 12 000 + 8 000 thinking headroom against the ~21 300 non-streaming ceiling, so the headroom (not the answer) is what gives way at the cap; `keep` budgets are unchanged.
 
 ### D7. Pack is untouched
 - `src/pack/prepare.ts` calls the comparison without a target, so the marker is `keep` and nothing changes (FR-011). `matchResumeToJob`'s new option is optional with default `keep`.
