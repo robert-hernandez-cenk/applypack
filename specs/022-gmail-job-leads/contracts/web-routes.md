@@ -12,4 +12,6 @@ All routes act as `currentUser()`. POSTs pass `originGuard()`. Responses are red
 
 Card states (`gmail-card.tsx`): not configured / not connected / connected (account, label form, status line, last check + counts, Check now, Disconnect) / access ended (Reconnect). The status line is the `status.ts` key worded through `t()`.
 
+The routes live in `src/web/routes/gmail.ts` with their Google, store and user injected; `src/web/gmail-live.ts` wires the real ones.
+
 Not routes: the worker never serves HTTP; "Check now" only writes a request.

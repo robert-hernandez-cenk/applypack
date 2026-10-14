@@ -413,6 +413,40 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 403,
     },
     {
+      // ADR 0071: no Google client in this environment, so the card says it is not set up and offers no Connect.
+      name: 'GET /settings?tab=profile (the Gmail card, on an install with no Google client)',
+      init: { method: 'GET', headers: ORIGIN },
+      expect: async (res) => {
+        const html = res.status === 200 ? await res.text() : '';
+        return html.includes('id="gmail"') && html.includes('Gmail is not set up on this install') && !html.includes('/gmail/connect');
+      },
+    },
+    {
+      name: 'GET /gmail/connect with no Google client (says so, goes nowhere)',
+      init: { method: 'GET', headers: ORIGIN },
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=profile#gmail' && flashOf(res).includes('not set up'),
+    },
+    {
+      name: 'POST /gmail/check with no connection (told so)',
+      init: form({}),
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=profile#gmail' && flashOf(res).includes('not connected'),
+    },
+    {
+      name: 'POST /gmail/label with no connection (told so)',
+      init: form({ label: 'Job Leads' }),
+      expect: (res) => res.status === 303 && flashOf(res).includes('not connected'),
+    },
+    {
+      name: 'POST /gmail/disconnect with no connection (told so, nothing deleted)',
+      init: form({}),
+      expect: (res) => res.status === 303 && flashOf(res).includes('not connected'),
+    },
+    {
+      name: 'POST /gmail/disconnect from another origin (refused)',
+      init: { method: 'POST', headers: { origin: 'http://evil.example', host: 'localhost', 'content-type': 'application/x-www-form-urlencoded' }, body: '' },
+      expect: (res) => res.status === 403,
+    },
+    {
       // The rail rides on every tab: a status change made on one returns to it, and only a known tab is echoed.
       name: 'POST /jobs/:id/status with tab=match (back to that tab)',
       init: form({ status: 'SAVED', tab: 'match' }),
@@ -695,6 +729,13 @@ async function main(): Promise<void> {
     `/screen/${f.screeningId}/applicants`,
     '/settings/fetching-toggle',
     `/jobs/${f.jobId}/status`,
+    // The Gmail steps (ADR 0071), in the order they sit in `posts`.
+    '/settings?tab=profile',
+    '/gmail/connect',
+    '/gmail/check',
+    '/gmail/label',
+    '/gmail/disconnect',
+    '/gmail/disconnect',
     `/jobs/${f.jobId}/status`,
     `/jobs/${f.jobId}/status`,
     '/facts',

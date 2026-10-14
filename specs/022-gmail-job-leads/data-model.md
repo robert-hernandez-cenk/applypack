@@ -47,7 +47,7 @@ New enum value. One hidden `Company` per person: `atsType=GMAIL`, `atsToken="use
 | companyId | the person's GMAIL row |
 | externalId | `sha1(title | employerKey | location)` first 24 hex |
 | title, location | listing (location may be `""`) |
-| url | the mail link the listing points to (resolved from `link_index`, http(s) only). Never a Gmail permalink: it would point into the mailbox |
+| url | the mail link the listing points to (resolved from the model's `link` number, http(s) only). Never a Gmail permalink: it would point into the mailbox |
 | description | the listing's own lines from the mail (bounded), never the whole mail |
 | employer | listing company, or `null` (aggregator rule, ADR 0056) |
 | postedAt | the mail's `internalDate` |

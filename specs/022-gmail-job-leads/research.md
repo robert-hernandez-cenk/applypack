@@ -25,7 +25,7 @@ No `NEEDS CLARIFICATION` remained after brainstorming; this records the decision
 
 ## D5 — Extraction: one fenced AI call per mail
 - Model: `role: 'classifier'` (cheap model), `json: true`, no web tools (ADR 0009). Prompt modelled on `jobs/posting-extract.ts`: "never invent; null when the mail does not say".
-- Input is the mail's subject, sender display name and the *text* of the body (`stripHtml`), capped at `BODY_CHARS`; links are passed as an indexed list so the model returns a link *index*, and the code resolves it to the real URL (the model cannot fabricate a URL, and a URL not in the mail is impossible).
+- Input is the mail's subject, sender display name and the *text* of the body (`stripHtml`), capped at `BODY_CHARS`. Every web link is replaced in the text by a `[#n]` marker where it stood and listed beneath by host and path; the model returns the marker's *number* and the code resolves it to the real URL (the model cannot fabricate a URL, and a URL not in the mail is impossible).
 - Reply: `{ listings: [{ title, company|null, location|null, salary_min|null, salary_max|null, workplace|null, link_index|null }] }`, tolerant zod parse, per-mail cap `MAX_LISTINGS_PER_MAIL` (30), listings without a title dropped, in-mail duplicates dropped.
 - **Alternatives**: per-sender parsers (brittle, need samples per site); one call per listing (cost). A mail the model cannot parse is marked processed with outcome `unreadable` so it is not re-paid for.
 

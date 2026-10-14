@@ -329,6 +329,7 @@ src/
     suggest.ts                 ← pure: suggestSources / packsForSearches, what a search's places and stack call for
 
   datasets/                    ← rows the user brings (ADR 0062): pure, the reader and the mapper every such source shares
+                                 (see also gmail/ below — rows read from a person's mailbox)
     decode.ts                  ← pure: a file's bytes → text — UTF-8, UTF-16 behind its mark, a page's declared charset, else Windows-1251 or -1252 told apart by the letters
     delimited.ts               ← pure: the CSV / TSV reader (quotes, CRLF, the delimiter read off the first line; a quote never closed is reported by its line)
     rows.ts                    ← pure: findRows — a JSON array, a wrapper object, rows held by key, JSON Lines, CSV or TSV → rows, under the 5 MB and 2 000-row ceilings; JSON that stops short is refused as that
@@ -522,6 +523,9 @@ src/
                                   (used by /jobs/new, /target, /letter and /screen/new; the last three pass it,
                                   and /target classifies a new job in the background instead)
     import-job.ts               ← runImportJob: imported rows through processNormalizedJobs under the fetch lock (ADR 0062)
+    gmail-job.ts                ← runGmailJob(userId, deps): refresh, find the label, read the unread mails, one fenced call per mail, the listings through processNormalizedJobs as that person's own (ADR 0071)
+    gmail-live.ts               ← the real Google, store, model and pipeline behind runGmailJob
+    gmail-tick.ts               ← the hourly look at every connected person and the per-minute beat for "Check now"; takes the fetch lock once, writes a run per person
     source-file-store.ts        ← a folder source's ledger (source_file): loadLedger, keepFolderLooks, folderSummaries, listSourceFiles, readFilesAgain
     folder-watch.ts             ← under the launcher: watches the folders of saved postings, runs the scoped fetch once a change settled
     folder-watch-plan.ts        ← pure: which folders to watch, and how long a burst of changes settles
@@ -678,6 +682,7 @@ src/
       job-import.tsx            ← /jobs/import (upload a file of rows) and /jobs/import/:token (the mapping, three rows, the counts)
       mapping-fields.tsx        ← the selects of a column mapping and the first rows as stored, shared by the import and the folder
       folder-source.tsx         ← the folder card under Add sources, the Check page, the folders on Companies, the per-file list
+      gmail-card.tsx            ← the Gmail job-leads card on Settings → Job search
       resume-match-card.tsx     ← the "Resume match" tab's comparison card
       cover-letter-card.tsx     ← the "Cover letter" tab (F8, ADR 0021)
       verification-card.tsx     ← the "Is it real?" tab
@@ -720,6 +725,7 @@ src/
       jobs.tsx                  ← list + new (manual) + detail + status + reclassify + description refresh + verify
                                   + resume match + suggestions + rewrite + cover letters + the targeted view
       jobs-import.tsx           ← /jobs/import: upload → preview (no AI) → the import run; delete an import source
+      gmail.ts                  ← /gmail/connect, /gmail/callback, /gmail/label, /gmail/check, /gmail/disconnect (ADR 0071)
       keywords.ts               ← a keyword re-levelled, ignored or added: instant re-score, no AI call
       facts.ts                  ← ask_user answers → CandidateFact rows, instant re-score
       target.tsx                ← /target launcher: resume resolve + (stored job | manual job) + match in one POST

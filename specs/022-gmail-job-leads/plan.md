@@ -87,15 +87,17 @@ src/gmail/                              # pure, tested
 src/gmail/google-io.ts   # the ONLY file that talks to Google (token, refresh, revoke, labels, messages); fetch injected
 src/gmail/store.ts       # the ONLY file that touches gmail_connection / gmail_message and the GMAIL Company row
 src/jobs/gmail-job.ts    # runGmailJob(userId): lock, pause, read, extract, processNormalizedJobs(ownerId)
-src/jobs/gmail-tick.ts   # runForUsers over connected people; picks up queued Check-now requests
+src/jobs/gmail-live.ts   # the real Google, store, model and pipeline behind runGmailJob
+src/jobs/gmail-tick.ts   # runForUsers over connected people (hourly) or those who asked (every minute); takes the fetch lock once
 src/index.ts             # wire the tick (hourly beat) and the minute heartbeat for queued checks
 
-src/web/routes/gmail.tsx     # /gmail/connect, /gmail/callback, POST /gmail/label, /gmail/check, /gmail/disconnect
+src/web/routes/gmail.ts      # /gmail/connect, /gmail/callback, POST /gmail/label, /gmail/check, /gmail/disconnect (deps injected)
+src/web/gmail-live.ts        # the routes wired to the real Google, store and current user
 src/web/pages/gmail-card.tsx # the card, on Settings -> Job search (profile tab)
 src/web/pages/settings.tsx   # mounts the card
 src/web/source-groups.ts, source-names.ts, fetchers/source-health.ts, fetchers/index.ts  # GMAIL treated like IMPORT (hidden, not fetched)
 
-src/config.ts, .env.example            # GOOGLE_CLIENT_ID / _SECRET / _REDIRECT_URI
+src/config.ts, .env.example            # GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET (the redirect URI derives from WEB_PUBLIC_URL, else localhost:WEB_PORT)
 src/ai-usage.ts, ai-tasks.ts, ai-spend.ts, i18n/catalog/{en,es,fr,uk}.json
 src/prompt-fence-registry.test.ts
 src/scripts/route-smoke.ts, src/scripts/gmail-once.ts

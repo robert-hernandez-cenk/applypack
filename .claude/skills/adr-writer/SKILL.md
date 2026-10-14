@@ -129,6 +129,7 @@ of truth when the two disagree.
 - 0068 A resume, and everything written with it, is its owner's *(amends 0063: a pack is per person)*
 - 0069 What a person is told, where, and what they muted is their own; what runs the install is the install's *(amends 0041, 0056, 0061, 0063: destinations, mutes, language and pack settings are per person)*
 - 0070 Administrators run the install; members work in their own space *(completes 0065 and 0069: roles, the users page; employer mode is administrators' only)*
+- 0071 Job leads are read from the person's own mailbox, read-only, and are theirs alone *(builds on 0005, 0062, 0067: Gmail label → that person's jobs; the refresh token is a new accessor-only secret)*
 
 Check a proposal against these before touching process layout, sources,
 scheduling, profiles, how the AI is called, the resume score or employer
