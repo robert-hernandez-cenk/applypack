@@ -87,6 +87,8 @@ export const PERSONAL_ROUTES = [
   'GET /runs/running',
   'GET /runs/fetch-now/:id/state',
   'GET /runs/fetch-now/:id',
+  'GET /runs/:id',
+  'GET /runs/:id/card',
   // The person's own settings; the page hides the install-wide sections from a member.
   'GET /settings',
   'POST /settings/schedule',

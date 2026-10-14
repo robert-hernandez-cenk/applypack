@@ -39,7 +39,7 @@ export const RunningCard: FC<{ rows: RunningView[] }> = ({ rows }) =>
     </section>
   );
 
-const RunningBlock: FC<{ row: RunningView }> = ({ row }) => {
+export const RunningBlock: FC<{ row: RunningView }> = ({ row }) => {
   const p = row.progress;
   return (
     <div>
