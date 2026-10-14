@@ -405,6 +405,8 @@ model CronRun {
   finishedAt   DateTime?
   status       CronRunStatus @default(RUNNING)
   stats        Json?
+  // ADR 0072: a RUNNING row's live state (stage, done/total, counters); cleared when the run ends.
+  progress     Json?
   errorMessage String?
   // ADR 0069: whose run (a per-person recap or nudge); null = the install's, and every row before users.
   userId       Int?
