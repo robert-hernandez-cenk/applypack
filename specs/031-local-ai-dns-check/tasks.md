@@ -89,7 +89,7 @@
 ## Phase 7: Verify
 
 - [x] T023 Run `export DATABASE_URL=postgresql://x:x@localhost:5433/x && npm run lint:types && npm test && npm run exports:audit` and keep the output; every task above is ticked
-- [ ] T024 Review the whole diff (`git diff main...HEAD`): every changed line needed, nothing else touched (`server-models.ts` hosts, `OLLAMA_URL`, the route smoke); record in this file anything left unverified (the real-network lookup, the route smoke which needs a database)
+- [x] T024 Review the whole diff (`git diff main...HEAD`): every changed line needed, nothing else touched (`server-models.ts` hosts, `OLLAMA_URL`, the route smoke); record in this file anything left unverified (the real-network lookup, the route smoke which needs a database)
 
 ---
 
