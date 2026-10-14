@@ -84,3 +84,6 @@
 {"timestamp":"2026-10-14T18:08:04.1353775Z","action":"guard","status":"allow","feature_directory":"specs/036-live-status-page","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
 
 {"timestamp":"2026-10-14T20:29:57Z","action":"guard","status":"allow","feature_directory":"specs/036-live-status-page","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.plan"}
+{"timestamp":"2026-10-14T20:31:50Z","action":"guard","status":"allow","feature_directory":"specs/036-live-status-page","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.tasks"}
+{"timestamp":"2026-10-14T20:32:36.5664100Z","action":"handoff","status":"ready","feature_directory":"specs/036-live-status-page","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261014T2032365249507Z-ready"}
+
