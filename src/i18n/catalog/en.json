@@ -4174,5 +4174,6 @@
   "gmail.flash.labelInvalid": "That label name cannot be used (up to 225 characters, no control characters).",
   "gmail.flash.queued": "Check queued; it starts within a minute.",
   "gmail.flash.notConnected": "Gmail is not connected.",
-  "gmail.flash.disconnected": "Gmail disconnected."
+  "gmail.flash.disconnected": "Gmail disconnected.",
+  "gmail.alertTitle": "Job leads from your Gmail"
 }

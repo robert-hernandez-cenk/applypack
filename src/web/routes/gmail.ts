@@ -17,7 +17,7 @@ import { flashRedirect } from '../flash';
  * or a redirect: the only thing that carries one is the call to the store.
  */
 
-export const GMAIL_CARD_PATH = '/settings?tab=profile#gmail';
+const GMAIL_CARD_PATH = '/settings?tab=profile#gmail';
 
 export type GmailRouteStore = Pick<typeof store, 'saveConnection' | 'setLabel' | 'requestCheck' | 'deleteConnection' | 'readRefreshToken'>;
 

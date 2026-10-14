@@ -4174,5 +4174,6 @@
   "gmail.flash.labelInvalid": "Цю назву мітки не можна використати (до 225 символів, без керівних символів).",
   "gmail.flash.queued": "Перевірку поставлено в чергу; вона почнеться протягом хвилини.",
   "gmail.flash.notConnected": "Gmail не підключено.",
-  "gmail.flash.disconnected": "Gmail відключено."
+  "gmail.flash.disconnected": "Gmail відключено.",
+  "gmail.alertTitle": "Вакансії з вашого Gmail"
 }

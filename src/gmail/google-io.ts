@@ -1,6 +1,7 @@
 import * as oidc from 'openid-client';
 import { fetchWithRetry } from '../http';
-import { parseProfile, parseRefreshReply, parseTokenReply } from './google-reply';
+import { findLabelId, parseLabels, parseMessageList, parseProfile, parseRefreshReply, parseTokenReply } from './google-reply';
+import { parseMessage, type GmailMessage } from './message';
 import type { GoogleSettings } from './settings';
 
 /*
@@ -14,6 +15,10 @@ import type { GoogleSettings } from './settings';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
+
+/** Pages of 100 ids a run lists at most: 200 mails inside a two-week window is a lot of alerts. */
+const MAX_LIST_PAGES = 2;
+const PAGE_SIZE = '100';
 
 export interface Pkce {
   verifier: string;
@@ -40,7 +45,14 @@ async function getJson(url: string, accessToken: string): Promise<unknown> {
   return resp.json();
 }
 
-export const liveGoogleIo: GoogleIo = {
+/** What a check reads with an access token: the label, the mail ids under it, and a mail. */
+export interface GmailReadIo {
+  resolveLabelId(accessToken: string, name: string): Promise<string>;
+  listMessages(accessToken: string, labelId: string, query: string): Promise<string[]>;
+  getMessage(accessToken: string, id: string): Promise<GmailMessage>;
+}
+
+export const liveGoogleIo: GoogleIo & GmailReadIo = {
   async pkce() {
     const verifier = oidc.randomPKCECodeVerifier();
     return { verifier, challenge: await oidc.calculatePKCECodeChallenge(verifier) };
@@ -72,6 +84,28 @@ export const liveGoogleIo: GoogleIo = {
 
   async accountEmail(accessToken) {
     return parseProfile(await getJson(`${GMAIL_API}/profile`, accessToken));
+  },
+
+  async resolveLabelId(accessToken, name) {
+    return findLabelId(parseLabels(await getJson(`${GMAIL_API}/labels`, accessToken)), name);
+  },
+
+  async listMessages(accessToken, labelId, query) {
+    const ids: string[] = [];
+    let page: string | null = null;
+    for (let i = 0; i < MAX_LIST_PAGES; i++) {
+      const url = new URL(`${GMAIL_API}/messages`);
+      url.search = new URLSearchParams({ labelIds: labelId, q: query, maxResults: PAGE_SIZE, ...(page && { pageToken: page }) }).toString();
+      const listed = parseMessageList(await getJson(url.href, accessToken));
+      ids.push(...listed.ids);
+      if (!listed.next) break;
+      page = listed.next;
+    }
+    return ids;
+  },
+
+  async getMessage(accessToken, id) {
+    return parseMessage(await getJson(`${GMAIL_API}/messages/${encodeURIComponent(id)}?format=full`, accessToken));
   },
 
   async revoke(refreshToken) {

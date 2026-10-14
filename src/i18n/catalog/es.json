@@ -4174,5 +4174,6 @@
   "gmail.flash.labelInvalid": "Ese nombre de etiqueta no se puede usar (hasta 225 caracteres, sin caracteres de control).",
   "gmail.flash.queued": "Comprobación en cola; empieza en menos de un minuto.",
   "gmail.flash.notConnected": "Gmail no está conectado.",
-  "gmail.flash.disconnected": "Gmail desconectado."
+  "gmail.flash.disconnected": "Gmail desconectado.",
+  "gmail.alertTitle": "Ofertas desde tu Gmail"
 }

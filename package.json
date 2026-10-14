@@ -29,6 +29,7 @@
     "digest:once": "tsx src/scripts/digest-once.ts",
     "cleanup:once": "tsx src/scripts/cleanup-once.ts",
     "stale:once": "tsx src/scripts/stale-once.ts",
+    "gmail:once": "tsx src/scripts/gmail-once.ts",
     "hn:once": "tsx src/scripts/hn-once.ts",
     "discovery:once": "tsx src/scripts/discovery-once.ts",
     "priority:dryrun": "tsx src/scripts/priority-rules-dryrun.ts",

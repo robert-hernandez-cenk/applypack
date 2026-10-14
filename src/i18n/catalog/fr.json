@@ -4174,5 +4174,6 @@
   "gmail.flash.labelInvalid": "Ce nom de libellé est inutilisable (225 caractères au plus, sans caractère de contrôle).",
   "gmail.flash.queued": "Vérification en attente ; elle démarre dans la minute.",
   "gmail.flash.notConnected": "Gmail n’est pas connecté.",
-  "gmail.flash.disconnected": "Gmail déconnecté."
+  "gmail.flash.disconnected": "Gmail déconnecté.",
+  "gmail.alertTitle": "Offres depuis votre Gmail"
 }

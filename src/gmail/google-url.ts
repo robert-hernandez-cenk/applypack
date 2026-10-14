@@ -9,7 +9,7 @@ import type { GoogleSettings } from './settings';
 /** Read-only mail, and the account address to show. Nothing that could send, label or delete. */
 export const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly openid email';
 
-export const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
+const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 
 export function authorizationUrl(settings: GoogleSettings, secrets: { state: string; challenge: string }): string {
   const url = new URL(GOOGLE_AUTH_URL);
