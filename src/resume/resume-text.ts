@@ -13,7 +13,7 @@ const MIN_TEXT_CHARS = 200;
  * own, possibly empty) and the Markdown stored as its text and file (ADR 0073).
  * Throws ResumeTextError like every other reader.
  */
-function reactiveResumeText(json: unknown): { name: string; text: string } {
+export function reactiveResumeText(json: unknown): { name: string; text: string } {
   const read = readReactiveResume(json);
   if (!read.ok) throw new ResumeTextError(read.code === 'empty' ? 'reactiveEmpty' : 'notReactiveResume');
   if (read.markdown.length < MIN_TEXT_CHARS) throw new ResumeTextError('tooShort', { n: read.markdown.length });

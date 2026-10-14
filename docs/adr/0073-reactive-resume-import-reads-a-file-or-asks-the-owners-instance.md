@@ -25,7 +25,7 @@ marker. A self-hosted instance also answers an API with the owner's key.
   address and the key, calls `GET {base}/api/openapi/resumes` with `x-api-key`, and shows the person's
   resumes; `POST /resumes/reactive/import` fetches the chosen one and converts it as a file would be. v4
   has no such API; it goes through the file.
-- **The key lives in memory for ten minutes.** Between listing and picking it sits in `web/pull-stash.ts`
+- **The key lives in memory for ten minutes.** Between listing and picking it sits in `src/web/pull-stash.ts`
   (per person, a handful of entries, taken once); no page, link, log line, flash or error carries it.
   The instance address is not remembered either.
 - **The request is bounded.** http(s) only, no credentials in the address, redirects refused rather

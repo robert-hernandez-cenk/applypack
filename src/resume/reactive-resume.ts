@@ -85,28 +85,20 @@ type Block = string[];
 interface SectionKind {
   key: string;
   title: string;
-  /** Items are headings with a body, or plain lines. */
+  /** An item is a heading with a body, or plain lines. */
   item: (item: Rec) => Block;
-  joiner?: string;
 }
 
 const body = (...parts: unknown[]): Block => parts.map(plain).filter(Boolean);
 
 function experience(item: Rec): Block {
   const company = pick(item, 'company');
-  const roles = list(item.roles).map(rec).filter((r) => !hiddenItem(r));
-  const place = pick(item, 'location');
-  if (roles.length > 0 && !pick(item, 'position')) {
-    return [
-      heading(3, company, place, when(item)),
-      ...body(item.description, item.summary),
-      ...roles.flatMap((r) => [heading(4, pick(r, 'position'), '', when(r)), ...body(r.description, r.summary)]),
-    ];
-  }
   const position = pick(item, 'position');
+  const roles = list(item.roles).map(rec).filter((r) => !hiddenItem(r));
+  // An employer that holds several roles has none of its own: the heading is the company.
   const main = position && company ? `${position} — ${company}` : position || company;
   return [
-    heading(3, main, place, when(item)),
+    heading(3, main, pick(item, 'location'), when(item)),
     ...body(item.description, item.summary),
     ...roles.flatMap((r) => [heading(4, pick(r, 'position'), '', when(r)), ...body(r.description, r.summary)]),
   ];
