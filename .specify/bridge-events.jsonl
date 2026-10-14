@@ -59,3 +59,6 @@
 {"timestamp":"2026-10-14T12:01:03Z","action":"guard","status":"allow","feature_directory":"specs/029-jobs-by-source","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
 {"timestamp":"2026-10-14T12:13:25Z","action":"handoff","status":"complete","feature_directory":"specs/029-jobs-by-source","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":""}
 {"timestamp":"2026-10-14T15:26:14Z","action":"guard","status":"allow","feature_directory":"specs/029-jobs-by-source","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.plan"}
+{"timestamp":"2026-10-14T15:28:02Z","action":"guard","status":"allow","feature_directory":"specs/029-jobs-by-source","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.tasks"}
+{"timestamp":"2026-10-14T15:29:06Z","action":"handoff","status":"ready","feature_directory":"specs/029-jobs-by-source","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":""}
+{"timestamp":"2026-10-14T15:29:20Z","action":"handoff","status":"ready","feature_directory":"specs/031-local-ai-dns-check","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":""}
