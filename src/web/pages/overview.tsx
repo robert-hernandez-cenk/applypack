@@ -398,7 +398,7 @@ export const OverviewPage: FC<OverviewProps> = ({
                       <span
                         translate={entry.source === COMPANY_BOARDS || wordedSource(entry.source) ? undefined : 'no'}
                         title={name}
-                        class="w-24 shrink-0 truncate text-ink"
+                        class="w-28 shrink-0 truncate text-ink"
                       >
                         {name}
                       </span>
