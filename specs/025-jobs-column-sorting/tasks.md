@@ -39,7 +39,7 @@ description: "Task list for sortable columns on the jobs page"
 **Independent Test**: filter + page 2 + click a header → same filters, page 1.
 
 - [x] T006 [US2] Add tests in `src/web/job-sort.test.ts` asserting every `sortOrderBy` result ends with the `{ id: 'asc' }` tie-break and that `jobsHref({ ...filters, sort: nextSort(...) })` keeps filters and drops `page` (compose with `jobsHref` from `src/web/job-facets.ts`)
-- [ ] T007 [US2] Confirm in the browser (T013) that a header click from page 2 with a status tab and a place filter lands on page 1 with the filters intact; fix `jobs-list.tsx` if any filter is dropped
+- [x] T007 [US2] Confirm in the browser (T013) that a header click from page 2 with a status tab and a place filter lands on page 1 with the filters intact; fix `jobs-list.tsx` if any filter is dropped
 
 **Checkpoint**: SC-002 and SC-003 hold.
 
@@ -59,8 +59,8 @@ description: "Task list for sortable columns on the jobs page"
 
 - [x] T011 [P] Add a row for "/jobs column sorting (sort values, next link, orderBy)" to `docs/where-to-look.md` pointing at `src/web/job-sort.ts`, and mention it in the existing `/jobs` facets row if that row lists the sort
 - [x] T012 Run `npm --prefix <wt> run lint:types`, `npm --prefix <wt> test` and `npm --prefix <wt> run exports:audit`; paste real output
-- [ ] T013 Browser check per [quickstart.md](./quickstart.md) on a scratch data folder (`APPLYPACK_DATA_DIR`, never the live one) at 1280 px and 390 px, including all four languages for the link titles; note anything not verified
-- [ ] T014 Mark every box above complete in this file in the same commit as the verification
+- [x] T013 Browser check per [quickstart.md](./quickstart.md) on a scratch data folder (`APPLYPACK_DATA_DIR`, never the live one) at 1280 px and 390 px, including all four languages for the link titles; note anything not verified
+- [x] T014 Mark every box above complete in this file in the same commit as the verification
 
 ## Dependencies
 
