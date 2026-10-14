@@ -110,6 +110,12 @@ export const PERSONAL_ROUTES = [
   'POST /settings/profiles/delete',
   'POST /settings/profiles/:id/save',
   'POST /settings/profiles/:id/fill-from-resume',
+  // Their own Gmail job leads (ADR 0071): connect, label, a check, disconnect.
+  'GET /gmail/connect',
+  'GET /gmail/callback',
+  'POST /gmail/label',
+  'POST /gmail/check',
+  'POST /gmail/disconnect',
 ] as const;
 
 export const ADMIN_ROUTES = [

@@ -178,6 +178,10 @@ Every page of the dashboard, backups, the worker's schedule, your own
 Postgres, development and hosting for other people:
 [docs/operations.md](./docs/operations.md).
 
+## Job alerts from your own Gmail
+
+Connect your Gmail under **Settings → Job search**, label the job-alert mails (Indeed, LinkedIn and others) **Job Leads**, and ApplyPack turns the listings in them into jobs. It is read-only, per person, and never opens a link in a mail; the operator creates the Google client once — see [docs/gmail-setup.md](./docs/gmail-setup.md) and [ADR 0071](./docs/adr/0071-job-leads-are-read-from-the-persons-own-mailbox.md).
+
 ## Several people on one server
 
 By default ApplyPack is for one person. On a server, [sign in through your identity

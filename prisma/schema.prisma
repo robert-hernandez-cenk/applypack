@@ -65,6 +65,10 @@ enum AtsType {
   // name filter and the column mapping; `source_file` is its ledger. Read on
   // the tick like any source, with no request made.
   FOLDER
+  // ADR 0071: one hidden row per person for the job leads read from their own
+  // Gmail label. atsToken is `user-<id>`. Never active, nothing to fetch; its
+  // jobs carry many employers and are held by that person alone.
+  GMAIL
   // Phase 8.2: pasted by hand on /jobs/new. One inactive Company row per
   // employer; runAllFetchers never touches it.
   MANUAL
@@ -1243,6 +1247,50 @@ model User {
   settings            UserSettings?
   notificationTargets NotificationTarget[]
   companyMutes        CompanyMute[]
+  gmailConnection     GmailConnection?
 
   @@map("users")
+}
+
+// ADR 0071 — a person's Gmail connection: one account, one label, read-only.
+// `refreshToken` is a secret: it is read only through gmail/store.ts and never
+// rendered or logged. The row is deleted on Disconnect and with the person.
+model GmailConnection {
+  id               Int            @id @default(autoincrement())
+  userId           Int            @unique
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountEmail     String
+  refreshToken     String
+  labelName        String         @default("Job Leads")
+  // waiting | ok | access_ended | label_missing | unreachable | quota | no_engine | error
+  status           String         @default("waiting")
+  // Set by "Check now" and by a fresh connection; the worker clears it when it takes the request.
+  checkRequestedAt DateTime?
+  // Start of the last successful read; it bounds the next window.
+  lastCheckAt      DateTime?
+  lastMails        Int?
+  lastListings     Int?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  messages         GmailMessage[]
+
+  @@map("gmail_connection")
+}
+
+// ADR 0071 — the ledger of a connection: one row per mail already read, so a
+// mail is never paid for twice. It holds no content.
+model GmailMessage {
+  id           Int             @id @default(autoincrement())
+  connectionId Int
+  connection   GmailConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  messageId    String
+  receivedAt   DateTime
+  // listings | none | unreadable
+  outcome      String
+  count        Int             @default(0)
+  createdAt    DateTime        @default(now())
+
+  @@unique([connectionId, messageId])
+  @@index([connectionId, receivedAt])
+  @@map("gmail_message")
 }

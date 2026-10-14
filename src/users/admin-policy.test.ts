@@ -27,6 +27,12 @@ test('install-wide writes need an administrator', () => {
 test('a person works in their own workspace', () => {
   for (const [method, path] of [
     ['GET', '/'],
+    // Their own Gmail (ADR 0071): connecting it, the label, a check, disconnecting.
+    ['GET', '/gmail/connect'],
+    ['GET', '/gmail/callback'],
+    ['POST', '/gmail/label'],
+    ['POST', '/gmail/check'],
+    ['POST', '/gmail/disconnect'],
     ['GET', '/jobs'],
     ['GET', '/jobs/12'],
     ['POST', '/jobs/12/status'],

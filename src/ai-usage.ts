@@ -88,6 +88,7 @@ const AI_FEATURES = [
   'classifier',
   'prefilter',
   'posting-extract',
+  'gmail-extract',
   'posting-brief',
   'resume-scan',
   'resume-structure',

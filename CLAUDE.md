@@ -288,6 +288,24 @@
   takes the hook, or the number a UI change reports reads low.
 - `AtsType.MANUAL` companies are inactive rows for pasted jobs — `fetchOne`
   returns `[]`, `/companies` and the source toggles hide them.
+- `src/gmail/` is the job leads read from a person's own Gmail label (ADR
+  0071): `settings.ts` (the label and the Google client from the environment),
+  `pending.ts` (the connect state between the redirect and the return),
+  `google-url.ts`, `google-reply.ts` (what Google may answer; a grant that is
+  not read-only is refused), `status.ts`, `query.ts` (the window and a run's
+  share), `message.ts` (a mail → its words with each link numbered `[#n]`),
+  `listing.ts`, `prompt.ts` (the one fenced call), `map.ts` (`NormalizedJob`)
+  and `card-view.ts` are pure (tested, hand-written mails in `fixtures/`);
+  `google-io.ts` is the ONLY file that talks to Google and `store.ts` the ONLY
+  one that touches `gmail_connection` / `gmail_message` and reads the refresh
+  token (`secret-access.test.ts` closes the list of files that may name it).
+  `jobs/gmail-job.ts` takes its I/O as arguments and is tested with fakes;
+  `jobs/gmail-live.ts` is the wiring and `jobs/gmail-tick.ts` the hourly and
+  per-minute beats, which take the fetch lock once. No link in a mail is ever
+  opened (ADR 0005): the model names a listing's link by its `[#n]` number, the
+  code resolves it, and a listing without one is dropped. The postings are the
+  person's alone (`ownerId`, not `handPicked`), stored under their hidden
+  `AtsType.GMAIL` row, which every list of sources treats as `IMPORT`.
 - `src/datasets/` is the rows the user brings (ADR 0062): `decode.ts`
   (`decodeText`: bytes → text, UTF-8, marked UTF-16, a page's declared
   charset, else Windows-1251 or -1252), `delimited.ts` (the CSV / TSV
@@ -409,7 +427,7 @@
 - Do not add Express, Next.js, or any HTTP server to the worker process.
 - Do not add Redis, BullMQ, or other queues — node-cron is sufficient.
 - Do not expose the dashboard on a public interface by default — bind to `127.0.0.1` in compose.
-- Do not store secrets anywhere except `.env` (gitignored). Three carve-outs, all deliberate: Telegram tokens and Discord webhook URLs belong in `NotificationTarget` rows once `init.ts` has bootstrapped them (ADR 0041), per-engine AI keys belong in `AppSettings.aiKeys` (ADR 0027) — in both cases `.env` becomes optional after first boot — and the built-in database's password lives in `db.json` (mode 0600) beside the database it guards (ADR 0054). A secret in the DB is read only through its own accessor, never rendered in full, never logged.
+- Do not store secrets anywhere except `.env` (gitignored). Four carve-outs, all deliberate: Telegram tokens and Discord webhook URLs belong in `NotificationTarget` rows once `init.ts` has bootstrapped them (ADR 0041), per-engine AI keys belong in `AppSettings.aiKeys` (ADR 0027) — in both cases `.env` becomes optional after first boot — the built-in database's password lives in `db.json` (mode 0600) beside the database it guards (ADR 0054), and a person's Gmail refresh token lives in `GmailConnection` so the worker can read their label unattended (ADR 0071). A secret in the DB is read only through its own accessor, never rendered in full, never logged.
 - Do not commit `node_modules`, `dist`, or `.env`.
 - Do not use any `--save-dev` that isn't necessary.
 - Do not scrape LinkedIn / Indeed / Glassdoor / Workday / Wellfound — see [ADR 0005](./docs/adr/0005-no-linkedin-indeed-workday.md).
@@ -806,6 +824,7 @@ Always:
 | Run discovery probe now | `docker compose exec app node dist/scripts/discovery-once.js` |
 | Pull HN Who-is-hiring now | `docker compose exec app node dist/scripts/hn-once.js` |
 | Run the application-pack queue now | `docker compose exec app node dist/scripts/pack-once.js` (the worker does this every minute; recorded as a `pack` run) |
+| Read every connected person's Gmail label now | `docker compose exec app node dist/scripts/gmail-once.js` (the worker does this hourly, and every minute for a "Check now"; one `gmail` run per person) |
 | Send the stale-applications digest now | `docker compose exec app node dist/scripts/stale-once.js` |
 | Send 4 test Telegram messages | `npm run test:telegram` (locally, .env loaded) |
 | Tail the worker | `docker compose logs -f app` (JSON; add `--no-log-prefix … \| npx pino-pretty` for lines) |

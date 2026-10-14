@@ -93,7 +93,7 @@ companiesRoute.get('/companies', async (c) => {
   }
   const companies = await prisma.company.findMany({
     // A pasted job's row and an imported file's (managed on /jobs/import) are not sources the tick reads.
-    where: { atsType: { notIn: [AtsType.MANUAL, AtsType.IMPORT] } },
+    where: { atsType: { notIn: [AtsType.MANUAL, AtsType.IMPORT, AtsType.GMAIL] } },
     orderBy: [{ active: 'desc' }, { name: 'asc' }],
     include: {
       _count: { select: { jobs: true } },

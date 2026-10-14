@@ -7,6 +7,7 @@ import type { Profile } from '@prisma/client';
 import * as classifierMod from './classifier';
 import * as prefilterMod from './classifier-prefilter';
 import * as extractMod from './jobs/posting-extract';
+import * as gmailMod from './gmail/prompt';
 import * as resumeMod from './resume/prompts';
 import * as verifyMod from './verification/prompts';
 import * as screenMod from './screening/prompts';
@@ -30,6 +31,7 @@ const PROMPT_MODULES: Record<string, Record<string, unknown>> = {
   'classifier.ts': classifierMod,
   'classifier-prefilter.ts': prefilterMod,
   'jobs/posting-extract.ts': extractMod,
+  'gmail/prompt.ts': gmailMod,
   'resume/prompts.ts': resumeMod,
   'verification/prompts.ts': verifyMod,
   'screening/prompts.ts': screenMod,
@@ -48,6 +50,8 @@ const KNOWN_CALL_SITES: Record<string, string> = {
   'classifier.ts': 'buildClassifyPrompt',
   'classifier-prefilter.ts': 'buildPrefilterPrompt',
   'jobs/posting-extract.ts': 'buildExtractPrompt',
+  'jobs/gmail-job.ts': 'buildGmailExtractPrompt',
+  'jobs/gmail-live.ts': 'the model call behind gmail-job.ts, which builds its prompt with buildGmailExtractPrompt',
   'resume/brief.ts': 'buildBriefPrompt',
   'resume/match.ts': 'buildMatchPrompt',
   'resume/rewrite.ts': 'buildRewritePrompt',
@@ -133,6 +137,15 @@ const CASES: Record<string, Case> = {
   buildExtractPrompt: {
     build: () => extractMod.buildExtractPrompt(DESC),
     fenced: [['JOB POSTING', DESC]],
+  },
+  buildGmailExtractPrompt: {
+    build: () => gmailMod.buildGmailExtractPrompt({ subject: 'SUBJECT-NEEDLE', fromName: 'SENDER-NEEDLE', text: DESC, links: ['https://x.example/LINK-NEEDLE'] }),
+    fenced: [
+      ['EMAIL', 'SUBJECT-NEEDLE'],
+      ['EMAIL', 'SENDER-NEEDLE'],
+      ['EMAIL', DESC],
+      ['EMAIL', 'LINK-NEEDLE'],
+    ],
   },
   buildScanPrompt: {
     build: () => resumeMod.buildScanPrompt(RESUME),

@@ -56,6 +56,8 @@ import { ALERT_MODES, ALL_DAYS, FETCH_EVERY, MAX_DIGEST_HOURS, describeCadence, 
 import { KIND_LABEL } from '../../notify/targets';
 import { SCHEDULE_HREF, type HeldLine } from '../held-line';
 import { AiPlan, BILLING_TONE } from './ai-plan';
+import { GmailCardBody } from './gmail-card';
+import type { CardView } from '../../gmail/card-view';
 import { planSummary, type AiPlanRow } from '../ai-plan';
 import { billingWords, formatUsd } from '../../ai-spend';
 import type { AiBilling } from '../../ai-usage';
@@ -218,6 +220,8 @@ export interface SettingsProps {
   admin: boolean;
   /** `?fill=<resume id>` from a resume's page: the fill form starts on that resume (TASKS R20). */
   fillResumeId?: number;
+  /** The person's Gmail job-lead connection (ADR 0071), read into what the card shows. */
+  gmail: CardView;
   telegramEnabled: boolean;
   classifierMode: 'single' | 'two_stage';
   applicationTrackingEnabled: boolean;
@@ -617,6 +621,7 @@ const TAB_ICON = {
 export const SettingsPage: FC<SettingsProps> = ({
   admin,
   fillResumeId,
+  gmail,
   telegramEnabled,
   classifierMode,
   applicationTrackingEnabled,
@@ -785,6 +790,12 @@ export const SettingsPage: FC<SettingsProps> = ({
         <ActionForm action="/settings/profiles/new">
           <Button variant="secondary">{t('settings.newSearch')}</Button>
         </ActionForm>
+      </Section>
+      )}
+
+      {activeTab === 'profile' && (
+      <Section id="gmail" title={t('gmail.title')} desc={t('gmail.intro')}>
+        <GmailCardBody view={gmail} />
       </Section>
       )}
 

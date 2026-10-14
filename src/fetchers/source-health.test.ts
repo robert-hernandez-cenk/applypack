@@ -310,6 +310,7 @@ describe('isSilent — sources that never post', () => {
     assert.equal(isSilent({ ...old, atsType: 'CAREER_PAGE' }, now), false);
     assert.equal(isSilent({ ...old, atsType: 'MANUAL' }, now), false);
     assert.equal(isSilent({ ...old, atsType: 'IMPORT' }, now), false);
+    assert.equal(isSilent({ ...old, atsType: 'GMAIL' }, now), false);
     // A folder nothing new landed in is not a board that went quiet.
     assert.equal(isSilent({ ...old, atsType: 'FOLDER' }, now), false);
   });

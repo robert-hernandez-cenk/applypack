@@ -52,6 +52,7 @@ const SOURCE_KINDS: Record<string, MessageKey> = {
   BROWSER_PAGE: 'sources.kind.browserPage',
   IMPORT: 'sources.kind.import',
   FOLDER: 'sources.kind.folder',
+  GMAIL: 'sources.kind.gmail',
   MANUAL: 'sources.kind.manual',
 };
 

@@ -19,6 +19,7 @@ import { isDigestHour, isFirstDigestHour, type Schedule } from './user-schedule'
 import { announceReady, onLauncherStop, underLauncher } from './local/child';
 import { startFolderWatch, type FolderWatch } from './jobs/folder-watch';
 import { checkFolder, fetchTick } from './jobs/fetch-tick';
+import { gmailTick } from './jobs/gmail-tick';
 import { stopCliChildren } from './ai-provider';
 import { HEARTBEAT_EVERY_MS } from './heartbeat';
 import { inRunLocale } from './run-locale';
@@ -51,6 +52,10 @@ async function main(): Promise<void> {
 
   // A tick that meets another fetch waits for it (jobs/fetch-tick.ts), and stops waiting when the worker stops.
   registerCron('5 * * * *', 'fetch', () => fetchTick({ stopping: () => shuttingDown }));
+  // Gmail job leads (ADR 0071): every connected person's label once an hour, and a beat a minute
+  // for the checks people asked for. Neither writes a run row unless it reads someone's mail.
+  registerCron('35 * * * *', 'gmail', () => gmailTick('all', { stopping: () => shuttingDown }));
+  registerCron('* * * * *', 'gmail-requests', () => gmailTick('requested', { stopping: () => shuttingDown }), { quiet: true });
   // Both daily summaries follow the "digest time" each person picks
   // (TASKS §16.4, ADR 0069), so the heartbeat is hourly and the hour decides,
   // person by person, each in their own zone. They read
