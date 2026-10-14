@@ -19,8 +19,9 @@ export function parseInstanceUrl(raw: string): { ok: true; base: URL } | { ok: f
   if (!typed) return { ok: false, code: 'empty' };
   let url: URL;
   try {
-    // "rxresu.me" and "localhost:3000" are what people type; "ftp://…" has a scheme of its own to refuse.
-    url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(typed) ? typed : `https://${typed}`);
+    // "rxresu.me" and "192.168.1.5:3000" are what people type; "ftp://…" has a scheme of its own to refuse.
+    // A name on the person's own network is almost always plain http, a public one https.
+    url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(typed) ? typed : `${isPrivateHost(new URL(`https://${typed}`).hostname) ? 'http' : 'https'}://${typed}`);
   } catch {
     return { ok: false, code: 'invalid' };
   }

@@ -73,7 +73,7 @@
 
 - [x] T022 [P] Add rows to `docs/where-to-look.md` ("A Reactive Resume file or instance → a resume") and a `CLAUDE.md` bullet for `reactive-resume*.ts` / `pull-stash.ts` in the File rules list; add a short README/docs mention where resume formats are listed.
 - [x] T023 [P] `CHANGELOG.md` entry and `package.json` / `package-lock.json` bump to 2.59.5 (patch only, per the fork rule; the last feature PR bumped in-branch the same way).
-- [ ] T024 Run the full quickstart (`quickstart.md` §1–§4) on a scratch data folder, record real output for the PR, and list what could not be verified (real Reactive Resume instance/export). Tick the verification tasks and commit `Mark #39 verification tasks complete`.
+- [x] T024 Run the full quickstart (`quickstart.md` §1–§4) on a scratch data folder, record real output for the PR, and list what could not be verified (real Reactive Resume instance/export). Tick the verification tasks and commit `Mark #39 verification tasks complete`.
 
 ## Dependencies & execution order
 

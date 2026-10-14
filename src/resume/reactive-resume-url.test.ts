@@ -15,6 +15,15 @@ test('an address is accepted with or without a scheme, a slash, a query or a fra
   assert.equal(base('https://host.example/resume/?a=1#x').href, 'https://host.example/resume');
 });
 
+test('with no scheme typed, a name on the person\'s own network is http and a public one https', () => {
+  assert.equal(base('localhost:3000').href, 'http://localhost:3000/');
+  assert.equal(base('192.168.1.5:3000').href, 'http://192.168.1.5:3000/');
+  assert.equal(base('rr.internal').href, 'http://rr.internal/');
+  assert.equal(base('intranet:3000').href, 'http://intranet:3000/');
+  assert.equal(base('resume.example.com').href, 'https://resume.example.com/');
+  assert.equal(base('https://192.168.1.5:3000').href, 'https://192.168.1.5:3000/', 'a scheme that was typed is kept');
+});
+
 test('the API path is not part of the address the person enters', () => {
   assert.equal(base('https://host.example/api/openapi').href, 'https://host.example/');
   assert.equal(base('https://host.example/rr/api/openapi/').href, 'https://host.example/rr');
