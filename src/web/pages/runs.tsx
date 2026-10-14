@@ -12,6 +12,8 @@ import { tRich } from '../rich';
 import { failedRunLine, summarizeRun, unscoredRun } from '../runs-summary';
 import { FetchNowButton } from './fetch-run';
 import { FunnelCard } from './funnel-card';
+import { RunningCard } from './running-card';
+import type { RunningView } from '../running-view';
 import { runBadge } from './overview';
 import type { FunnelView } from '../../funnel';
 import type { SourceYield } from '../../jobs/funnel-store';
@@ -31,6 +33,8 @@ export interface RunsProps {
   runs: RunRow[];
   /** The search funnel over the last 7 and 30 days, and what each source brought. */
   funnel: { week: FunnelView; month: FunnelView; sources: SourceYield[] };
+  /** The runs in flight, for the "Running now" card (ADR 0072). */
+  running: RunningView[];
   /** The manual fetch in flight, if any — the button turns into a link to it. */
   fetchRun: FetchRun | null;
   flash?: FlashMessage | null;
@@ -38,6 +42,14 @@ export interface RunsProps {
 
 /** How many runs the page shows before the rest fold away: two days of hourly ticks. */
 const RECENT_RUNS = 50;
+
+/** Without script the card cannot update itself, so the page is loaded again while a run is going. */
+const RELOAD_WITHOUT_SCRIPT_S = 30;
+
+const RUNNING_BOOT = `
+import { init } from '/static/running.mjs';
+init(document.getElementById('running-host'));
+`;
 
 /** The header names the zone once, so each row can say only the day and the time. */
 const columns = () => [
@@ -49,20 +61,29 @@ const columns = () => [
 ];
 const WIDTHS = ['w-[15%]', 'w-[17%]', 'w-[8%]', 'w-[7%]', 'w-[53%]'];
 
-export const RunsPage: FC<RunsProps> = ({ runs, funnel, fetchRun, flash }) => {
+export const RunsPage: FC<RunsProps> = ({ runs, funnel, running, fetchRun, flash }) => {
   const recent = runs.slice(0, RECENT_RUNS);
   // A fresh install has read nothing yet: the empty state below says what to do.
   const funnelShown = funnel.month.stages.some((s) => s.count > 0) || funnel.sources.length > 0;
   const earlier = runs.slice(RECENT_RUNS);
   const earlierFailed = earlier.filter((r) => r.status === 'FAILED').length;
   return (
-    <Layout title={t('runs.runs')} active="runs">
+    <Layout title={t('runs.runs')} active="runs" refreshWithoutScript={running.length > 0 ? RELOAD_WITHOUT_SCRIPT_S : undefined}>
       <PageHeader title={t('runs.runs')} meta={t('runs.lastN', { n: runs.length })} actions={<FetchNowButton run={fetchRun} />}>
         {t('runs.whatTheSearchKeptAnd')}
       </PageHeader>
       <Flash flash={flash} />
 
       {funnelShown && <FunnelCard {...funnel} />}
+      {running.length > 0 && (
+        <>
+          {/* public/running.mjs swaps the card in this host every few seconds, and stops when it comes back empty. */}
+          <div id="running-host">
+            <RunningCard rows={running} />
+          </div>
+          <script type="module" dangerouslySetInnerHTML={{ __html: RUNNING_BOOT }} />
+        </>
+      )}
       {funnelShown && runs.length > 0 && <SectionTitle level="section">{t('runs.runHistory')}</SectionTitle>}
 
       {runs.length === 0 ? (

@@ -67,3 +67,7 @@
 {"timestamp":"2026-10-14T15:36:52Z","action":"handoff","status":"complete","feature_directory":"specs/031-local-ai-dns-check","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":""}
 {"timestamp":"2026-10-14T16:34:21.7081643Z","action":"handoff","status":"ready","feature_directory":"specs/032-running-jobs-progress","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261014T1634216738469Z-ready"}
 
+{"timestamp":"2026-10-14T16:34:34.4103517Z","action":"handoff","status":"executing","feature_directory":"specs/032-running-jobs-progress","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261014T1634343655430Z-executing"}
+
+{"timestamp":"2026-10-14T16:34:35.0659851Z","action":"guard","status":"allow","feature_directory":"specs/032-running-jobs-progress","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
+

@@ -2,6 +2,7 @@ import { JobStatus, Prisma, type Job, type Profile } from '@prisma/client';
 import { isUniqueViolation, prisma } from '../db';
 import { config } from '../config';
 import { logger } from '../logger';
+import type { ReportProgress } from './run-progress';
 import { createLimiter } from '../concurrency';
 import { anyBaseFilterReason } from '../filter';
 import { COMPANY_NOT_NAMED, employerGates, fetchedHiringName, hiringKey, type EmployerGate } from '../employer';
@@ -159,6 +160,8 @@ export interface ProcessOptions {
    */
   classify?: boolean;
   isCancelled?: () => Promise<boolean>;
+  /** Says where the classify loop is, for the Runs page's "Running now" card (ADR 0072). Never throws. */
+  report?: ReportProgress;
   /**
    * Alerts wait for each person's own hours (TASKS §16, ADR 0069): the run
    * reads each person's schedule once, so every posting of one run is judged
@@ -200,7 +203,7 @@ export async function processNormalizedJobs(
   stats: ProcessStats,
   opts: ProcessOptions,
 ): Promise<void> {
-  const { classifierMode, classify = true, isCancelled, respectAlertHours = false, groupAlerts = false } = opts;
+  const { classifierMode, classify = true, isCancelled, report, respectAlertHours = false, groupAlerts = false } = opts;
   // Each person's own answers, read the first time they are needed and kept for the tick.
   const memo = <T>(read: (userId: number) => Promise<T>): ((userId: number) => Promise<T>) => {
     const known = new Map<number, Promise<T>>();
@@ -375,6 +378,16 @@ export async function processNormalizedJobs(
   }
 
   let consumed = 0;
+  const reportClassify = (): void =>
+    report?.({
+      stage: 'classify',
+      label: 'runs.running.stage.classify',
+      unit: 'runs.running.unit.postings',
+      done: consumed,
+      total: pending.length,
+      counters: { kept: stats.persisted, setAside: stats.preFiltered, classified: stats.classified, errors: stats.classifyFailed },
+    });
+  if (pending.length > 0) reportClassify();
   for (const item of pending) {
     const { job, companyName, outcome } = item;
     if (isCancelled && (await isCancelled())) {
@@ -392,6 +405,7 @@ export async function processNormalizedJobs(
     }
     consumed++;
     const { results, location, preFiltered, prefilterReason } = await outcome;
+    reportClassify();
     // The model read the whole description; where it knows more than the
     // location line said, the row is stored with that (ADR 0032).
     const placed: Candidate = { ...item, place: mergeAiLocation(item.place, location) };
