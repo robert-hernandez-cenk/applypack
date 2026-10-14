@@ -83,3 +83,4 @@
 
 {"timestamp":"2026-10-14T18:08:04.1353775Z","action":"guard","status":"allow","feature_directory":"specs/036-live-status-page","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
 
+{"timestamp":"2026-10-14T20:29:57Z","action":"guard","status":"allow","feature_directory":"specs/036-live-status-page","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.plan"}
