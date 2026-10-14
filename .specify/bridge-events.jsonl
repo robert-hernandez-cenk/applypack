@@ -79,3 +79,7 @@
 
 {"timestamp":"2026-10-14T18:07:54.0689335Z","action":"handoff","status":"ready","feature_directory":"specs/036-live-status-page","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261014T1807540356314Z-ready"}
 
+{"timestamp":"2026-10-14T18:08:03.4585952Z","action":"handoff","status":"executing","feature_directory":"specs/036-live-status-page","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261014T1808034166839Z-executing"}
+
+{"timestamp":"2026-10-14T18:08:04.1353775Z","action":"guard","status":"allow","feature_directory":"specs/036-live-status-page","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
+

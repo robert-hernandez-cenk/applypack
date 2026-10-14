@@ -62,3 +62,10 @@ runs the web process started.
   not know is left out of the card, not shown raw.
 - A worker that dies leaves its last report on the row until something else ends it; the card says so
   by turning amber.
+
+## Addendum 2026-10-14 — a page for one run (#36)
+
+A RUNNING row on `/runs` links to `GET /runs/:id`, which draws the same block and swaps it from
+`GET /runs/:id/card` with the same `public/running.mjs`; an empty card means the run is over and the
+page reloads into its outcome (the cell `/runs` shows). No new data: the page reads the row and its
+`progress`. An id that is not a visible run is the same redirect for every cause.
