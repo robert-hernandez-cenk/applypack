@@ -62,7 +62,7 @@ The person can see which column the list is sorted by and in which direction, an
 ### Edge Cases
 
 - Old links and bookmarks with the existing `sort` values (`fetchedAt_desc`, `fitScore_desc`, `postedAt_desc`, `title_asc`) keep working and highlight the matching header where one exists.
-- An unknown or malformed `sort` value is treated as the default order (recently fetched), as today.
+- An unknown or malformed `sort` value is treated as the default order (recently fetched) instead of being refused.
 - With a single search selected, the Fit column shows that search's score, but sorting by Fit uses the person's best score across their searches — the same as the existing "Highest fit" order. Aligning the two is a follow-up.
 - Postings from aggregators carry their employer separately from the source; Company sorts by the name shown, not the source's name.
 - On narrow screens, hidden columns have no header to click; the "Sort by" menu still reaches the main orders.

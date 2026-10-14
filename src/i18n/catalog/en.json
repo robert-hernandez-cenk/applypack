@@ -1080,6 +1080,8 @@
   "jobs.sort.fit": "Highest fit",
   "jobs.sort.posted": "Recently posted",
   "jobs.sort.title": "Title A-Z",
+  "jobs.sort.byColumn": "Sort by {column}",
+  "jobs.sort.reverseColumn": "Reverse the order of {column}",
   "jobs.apply": "Apply",
   "jobs.filters": "Filters",
   "jobs.filter.search": "Search",

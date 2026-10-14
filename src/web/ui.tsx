@@ -670,10 +670,12 @@ export const Table: FC<
     hideBelow?: HideBelow;
     /** Per-column classes on the `th` itself (alignment and the like). */
     thClasses?: string[];
+    /** Per column, the direction the rows are sorted by it, for assistive technology (#25). */
+    ariaSort?: ('ascending' | 'descending' | undefined)[];
     /** What the table lists, for a screen reader's table list — no data table had a name (audit 2026-09-10, A11Y-3). */
     caption?: string;
   }>
-> = ({ columns, stickyHeader = false, widths, hideBelow, thClasses, caption, children }) => {
+> = ({ columns, stickyHeader = false, widths, hideBelow, thClasses, ariaSort, caption, children }) => {
   const table = (
     <table class={`w-full text-sm ${widths ? 'table-fixed' : ''} ${hideCellsClass(hideBelow)}`}>
       {caption && <caption class="sr-only">{caption}</caption>}
@@ -682,6 +684,7 @@ export const Table: FC<
           {columns.map((c, i) => (
             <th
               scope="col"
+              aria-sort={ariaSort?.[i]}
               class={`bg-surface-overlay/70 px-2.5 py-2.5 font-[550] first:rounded-tl-none first:pl-3.5 last:pr-3.5 sm:px-4 sm:first:pl-5 sm:last:pr-5 ${
                 widths?.[i] ?? ''
               } ${hideHeaderClass(hideBelow, i)} ${thClasses?.[i] ?? ''} ${
