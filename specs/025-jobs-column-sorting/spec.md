@@ -102,5 +102,6 @@ The person can see which column the list is sorted by and in which direction, an
 
 - Sorting stays server-side across the whole result set (not just the visible page).
 - The sort is not remembered between visits; it lives in the address only.
+- Salary compares the figures as posted: a posting quoted per hour or in another currency is ordered by its own number, not a converted one (follow-up).
 - Out of scope: sorting by Location, sorting by several columns at once, saving a preferred sort per person, and any data model change.
 - The existing four-option "Sort by" menu is kept because "Recently posted" has no column.

@@ -20,3 +20,9 @@ The Fit cell shows the selected search's score, while `UserJob.fitScore` is the 
 ## Header control
 
 Links, not buttons: sorting is a navigation (GET), works without script, and keeps filters through `jobsHref`. `aria-sort` goes on the `th`. The arrow is `aria-hidden`; the sort state is spoken through `aria-sort`, and each link has a `title` naming the action.
+
+## Salary compares the numbers as posted
+
+- **Decision**: Salary sorts by the stored lower bound (`salaryMin`) as posted; currency and period are not converted.
+- **Rationale**: a posting's own currency and period are stored beside the number (`salaryCurrency`, `salaryPeriod`), and the conversion lives in `src/currency.ts` in application code. A database ordering over converted values needs raw SQL or a stored, converted column, and the spec rules out schema changes. Most postings are annual, where the order is right.
+- **Known limit**: an hourly or monthly figure, or one in another currency, sits where its raw number falls, not where its yearly USD value would. Recorded as a follow-up (a stored yearly-USD column would fix it for this sort and any filter).
