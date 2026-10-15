@@ -295,6 +295,7 @@ async function fixtures(): Promise<Fixtures> {
     frame: 'first-run',
     verificationId: null,
     evidence: 'own',
+    pages: 'keep',
   });
   const browserPage = await prisma.company.create({
     data: { name: 'Smoke Page', atsType: 'BROWSER_PAGE', atsToken: 'https://smoke.example/careers', watched: true, active: false },

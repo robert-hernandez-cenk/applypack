@@ -20,6 +20,7 @@ import type { FlashMessage } from '../flash';
 import type { ResumeOption } from '../resume-source';
 import type { JobPickOption } from '../job-pick';
 import { JobPicker } from './job-picker';
+import { PAGE_TARGETS } from '../../resume/length';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
 import { t } from '../../i18n/t';
@@ -176,6 +177,18 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
             <MineCheckbox />
           </Card>
         </div>
+
+        {/* ADR 0074: the pages the resume should fit. The default asks for nothing. */}
+        <Field label={t('target.pages.label')} hint={t('target.pages.hint')} class="mt-4 sm:max-w-sm">
+          <Select name="pages">
+            <option value="keep" selected>
+              {t('target.pages.keep')}
+            </option>
+            {PAGE_TARGETS.map((n) => (
+              <option value={String(n)}>{t('target.pages.n', { n })}</option>
+            ))}
+          </Select>
+        </Field>
 
         <div class="mt-4 flex flex-wrap items-center gap-3">
           {/* One button. The pair before it — "Compare" and "Full analysis" —

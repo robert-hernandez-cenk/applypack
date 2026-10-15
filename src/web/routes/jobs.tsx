@@ -75,6 +75,7 @@ import { postingDepth } from '../../resume/brief-depth';
 import { domainMismatch, domainNoticeMessage } from '../../resume/domain';
 import { postingOrientation } from '../../resume/posting-orientation';
 import { rewriteAction } from '../../resume/rewrite';
+import { parsePageTarget, readPageTarget } from '../../resume/length';
 import { readMatchEvidence, parseMatchMode, readMatchMode } from '../../resume/match-mode';
 import { generateCoverLetter } from '../../resume/cover-letter';
 import {
@@ -873,6 +874,8 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     mode: parseMatchMode(form.mode),
     // A one-off's re-run judges as its first run did; one of the user's own resumes always has their evidence (R1).
     evidence: row.hidden ? (oneOff ? readMatchEvidence(oneOff.breakdown) : 'text') : 'own',
+    // A re-check of the editor's draft aims at the pages the comparison it came from was made for; "Re-run anyway" names them in the form (ADR 0074).
+    pages: base && base.jobId === id ? readPageTarget(base.breakdown) : parsePageTarget(form.pages),
     // "Rebuild keywords": read the terms out of the posting again instead of
     // inheriting the frame this posting has been carrying (issue #79).
     rebuild: form.rebuild === '1',
@@ -1198,6 +1201,8 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
     mode: 'full',
     // Another file in a one-off's place is judged as that one-off was (R1).
     evidence: resume.hidden ? (base ? readMatchEvidence(base.breakdown) : 'text') : 'own',
+    // Another file for the same target (ADR 0074).
+    pages: base && base.jobId === id ? readPageTarget(base.breakdown) : 'keep',
     rebuild: false,
     force: false,
     resultUrl: (matchId) => `/jobs/${id}/target?match=${matchId}`,

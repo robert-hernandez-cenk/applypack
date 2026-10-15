@@ -31,6 +31,8 @@ import { dropMalformedKeywords } from './keyword-shape';
 import { annotateEvidence } from './evidence';
 import { planKeywordFrame } from './keyword-frame';
 import { loadKeywordMatcher } from './keyword-matcher';
+import { anthropicAnswerRoom } from '../ai-provider-parse';
+import { lengthExtraTokens, lengthPlan, readPageTarget, type PageTarget } from './length';
 import { readMatchEvidence, readMatchMode, type MatchEvidence, type MatchMode } from './match-mode';
 import { pickReusable, readPromptVersion, readVerificationId } from './match-reuse';
 import { scoreMatch } from './score';
@@ -80,11 +82,14 @@ export async function matchResumeToJob(
      * the Tailor resume page may be a friend's or an old one.
      */
     evidence?: MatchEvidence;
+    /** ADR 0074: the pages the candidate wants the resume to fit; the full analysis aims its cuts at it. */
+    pages?: PageTarget;
     onError?: (reason: string) => void;
   } = {},
 ): Promise<ResumeMatch | null> {
   const mode = opts.mode ?? 'fast';
   const judgedOn = opts.evidence ?? 'own';
+  const pages = opts.pages ?? 'keep';
   // The posting read on its own (ADR 0044): the keyword frame and the
   // requirement groups come from here, and the second comparison of an edited
   // resume reuses the stored reading instead of paying for it again. A failure
@@ -126,6 +131,7 @@ export async function matchResumeToJob(
     mode === 'full' && previousMatch
       ? appliedWording(readActions(previousMatch.actions), resume.text, matcher.locateQuote)
       : [];
+  const length = lengthPlan(resume.text, pages);
   const context: MatchContext = {
     confirmedFacts: facts.filter((f) => f.status === 'confirmed').map((f) => ({ term: f.term, note: f.note })),
     deniedTerms: facts.filter((f) => f.status === 'denied').map((f) => f.term),
@@ -142,12 +148,13 @@ export async function matchResumeToJob(
     brief: briefed?.brief ?? null,
     appliedFromLastRun: applied.map((a) => a.wording),
     candidateDomains: domainMismatch(industries, briefed?.brief),
+    length,
   };
   const answer = await askForJson(
     await getAiRuntime(),
     {
       ...buildMatchPrompt(resume.text, job, mode, context),
-      maxTokens: mode === 'fast' ? MATCH_FAST_MAX_TOKENS : MATCH_MAX_TOKENS,
+      maxTokens: mode === 'fast' ? MATCH_FAST_MAX_TOKENS : MATCH_MAX_TOKENS + Math.min(lengthExtraTokens(length), anthropicAnswerRoom(MATCH_MAX_TOKENS)),
       label: mode === 'fast' ? 'resume-match-fast' : 'resume-match',
       role: 'resume',
       subject: { jobId: job.id, resumeId: resume.id },
@@ -215,6 +222,8 @@ export async function matchResumeToJob(
     frame: frame.reason,
     verificationId: verification?.id ?? null,
     evidence: judgedOn,
+    // A quick check writes no cuts, so it was made for no target.
+    pages: mode === 'full' ? pages : 'keep',
   });
   if (shaped.dropped.length > 0) {
     logger.info({ jobId: job.id, dropped: shaped.dropped }, 'resume: keywords that were not terms');
@@ -295,6 +304,7 @@ export async function findReusableMatch(
   text: string,
   mode: MatchMode,
   evidence: MatchEvidence = 'own',
+  pages: PageTarget = 'keep',
 ): Promise<{ row: ResumeMatch; decision: 'reuse' | 'suggest' } | null> {
   const refreshedAt = await getPostingRefreshedAt(jobId);
   const [rows, verification] = await Promise.all([
@@ -308,7 +318,8 @@ export async function findReusableMatch(
     mode: readMatchMode(match.breakdown),
     verificationId: readVerificationId(match.breakdown),
     evidence: readMatchEvidence(match.breakdown),
+    pages: readPageTarget(match.breakdown),
   }));
-  const best = pickReusable(stored, text, PROMPT_VERSION, mode, verification?.id ?? null, evidence);
+  const best = pickReusable(stored, text, PROMPT_VERSION, mode, verification?.id ?? null, evidence, pages);
   return best ? { row: best.row.match, decision: best.decision } : null;
 }

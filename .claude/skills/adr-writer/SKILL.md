@@ -132,6 +132,7 @@ of truth when the two disagree.
 - 0071 Job leads are read from the person's own mailbox, read-only, and are theirs alone *(builds on 0005, 0062, 0067: Gmail label → that person's jobs; the refresh token is a new accessor-only secret)*
 - 0072 A running job reports its progress through its own run row *(builds on 0003, 0069, 0070: `cron_run.progress`, a throttled reporter, a polled fragment on /runs)*
 - 0073 A Reactive Resume resume is read from its export file or from the owner's own instance *(builds on 0005, 0011, 0070: Markdown as the stored form, `.json` handled in `readResumeUpload`, an API-key pull with the key in memory only, members kept off private addresses)*
+- 0074 A page target steers the cuts in resume tailoring *(builds on 0022, 0029, 0037: `breakdown.pages`, a LENGTH TARGET block in the full match and suggestions user messages, cuts still gated in code, an editor meter)*
 
 Check a proposal against these before touching process layout, sources,
 scheduling, profiles, how the AI is called, the resume score or employer

@@ -95,4 +95,19 @@
 {"timestamp":"2026-10-14T20:56:24.0046390Z","action":"handoff","status":"complete","feature_directory":"specs/039-reactive-resume-import","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261014T2056239471852Z-complete"}
 
 {"event":"artifact_drift_detected","timestamp":"2026-10-14T20:56:24.0109941Z","actor":"claude","feature_directory":"specs/039-reactive-resume-import","drifted_artifacts":[{"path":"spec.md","old_sha256":"9bf91b99c426c52477707735db0a4621cc48a50a5ead5ee53e11aff42540fbc1","new_sha256":"7953de502a9b6a4ea2fcd44041037a741bbed48e565d579dafa1c5496035c08d"},{"path":"tasks.md","old_sha256":"4fdac2a2b614bec6956e0d628069f420a63f9d79eb82414c9e86e82c5a60dc16","new_sha256":"d838ade3e6a3d0c1d0c88b81f82801a2f520db6ec098f0d0b08f32c27e3ea94c"}]}
+{"timestamp":"2026-10-14T23:32:00.0791701Z","action":"guard","status":"allow","feature_directory":"specs/036-live-status-page","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.plan"}
+
+{"timestamp":"2026-10-14T23:33:31.7143108Z","action":"guard","status":"allow","feature_directory":"specs/036-live-status-page","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.tasks"}
+
+{"timestamp":"2026-10-14T23:34:19.1986278Z","action":"handoff","status":"ready","feature_directory":"specs/036-live-status-page","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261014T2334191493238Z-ready"}
+
+{"timestamp":"2026-10-14T23:34:27.0189937Z","action":"handoff","status":"ready","feature_directory":"specs/038-resume-length-control","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261014T2334269782707Z-ready"}
+
+{"timestamp":"2026-10-14T23:34:40.4685842Z","action":"handoff","status":"executing","feature_directory":"specs/038-resume-length-control","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261014T2334404243881Z-executing"}
+
+{"timestamp":"2026-10-14T23:34:40.9015859Z","action":"guard","status":"allow","feature_directory":"specs/038-resume-length-control","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
+
+{"timestamp":"2026-10-15T00:04:16.8052061Z","action":"handoff","status":"complete","feature_directory":"specs/038-resume-length-control","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T0004167457866Z-complete"}
+
+{"event":"artifact_drift_detected","timestamp":"2026-10-15T00:04:16.8113478Z","actor":"claude","feature_directory":"specs/038-resume-length-control","drifted_artifacts":[{"path":"tasks.md","old_sha256":"2c5edd38ff3a9099004952619ad58847415d271033e379ba046cd0e6acfd4910","new_sha256":"276831e5898cef3c41c0353f9e6927cabc7143086c4b78bf6dbcee0f37d13026"}]}
 

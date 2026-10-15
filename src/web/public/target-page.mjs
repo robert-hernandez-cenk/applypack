@@ -17,6 +17,7 @@ import {
   gapLabel,
 } from './target.mjs';
 import { computeScore, entriesFromLive } from './score.mjs';
+import { CHARS_PER_PAGE, lengthPlan, roundPages } from './length.mjs';
 import { formatEditSheet } from './change-sheet.mjs';
 import { wireCopy, copyFrom, announce } from './copy.mjs';
 import { applyReplacement, insertAfterLine, removeSpan, insertIntoSkills, inverseEdit, undoEdit, withContext } from './text-edits.mjs';
@@ -187,6 +188,9 @@ export function init(data) {
   const ringNumber = document.getElementById('score-number');
   const scoreLive = document.getElementById('score-live');
   let announcedScore = null;
+  const lengthMeter = document.getElementById('length-meter');
+  const lengthLive = document.getElementById('length-live');
+  let announcedFit = null;
   // 2πr, straight off the element the server drew, so the two cannot drift.
   const ringLength = Number(ringArc.getAttribute('stroke-dasharray'));
   const panes = document.getElementById('panes');
@@ -256,8 +260,29 @@ export function init(data) {
     }
   }
 
+  /** The length line: the same words and arithmetic the server drew it with (ADR 0074). */
+  function paintLength(text) {
+    if (!lengthMeter) return;
+    const plan = lengthPlan(text, data.pageTarget ?? 'keep');
+    const pages = roundPages(plan.pages);
+    if (plan.target === 'keep') {
+      lengthMeter.textContent = t('browser.length.plain', { pages });
+      return;
+    }
+    const state = plan.met
+      ? t('browser.length.met')
+      : t('browser.length.over', { pages: roundPages(plan.overshootChars / CHARS_PER_PAGE) });
+    lengthMeter.textContent = t('browser.length.of', { pages, target: plan.target }) + ' · ' + state;
+    // Announced only when it starts or stops fitting — every keystroke repaints, few change that.
+    if (lengthLive && announcedFit !== plan.met) {
+      if (announcedFit !== null) lengthLive.textContent = lengthMeter.textContent;
+      announcedFit = plan.met;
+    }
+  }
+
   function render() {
     const text = editor.value;
+    paintLength(text);
     const scored = scoreKeywords(data.keywords, text);
     // The number in the ring, recomputed on every keystroke and on every page
     // render — which is what a keyword override produces. The full score

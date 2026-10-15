@@ -7,6 +7,7 @@
 import { SOURCE_LOCALE, withLocale } from '../i18n/locale';
 import type { MessageParams } from '../i18n/message';
 import { t } from '../i18n/t';
+import { CHARS_PER_PAGE } from './length';
 
 type WarningCode = 'too_short' | 'unreadable_chars' | 'control_chars' | 'no_email' | 'no_phone' | 'glued_words' | 'too_long';
 
@@ -30,8 +31,6 @@ function warning(code: WarningCode, params: MessageParams = {}): ParseWarning {
 }
 
 const MIN_TEXT_CHARS = 300;
-/** ~3500 chars ≈ one US letter page of resume text. */
-const CHARS_PER_PAGE = 3_500;
 const MAX_PAGES = 2;
 /** Average word length above this means extraction probably lost spaces. */
 const GLUED_AVG_WORD_LEN = 11;

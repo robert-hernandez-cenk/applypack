@@ -34,6 +34,7 @@ import {
 } from '../../resume/prompts';
 import { freshFrame, freshFrameNotice } from '../../resume/keyword-frame';
 import { proposalOf, suggestionKey, suggestionSheet, type Proposal } from '../../resume/change-sheet';
+import { readPageTarget } from '../../resume/length';
 import { readMatchEvidence, readMatchMode, type MatchMode } from '../../resume/match-mode';
 import { verificationCautionMessages, verificationHintMessage, type VerificationForHint, type VerificationHint } from '../../resume/verification-hint';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
@@ -516,6 +517,7 @@ const MatchReport: FC<{
             {match.model}
           </span>
           {match.draft ? ` · ${t('match.draft')}` : ''}
+          {readPageTarget(match.breakdown) !== 'keep' ? ` · ${t('target.pages.stored', { n: readPageTarget(match.breakdown) })}` : ''}
         </span>
         {/* The card's primary once a result exists: free, and the step the verdict leads to (#164). Full-width under the score row on a phone. */}
         <Button href={`/jobs/${match.jobId}/target?match=${match.id}`} size="sm" class="ml-auto max-sm:basis-full">

@@ -87,6 +87,16 @@ test('pickReusable: a full row behind a newer quick check on the same text is sh
   assert.equal(pickReusable([], text, 7, 'full', 1), null);
 });
 
+test('a full comparison made for one page target never answers for another (ADR 0074)', () => {
+  assert.equal(reuseDecision({ ...full, pages: 2 }, TEXT, 5, 'full', null, 'own', 'keep'), 'none');
+  assert.equal(reuseDecision(full, TEXT, 5, 'full', null, 'own', 2), 'none', 'a row from before the marker was made for no target');
+  assert.equal(reuseDecision({ ...full, pages: 2 }, TEXT, 5, 'full', null, 'own', 2), 'reuse');
+  assert.equal(reuseDecision(full, TEXT, 5, 'full'), 'reuse', 'no target asked, none stored: as ever');
+  assert.equal(reuseDecision({ ...full, pages: 2 }, TEXT, 5, 'fast'), 'reuse', 'a quick check has no cuts, so the target does not matter');
+  const picked = pickReusable([{ ...full, pages: 1 }, { ...full, pages: 2 }], TEXT, 5, 'full', null, 'own', 2);
+  assert.equal(picked?.row.pages, 2);
+});
+
 test('a text-only judgment never answers for one with the owner\'s evidence, or back (R1)', () => {
   assert.equal(reuseDecision({ ...full, evidence: 'text' }, TEXT, 5, 'full', null, 'own'), 'none');
   assert.equal(reuseDecision(full, TEXT, 5, 'full', null, 'text'), 'none', 'a row from before the marker used the owner\'s evidence');

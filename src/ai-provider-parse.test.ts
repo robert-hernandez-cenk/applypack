@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   cliFailure,
   ANTHROPIC_THINKING_HEADROOM_TOKENS,
+  anthropicAnswerRoom,
   anthropicMaxTokens,
   buildClaudeCodeArgs,
   buildCliEnv,
@@ -452,6 +453,13 @@ test('describeAiFailure never renders an empty message', () => {
 
 test('anthropicMaxTokens adds the thinking headroom to the answer budget', () => {
   assert.equal(anthropicMaxTokens(8_000), 8_000 + ANTHROPIC_THINKING_HEADROOM_TOKENS);
+});
+
+test('anthropicAnswerRoom: what an answer can grow by before the ceiling eats the thinking headroom', () => {
+  assert.equal(anthropicAnswerRoom(12_000), 1_000);
+  assert.equal(anthropicAnswerRoom(10_000), 3_000);
+  assert.equal(anthropicAnswerRoom(30_000), 0);
+  assert.equal(anthropicMaxTokens(12_000 + anthropicAnswerRoom(12_000)), 21_000, 'a budget grown by the room still keeps its full headroom');
 });
 
 test('the largest answer budget keeps its full headroom under the SDK non-streaming cap', () => {

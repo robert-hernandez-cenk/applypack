@@ -17,6 +17,20 @@ All notable changes to this project are documented here. The format follows
   it at the server's own network; an administrator can.
   Version 4 has no API, so it goes through the file (#39).
 
+## [2.59.6] — 2026-10-15
+
+### Added
+- **A page target for tailoring.** On the Tailor resume page, a new **Length**
+  choice — *Keep as is* (the default), 1, 2 or 3 pages — asks the comparison to
+  aim its cuts at that size. The removals and shorter wordings it suggests drop
+  what is least relevant to the posting first, condense older roles to a line or
+  two and keep the strongest evidence for what the posting asks for; the number
+  of cuts it may propose grows with how far over the target the resume runs.
+  You apply the cuts yourself and nothing changes until you save. The editor
+  shows an approximate length — "≈ 3.4 of 2 pages" — that moves as you edit, and
+  the comparison's card says which target it was made for. With *Keep as is*
+  nothing is different from before (#38).
+
 ## [2.59.4] — 2026-10-14
 
 ### Added

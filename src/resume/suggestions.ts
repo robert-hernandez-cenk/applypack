@@ -1,4 +1,6 @@
 import type { ResumeMatch } from '@prisma/client';
+import { anthropicAnswerRoom } from '../ai-provider-parse';
+import { lengthExtraTokens, lengthPlan, readPageTarget } from './length';
 import { readMatchEvidence } from './match-mode';
 import { logger } from '../logger';
 import { getAiRuntime } from '../ai-runtime';
@@ -52,6 +54,7 @@ export async function suggestForMatch(
     getResumeIndustries(userId, match.resumeId),
   ]);
   const applied = previous ? appliedWording(readActions(previous.actions), match.resumeText, matcher.locateQuote) : [];
+  const length = lengthPlan(match.resumeText, readPageTarget(match.breakdown));
   const prompt = buildSuggestionsPrompt(match.resumeText, job, {
     owed: owed ?? null,
     summary: match.summary,
@@ -66,10 +69,12 @@ export async function suggestForMatch(
     brief: briefed?.brief ?? null,
     appliedFromLastRun: applied.map((a) => a.wording),
     candidateDomains: domainMismatch(industries, briefed?.brief),
+    // The target the comparison was made for, so "Rewrite all" and the floor's re-ask aim at it too (ADR 0074).
+    length,
   });
   const answer = await askForJson(
     await getAiRuntime(),
-    { ...prompt, maxTokens: SUGGESTIONS_MAX_TOKENS, label: 'resume-suggestions', role: 'resume', timeoutMs: RESUME_TIMEOUT_MS.suggestions, onError, subject: { jobId: job.id, resumeId: match.resumeId } },
+    { ...prompt, maxTokens: SUGGESTIONS_MAX_TOKENS + Math.min(lengthExtraTokens(length), anthropicAnswerRoom(SUGGESTIONS_MAX_TOKENS)), label: 'resume-suggestions', role: 'resume', timeoutMs: RESUME_TIMEOUT_MS.suggestions, onError, subject: { jobId: job.id, resumeId: match.resumeId } },
     // Every array defaults to empty, so "{}" parses — but a reply with nothing
     // in it would flip the row to "full" and lock the button out for good.
     (text) => {

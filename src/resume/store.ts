@@ -10,6 +10,7 @@ import { loadKeywordMatcher } from './keyword-matcher';
 import { withEvidence } from './evidence';
 import { effectiveKeywords } from './keyword-overrides';
 import type { JsonResume } from './json-resume';
+import { readPageTarget, type PageTarget } from './length';
 import { readMatchEvidence, readMatchMode, storedBreakdown, type MatchEvidence, withSuggestionsMode, type MatchMode } from './match-mode';
 import { comparedResumeName } from './match-name';
 import { readPromptVersion, readVerificationId } from './match-reuse';
@@ -459,13 +460,15 @@ export async function createMatch(input: {
   result: ResumeMatchResult;
   /** Computed by score.ts — the model never sets the number (ADR 0012). */
   breakdown: ScoreBreakdown;
-  /** All five ride inside the breakdown JSON — the memo key (match-reuse.ts), the row's shape (ADR 0029), where its keyword frame came from (keyword-frame.ts), which verification's company context it read (ADR 0042) and whose evidence it used (TASKS R1). */
+  /** All six ride inside the breakdown JSON — the memo key (match-reuse.ts), the row's shape (ADR 0029), where its keyword frame came from (keyword-frame.ts), which verification's company context it read (ADR 0042), whose evidence it used (TASKS R1) and the page target it was made for (ADR 0074). */
   promptVersion: number;
   mode: MatchMode;
   frame: FrameReason;
   verificationId: number | null;
   /** R1: whether the owner's facts and other resumes were used, or the text alone. */
   evidence: MatchEvidence;
+  /** ADR 0074: the page target the suggestions were asked to cut toward. */
+  pages: PageTarget;
 }): Promise<ResumeMatch> {
   const r = input.result;
   return prisma.resumeMatch.create({
@@ -579,6 +582,7 @@ export async function rescoreMatchKeywords<T>(
           frame: readFrameReason(match.breakdown),
           verificationId: readVerificationId(match.breakdown),
           evidence: readMatchEvidence(match.breakdown),
+          pages: readPageTarget(match.breakdown),
         }) as Prisma.InputJsonValue,
         matchScore: next.score,
       },

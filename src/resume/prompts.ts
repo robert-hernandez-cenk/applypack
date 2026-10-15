@@ -11,6 +11,7 @@ import { EVIDENCE_LEVELS } from './evidence';
 import { REVIEW_DIMENSIONS, REVIEW_GRADES } from './review-score';
 import { JsonResumeSchema, type JsonResume } from './json-resume';
 import { INJECTION_FLAG, fence, untrustedDirective } from '../prompt-fence';
+import { lengthLines, type LengthPlan } from './length';
 import type { MatchMode } from './match-mode';
 
 /*
@@ -1055,6 +1056,8 @@ export interface MatchJobInput {
 export interface MatchContext {
   /** ask_user answers the user confirmed, with their own where/when context. */
   confirmedFacts?: { term: string; note: string | null }[];
+  /** The page target (ADR 0074): read by the full analysis and the suggestions call only; none, or met, adds nothing. */
+  length?: LengthPlan;
   /** Terms the user said they do NOT have — always cannot_claim. */
   deniedTerms?: string[];
   /** Skills scanned from the candidate's other stored resumes. */
@@ -1263,6 +1266,7 @@ export function buildMatchPrompt(
       // nothing to keep its hands off — and nothing to write in a sector's terms.
       ...(mode === 'full' ? appliedLines(context.appliedFromLastRun) : []),
       ...(mode === 'full' ? domainLines(context.candidateDomains) : []),
+      ...(mode === 'full' && context.length ? lengthLines(context.length) : []),
       postingBlock(job),
       '',
       // The full analysis only: the quick check judges keywords, and this is
@@ -1286,7 +1290,7 @@ function companyContextLines(snapshot: string | null | undefined): string[] {
 
 /** What the suggestions call reads from a stored quick check — verdicts only, never the score. */
 export interface SuggestionsInput
-  extends Pick<MatchContext, 'confirmedFacts' | 'deniedTerms' | 'companySnapshot' | 'brief' | 'appliedFromLastRun' | 'candidateDomains'> {
+  extends Pick<MatchContext, 'confirmedFacts' | 'deniedTerms' | 'companySnapshot' | 'brief' | 'appliedFromLastRun' | 'candidateDomains' | 'length'> {
   /** Set when a first reply missed REQUIRED COVERAGE — the one thing this call is asked to fix. */
   owed?: string | null;
   summary: string;
@@ -1327,6 +1331,7 @@ export function buildSuggestionsPrompt(
       ...factLines(input),
       ...appliedLines(input.appliedFromLastRun),
       ...domainLines(input.candidateDomains),
+      ...(input.length ? lengthLines(input.length) : []),
       'KEYWORD VERDICTS from the quick check of this resume against this posting (fixed — do not re-judge):',
       fence('KEYWORD VERDICTS', verdicts),
       '',

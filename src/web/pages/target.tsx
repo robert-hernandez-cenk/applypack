@@ -11,6 +11,7 @@ import { effectiveKeywords, confirmable } from '../../resume/keyword-overrides';
 import { DENIED_NOTE, UNSURE_NOTE } from '../../resume/facts';
 import { structureFromText } from '../../resume/structure-from-text';
 import { readActions, readHardRequirements, readRemovals } from '../../resume/prompts';
+import { CHARS_PER_PAGE, lengthPlan, readPageTarget, roundPages, type LengthPlan } from '../../resume/length';
 import { readMatchEvidence, readMatchMode } from '../../resume/match-mode';
 import { notEnglishNotice } from '../../text-language';
 import { readBreakdown } from '../../resume/score';
@@ -111,6 +112,20 @@ const READY_TO_APPLY = FIT_OK_FLOOR;
 /** The ring's circumference, 2πr for r=42 — the dash length the arc is cut from. */
 const RING_LENGTH = 263.9;
 
+/**
+ * The editor's length line as first drawn (ADR 0074). target-page.mjs repaints
+ * it on every edit with the same words — `browser.length.*` — and the same
+ * arithmetic (public/length.mjs mirrors resume/length.ts).
+ */
+function lengthMeterText(plan: LengthPlan): string {
+  const pages = roundPages(plan.pages);
+  if (plan.target === 'keep') return t('browser.length.plain', { pages });
+  const state = plan.met
+    ? t('browser.length.met')
+    : t('browser.length.over', { pages: roundPages(plan.overshootChars / CHARS_PER_PAGE) });
+  return `${t('browser.length.of', { pages, target: plan.target })} · ${state}`;
+}
+
 export const TargetPage: FC<TargetPageProps> = ({
   job,
   resume,
@@ -144,6 +159,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   // The one move worth making next, ranked in code from the verdicts this row
   // already carries (score-lines.ts) — the editor is where it gets made.
   const advice = breakdown ? mainAdvice({ breakdown, keywords: scored, hard, actions, postingTitle: job.title }) : null;
+  const pageTarget = readPageTarget(match.breakdown);
   const recent = matches.slice(0, RECENT_RUNS);
   const shownRuns = recent.some((m) => m.id === match.id)
     ? recent
@@ -170,6 +186,8 @@ export const TargetPage: FC<TargetPageProps> = ({
     // Heads "Copy my changes"; the suggestion sheet is rendered server-side.
     // The title also keeps the posting's own title off the skills lines (skillGaps).
     sheet: { jobTitle: job.title, companyName: job.companyName, resumeName: resume.name },
+    // The pages this comparison was made for; null when none (ADR 0074).
+    pageTarget: pageTarget === 'keep' ? null : pageTarget,
     // The document pane draws the draft through POST /resumes/:id/document.
     resumeId: resume.id,
     documentName: resume.name,
@@ -324,6 +342,11 @@ export const TargetPage: FC<TargetPageProps> = ({
             </p>
             <MainAdviceLine advice={advice} />
             {breakdown && <ScoreCeilingLine bd={breakdown} />}
+            {/* The length of the text in the editor, repainted by target-page.mjs on every edit (ADR 0074). */}
+            <p id="length-meter" data-ui="hint" class="text-note tabular-nums text-ink-faint" title={t('target.length.title')}>
+              {lengthMeterText(lengthPlan(resumeText, pageTarget))}
+            </p>
+            <span id="length-live" class="sr-only" aria-live="polite"></span>
             {/* The number alone used to decide this, so "stop polishing" sat
                 above three suggested edits, five removals and an unconfirmed
                 hard requirement on a live 100/100. A score is not a verdict
