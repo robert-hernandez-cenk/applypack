@@ -17,6 +17,7 @@ const MAY_NAME_THE_KEY: Record<string, string> = {
   'resume/reactive-connection-store.ts': 'the only file that reads or writes the table',
   'web/routes/reactive-resume.ts': 'saves a checked pair, removes it',
   'web/routes/resumes.tsx': 'reads the key to list and to import',
+  'scripts/route-smoke.ts': 'a harness: reads the row to prove a save, a removal and a refusal; runs on a throwaway database',
 };
 
 function sources(): string[] {

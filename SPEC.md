@@ -537,8 +537,11 @@ slot on `/settings` → AI & costs, else `ai-engine.ts:defaultModelFor`) that
 fills headline, seniority, years, skill tags, the primary stack, role types,
 industries and job-agnostic `issues`. The first upload becomes the default.
 A Reactive Resume export (`.json`, versions 4–6) or a resume pulled from the
-person's own instance with their API key is stored as the Markdown it is
-written out to (`original` and `text` alike, ADR 0073); the key is never kept.
+person's own instance is stored as the Markdown it is written out to
+(`original` and `text` alike, ADR 0073). The instance address and API key are
+a saved per-person setting (Settings → Job search, ADR 0075), checked when saved
+and never shown again; with one saved, `/resumes` imports a new resume from the
+instance and a resume's "Upload a new version" can take its next version from it.
 
 `ResumeMatch` is one comparison of a resume against a job, triggered from
 `/jobs/:id` → "Resume match" → Compare. The dropdown preselects a resume in

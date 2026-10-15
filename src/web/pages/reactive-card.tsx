@@ -64,9 +64,9 @@ export const ReactiveSource: FC<{ connected: boolean; action: string; button: st
   pointer,
 }) =>
   connected ? (
-    <form method="post" action={action} onsubmit={SUBMIT_ONCE} class="flex flex-wrap items-center gap-3">
+    <form method="post" action={action} onsubmit={SUBMIT_ONCE} class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
       <Button variant="secondary">{button}</Button>
-      <Hint class="min-w-0 flex-1">{hint}</Hint>
+      <Hint class="min-w-0 sm:flex-1">{hint}</Hint>
     </form>
   ) : (
     <Hint>
