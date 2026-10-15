@@ -395,8 +395,14 @@
   refused a private name or address, an administrator is
   not — the one person of a local install is one); `reactive-resume-api.ts` is the ONLY file that calls a person's
   instance — `x-api-key`, no redirect followed, a time and a size limit — and
-  `web/pull-stash.ts` holds the key in memory for ten minutes, taken once.
-  The key is in no page, flash, log field or row. `.json` is read inside
+  `reactive-connection.ts` (pure: `cleanKey`, the key-less `ConnectionView`) and
+  `reactive-connection-store.ts` (the ONLY file that touches `reactive_resume_connection`;
+  `readInstanceKey` is the one function that returns the key, ADR 0075) are the person's
+  saved connection: set on Settings after a live check, used by `/resumes` and by a resume's
+  "Upload a new version" (`routes/reactive-resume.ts` saves and removes; the pulls are in
+  `routes/resumes.tsx`, one path to `saveNewVersion` with a file upload). `web/pull-stash.ts`
+  holds only the listed ids and the target for ten minutes, taken once — no address, no key.
+  The key is in no page, flash, log field, link or stash. `.json` is read inside
   `readResumeUpload`, never added to `ACCEPTED_EXTENSIONS` (screening intake
   reads that list). The shapes are written from the published schema and have
   not been checked against a live instance.
@@ -445,7 +451,7 @@
 - Do not add Express, Next.js, or any HTTP server to the worker process.
 - Do not add Redis, BullMQ, or other queues — node-cron is sufficient.
 - Do not expose the dashboard on a public interface by default — bind to `127.0.0.1` in compose.
-- Do not store secrets anywhere except `.env` (gitignored). Four carve-outs, all deliberate: Telegram tokens and Discord webhook URLs belong in `NotificationTarget` rows once `init.ts` has bootstrapped them (ADR 0041), per-engine AI keys belong in `AppSettings.aiKeys` (ADR 0027) — in both cases `.env` becomes optional after first boot — the built-in database's password lives in `db.json` (mode 0600) beside the database it guards (ADR 0054), and a person's Gmail refresh token lives in `GmailConnection` so the worker can read their label unattended (ADR 0071). A secret in the DB is read only through its own accessor, never rendered in full, never logged.
+- Do not store secrets anywhere except `.env` (gitignored). Five carve-outs, all deliberate: Telegram tokens and Discord webhook URLs belong in `NotificationTarget` rows once `init.ts` has bootstrapped them (ADR 0041), per-engine AI keys belong in `AppSettings.aiKeys` (ADR 0027) — in both cases `.env` becomes optional after first boot — the built-in database's password lives in `db.json` (mode 0600) beside the database it guards (ADR 0054), and a person's Gmail refresh token lives in `GmailConnection` so the worker can read their label unattended (ADR 0071), and a person's Reactive Resume API key lives in `ReactiveResumeConnection` so a pull needs no typing (ADR 0075). A secret in the DB is read only through its own accessor, never rendered in full, never logged.
 - Do not commit `node_modules`, `dist`, or `.env`.
 - Do not use any `--save-dev` that isn't necessary.
 - Do not scrape LinkedIn / Indeed / Glassdoor / Workday / Wellfound — see [ADR 0005](./docs/adr/0005-no-linkedin-indeed-workday.md).

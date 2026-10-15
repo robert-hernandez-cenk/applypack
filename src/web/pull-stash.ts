@@ -1,20 +1,21 @@
 import { randomUUID } from 'node:crypto';
 
 /*
- * The API key of a Reactive Resume pull between listing the person's resumes
- * and importing the one they pick (ADR 0073). In memory only, ten minutes, a
- * few per person, taken once and by its owner — the key is in no page, link,
- * log line or row. The ids of the resumes that were listed ride with it: the
- * import may only ask for one of those.
+ * A Reactive Resume pull between listing the person's resumes and importing the
+ * one they pick (ADR 0073, 0075). In memory only, ten minutes, a few per
+ * person, taken once and by its owner. It holds no address and no key — the
+ * import reads those from the saved connection. The ids of the resumes that
+ * were listed ride with it: the import may only ask for one of those.
  */
+
+/** Where the picked resume goes: a new resume, or the next version of one the person owns. */
+export type PullTarget = { kind: 'new' } | { kind: 'version'; resumeId: number };
 
 export interface Pull {
   userId: number;
-  /** The instance, as `parseInstanceUrl` wrote it. */
-  base: string;
-  key: string;
-  /** What the list showed; nothing else can be imported with this key. */
+  /** What the list showed; nothing else can be imported with this pull. */
   ids: string[];
+  target: PullTarget;
 }
 
 /** Ten minutes: long enough to pick, short enough that a forgotten page keeps nothing. */
@@ -39,7 +40,7 @@ export function takePull(id: string, userId: number, now = Date.now()): Pull | n
   const found = pulls.get(id);
   if (!found || found.userId !== userId) return null;
   pulls.delete(id);
-  return { userId: found.userId, base: found.base, key: found.key, ids: found.ids };
+  return { userId: found.userId, ids: found.ids, target: found.target };
 }
 
 /** Room for one more among the entries `which` picks out: the oldest go (a Map keeps insertion order). */

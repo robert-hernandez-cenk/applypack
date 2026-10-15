@@ -29,6 +29,7 @@ import { requireHeldJob } from '../web/job-guard';
 import { jobsRoute } from '../web/routes/jobs';
 import { applicationsRoute } from '../web/routes/applications';
 import { resumesRoute } from '../web/routes/resumes';
+import { reactiveResumeRoute } from '../web/reactive-live';
 import { factsRoute } from '../web/routes/facts';
 import { packRoute } from '../web/routes/pack';
 import { listProfilesForResume } from '../profiles';
@@ -837,14 +838,52 @@ async function main(): Promise<void> {
     rows.push({ route: p.name, url: postPaths[i]!, status: res.status, ok: await p.expect(res) });
   }
 
-  // ADR 0073: the pull from an instance, as the administrator who owns the fixtures — a loopback
-  // stand-in is theirs to reach. List shows the picker with no key in it; import saves a resume.
+  // ADR 0073 / 0075: the saved connection and the pulls from it, as the administrator who owns the
+  // fixtures — a loopback stand-in is theirs to reach. The picker never shows the key.
   const instance = await reactiveStandIn(reactiveExport('Smoke Pulled'));
   try {
     const KEY = 'rr_smoke_SECRET_key';
-    const listed = await app.request('/resumes/reactive/list', form({ url: instance.url, key: KEY }));
+    const pickerPull = (html: string): string => /name="pull" value="([^"]+)"/.exec(html)?.[1] ?? '';
+    const listedWithoutOne = await app.request('/resumes/reactive/list', form({}));
+    rows.push({
+      route: 'POST /resumes/reactive/list with no saved connection (asked to connect first, no request made)',
+      url: '/resumes/reactive/list',
+      status: listedWithoutOne.status,
+      ok: listedWithoutOne.status === 303 && listedWithoutOne.headers.get('location') === '/resumes' && instance.hits() === 0,
+    });
+    const refusedAddress = await app.request('/settings/reactive-resume', form({ url: 'ftp://nope.example.com', key: KEY }));
+    rows.push({
+      route: 'POST /settings/reactive-resume with an address that is not http(s) (refused, nothing saved)',
+      url: '/settings/reactive-resume',
+      status: refusedAddress.status,
+      ok: refusedAddress.status === 303 && !flashOf(refusedAddress).includes(KEY) && (await prisma.reactiveResumeConnection.count()) === 0,
+    });
+    const saved = await app.request('/settings/reactive-resume', form({ url: instance.url, key: KEY }));
+    const stored = await prisma.reactiveResumeConnection.findUnique({ where: { userId: DEFAULT_USER_ID } });
+    rows.push({
+      route: 'POST /settings/reactive-resume (checked against the instance, then saved)',
+      url: '/settings/reactive-resume',
+      status: saved.status,
+      ok: saved.status === 303 && saved.headers.get('location') === '/settings?tab=profile#reactive-resume' && stored?.apiKey === KEY && !flashOf(saved).includes(KEY),
+    });
+    const card = await app.request('/settings?tab=profile', { headers: ORIGIN });
+    const cardHtml = await card.text();
+    rows.push({
+      route: 'GET /settings?tab=profile with a saved connection (the host, never the key)',
+      url: '/settings?tab=profile',
+      status: card.status,
+      ok: card.status === 200 && cardHtml.includes('id="reactive-resume"') && cardHtml.includes('127.0.0.1') && !cardHtml.includes(KEY),
+    });
+    const resumesPage = await (await app.request('/resumes', { headers: ORIGIN })).text();
+    rows.push({
+      route: 'GET /resumes with a saved connection (a list button, no address or key field)',
+      url: '/resumes',
+      status: 200,
+      ok: resumesPage.includes('action="/resumes/reactive/list"') && !resumesPage.includes('name="key"'),
+    });
+    const listed = await app.request('/resumes/reactive/list', form({}));
     const picker = listed.status === 200 ? await listed.text() : '';
-    const pull = /name="pull" value="([^"]+)"/.exec(picker)?.[1] ?? '';
+    const pull = pickerPull(picker);
     rows.push({
       route: 'POST /resumes/reactive/list (the picker, with no key on the page)',
       url: '/resumes/reactive/list',
@@ -865,12 +904,43 @@ async function main(): Promise<void> {
       status: again.status,
       ok: again.status === 303 && again.headers.get('location') === '/resumes' && flashOf(again).length > 0,
     });
-    const refused = await app.request('/resumes/reactive/list', form({ url: 'ftp://nope.example.com', key: KEY }));
+    // The same stored connection feeds a resume's "Upload a new version" card.
+    const versionBefore = (await prisma.resume.findUniqueOrThrow({ where: { id: f.resumeId }, select: { version: true } })).version;
+    const listedForVersion = await app.request(`/resumes/${f.resumeId}/reactive/list`, form({}));
+    const versionPicker = listedForVersion.status === 200 ? await listedForVersion.text() : '';
+    const versionPull = pickerPull(versionPicker);
     rows.push({
-      route: 'POST /resumes/reactive/list with an address that is not http(s) (refused before any request)',
-      url: '/resumes/reactive/list',
-      status: refused.status,
-      ok: refused.status === 303 && refused.headers.get('location') === '/resumes' && !flashOf(refused).includes(KEY),
+      route: 'POST /resumes/:id/reactive/list (the picker for a new version, with no key on the page)',
+      url: `/resumes/${f.resumeId}/reactive/list`,
+      status: listedForVersion.status,
+      ok: listedForVersion.status === 200 && versionPull !== '' && versionPicker.includes('Smoke pulled') && !versionPicker.includes(KEY),
+    });
+    const versioned = await app.request('/resumes/reactive/import', form({ pull: versionPull, id: 'r1' }));
+    const after = await prisma.resume.findUniqueOrThrow({ where: { id: f.resumeId }, select: { version: true, name: true } });
+    rows.push({
+      route: 'POST /resumes/reactive/import for a new version (the next version, same name, scanned)',
+      url: '/resumes/reactive/import',
+      status: versioned.status,
+      ok: versioned.status === 303 && (versioned.headers.get('location') ?? '').startsWith('/target/runs/') && after.version === versionBefore + 1 && after.name === 'Smoke resume',
+    });
+    const listedSame = await app.request(`/resumes/${f.resumeId}/reactive/list`, form({}));
+    const samePull = pickerPull(listedSame.status === 200 ? await listedSame.text() : '');
+    const same = await app.request('/resumes/reactive/import', form({ pull: samePull, id: 'r1' }));
+    const unchanged = await prisma.resume.findUniqueOrThrow({ where: { id: f.resumeId }, select: { version: true } });
+    rows.push({
+      route: 'POST /resumes/reactive/import for a new version that reads like the current one (told so, no new version)',
+      url: '/resumes/reactive/import',
+      status: same.status,
+      ok: same.status === 303 && same.headers.get('location') === `/resumes/${f.resumeId}` && unchanged.version === after.version,
+    });
+    const removed = await app.request('/settings/reactive-resume/remove', form({}));
+    const hitsBefore = instance.hits();
+    const afterRemoval = await app.request('/resumes/reactive/list', form({}));
+    rows.push({
+      route: 'POST /settings/reactive-resume/remove (the pair is gone; a list asks to connect first)',
+      url: '/settings/reactive-resume/remove',
+      status: removed.status,
+      ok: removed.status === 303 && (await prisma.reactiveResumeConnection.count()) === 0 && afterRemoval.status === 303 && instance.hits() === hitsBefore,
     });
   } finally {
     instance.close();
@@ -1332,6 +1402,7 @@ async function resumeIsolationChecks(ownResumeId: number): Promise<Check[]> {
     a.use('/jobs/*', requireHeldJob());
     a.route('/', jobsRoute);
     a.route('/', resumesRoute);
+    a.route('/', reactiveResumeRoute);
     a.route('/', factsRoute);
     a.route('/', packRoute);
     return a;
@@ -1344,16 +1415,19 @@ async function resumeIsolationChecks(ownResumeId: number): Promise<Check[]> {
   const ownerList = await app.request('/resumes', { headers: ORIGIN });
   add('GET /resumes for the owner (not the other person\'s resume)', '/resumes', ownerList.status, ownerList.status === 200 && !(await ownerList.text()).includes('Teammate resume'));
 
-  // ADR 0073: a member is kept off the server's own network, whatever the install.
+  // ADR 0073 / 0075: a member is kept off the server's own network, whatever the install —
+  // when the pair is saved, so a private address never gets stored — and cannot pull for the owner's resume.
   const inward = await reactiveStandIn(reactiveExport('Smoke Inward'));
   try {
-    const refused = await asMate.request('/resumes/reactive/list', form({ url: inward.url, key: 'rr_smoke_key' }));
+    const refused = await asMate.request('/settings/reactive-resume', form({ url: inward.url, key: 'rr_smoke_key' }));
     add(
-      'POST /resumes/reactive/list by a member to a loopback address (refused, no request made)',
-      '/resumes/reactive/list',
+      'POST /settings/reactive-resume by a member to a loopback address (refused, no request made, nothing saved)',
+      '/settings/reactive-resume',
       refused.status,
-      refused.status === 303 && inward.hits() === 0,
+      refused.status === 303 && inward.hits() === 0 && (await prisma.reactiveResumeConnection.count({ where: { userId: teammate.id } })) === 0,
     );
+    const foreign = await asMate.request(`/resumes/${ownResumeId}/reactive/list`, form({}));
+    add("POST /resumes/:id/reactive/list on the other person's resume (not found)", `/resumes/${ownResumeId}/reactive/list`, foreign.status, foreign.status === 404 && inward.hits() === 0);
   } finally {
     inward.close();
   }
@@ -1431,9 +1505,13 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * card, whatever the probe finds installed. Three calls that found no server
  * are written for the engine this run asks first; both pages are then read.
  */
+const SCAN_ERRORS_HEADROOM = 12;
+
 async function engineTroubleChecks(): Promise<Check[]> {
   const at = new Date();
-  for (let i = 0; i < 3; i++) {
+  // The scans the uploads above started fail on this engine too, and the commonest outcome of the run names
+  // the trouble (ai-health.ts): record more unreachable calls than any number of those scans can outvote.
+  for (let i = 0; i < SCAN_ERRORS_HEADROOM; i++) {
     await recordAiCall({ at, durationMs: 1, feature: 'classifier', viaFallback: false, engine: 'claude_code', model: '', outcome: 'unreachable', billing: 'plan', spend: null });
   }
   const usage = await app.request('/ai', { headers: ORIGIN });

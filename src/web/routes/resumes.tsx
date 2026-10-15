@@ -59,11 +59,12 @@ import { loadLineDiff } from '../../resume/line-diff';
 import { ReactivePickPage, ResumesPage } from '../pages/resumes';
 import { ResumeTextError } from '../../resume/docx-text';
 import { markdownResume, reactiveResumeText } from '../../resume/resume-text';
-import { getInstanceResume, InstanceError, listInstanceResumes, type InstanceFailure } from '../../resume/reactive-resume-api';
-import { parseInstanceUrl, reachable, type InstanceUrlFailure, type Reach } from '../../resume/reactive-resume-url';
-import { stashPull, takePull } from '../pull-stash';
+import { getInstanceResume, InstanceError, listInstanceResumes } from '../../resume/reactive-resume-api';
+import { reachable } from '../../resume/reactive-resume-url';
+import { readInstanceKey, getConnectionView } from '../../resume/reactive-connection-store';
+import { REACH_FAILURE, SAVED_INSTANCE_FAILURE } from '../reactive-failures';
+import { stashPull, takePull, type PullTarget } from '../pull-stash';
 import { isAdmin } from '../../users/admin-policy';
-import type { MessageKey } from '../../i18n/catalog';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { claimRun, startRun, updateRun } from '../target-runs';
 import { runFailure } from '../run-failure';
@@ -84,11 +85,12 @@ const MAX_DRAFT_CHARS = 200_000;
 export const resumesRoute = new Hono();
 
 resumesRoute.get('/resumes', async (c) => {
-  const [resumes, facts, stats, reviews] = await Promise.all([
+  const [resumes, facts, stats, reviews, reactive] = await Promise.all([
     listResumes(currentUser().id),
     listFacts(currentUser().id),
     matchStatsByResume(currentUser().id),
     latestReviewByResume(currentUser().id),
+    getConnectionView(currentUser().id),
   ]);
   return c.html(
     <ResumesPage
@@ -98,6 +100,7 @@ resumesRoute.get('/resumes', async (c) => {
         review: reviews.get(r.id) ?? null,
       }))}
       facts={facts}
+      reactiveConnected={reactive !== null}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,
@@ -132,86 +135,102 @@ async function saveUploaded(c: Context, upload: UploadedResumeFile, name: string
 }
 
 /*
- * A resume pulled from the person's own Reactive Resume instance (ADR 0073):
- * list with their key, pick, import. The key is held by pull-stash.ts for the
- * step between, and is in no flash, log field or page.
+ * A resume pulled from the person's own Reactive Resume instance (ADR 0073,
+ * 0075): list with the saved connection, pick, import — as a new resume or as
+ * the next version of one the person owns. The key is read from the store for
+ * each request and is in no stash, flash, log field or page.
  */
-
-const URL_FAILURE = {
-  empty: 'resumes.reactive.fail.empty',
-  invalid: 'resumes.reactive.fail.invalid',
-  scheme: 'resumes.reactive.fail.scheme',
-  credentials: 'resumes.reactive.fail.credentials',
-} as const satisfies Record<InstanceUrlFailure, MessageKey>;
-
-const REACH_FAILURE = {
-  privateAddress: 'resumes.reactive.fail.privateAddress',
-  noHost: 'resumes.reactive.fail.noHost',
-} as const satisfies Record<Exclude<Reach, { ok: true }>['code'], MessageKey>;
-
-const INSTANCE_FAILURE = {
-  unauthorized: 'resumes.reactive.fail.unauthorized',
-  notApi: 'resumes.reactive.fail.notApi',
-  redirect: 'resumes.reactive.fail.redirect',
-  tooLarge: 'resumes.reactive.fail.tooLarge',
-  timeout: 'resumes.reactive.fail.timeout',
-  unreachable: 'resumes.reactive.fail.unreachable',
-} as const satisfies Record<InstanceFailure, MessageKey>;
 
 const formText = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
+/** Where a pull ends: the resumes page, or the page of the resume it is for. */
+const pullBack = (target: PullTarget): string => (target.kind === 'version' ? `/resumes/${target.resumeId}` : '/resumes');
+
 /** One person's pull at a time (a slow instance holds nobody else up). */
-const pullGuard = onceGuard(() => `resumes:reactive:${currentUser().id}`, () => '/resumes');
+const pullGuard = onceGuard(
+  () => `resumes:reactive:${currentUser().id}`,
+  (c) => (c.req.param('id') ? `/resumes/${c.req.param('id')}` : '/resumes'),
+);
 
 /** Only an administrator may aim the server at its own network; on a local install the one person is one. */
 const mayReachInward = (): boolean => isAdmin(currentUser());
 
-resumesRoute.post('/resumes/reactive/list', pullGuard, async (c) => {
-  const form = await c.req.parseBody();
-  const key = formText(form.key);
-  const address = parseInstanceUrl(formText(form.url));
-  if (!address.ok) return flashRedirect('/resumes', 'err', t(URL_FAILURE[address.code]));
-  if (!key) return flashRedirect('/resumes', 'err', t('resumes.reactive.fail.noKey'));
+/** List the person's resumes on their saved instance and show the pick page for `target`. */
+async function listForPull(c: Context, target: PullTarget, forResume?: { id: number; name: string }): Promise<Response> {
+  const back = pullBack(target);
   const user = currentUser();
-  const reach = await reachable(address.base, { privileged: mayReachInward() });
-  if (!reach.ok) return flashRedirect('/resumes', 'err', t(REACH_FAILURE[reach.code]));
+  const saved = await readInstanceKey(user.id);
+  if (!saved) return flashRedirect(back, 'err', t('reactive.fail.noConnection'));
+  const base = new URL(saved.base);
+  const reach = await reachable(base, { privileged: mayReachInward() });
+  if (!reach.ok) return flashRedirect(back, 'err', t(REACH_FAILURE[reach.code]));
   let found;
   try {
-    found = await listInstanceResumes(address.base, key);
+    found = await listInstanceResumes(base, saved.key);
   } catch (err) {
-    if (err instanceof InstanceError) return flashRedirect('/resumes', 'err', t(INSTANCE_FAILURE[err.code]));
+    if (err instanceof InstanceError) return flashRedirect(back, 'err', t(SAVED_INSTANCE_FAILURE[err.code]));
     throw err;
   }
-  if (found.length === 0) {
-    return flashRedirect('/resumes', 'warn', t('resumes.reactive.fail.none', { host: address.base.host }));
-  }
-  const pull = stashPull({ userId: user.id, base: address.base.href, key, ids: found.map((r) => r.id) });
-  logger.info({ resumes: found.length, host: address.base.host }, 'resume: listed from a Reactive Resume instance');
-  return c.html(<ReactivePickPage pull={pull} host={address.base.host} resumes={found} />);
+  if (found.length === 0) return flashRedirect(back, 'warn', t('resumes.reactive.fail.none', { host: base.host }));
+  const pull = stashPull({ userId: user.id, ids: found.map((r) => r.id), target });
+  logger.info({ resumes: found.length, host: base.host, target: target.kind }, 'resume: listed from a Reactive Resume instance');
+  return c.html(<ReactivePickPage pull={pull} host={base.host} resumes={found} forResume={forResume} />);
+}
+
+resumesRoute.post('/resumes/reactive/list', pullGuard, (c) => listForPull(c, { kind: 'new' }));
+
+resumesRoute.post('/resumes/:id/reactive/list', pullGuard, async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  const current = await getResume(currentUser().id, id);
+  if (!current) return c.text(t('http.notFound'), 404);
+  return listForPull(c, { kind: 'version', resumeId: id }, { id, name: current.name });
 });
 
 resumesRoute.post('/resumes/reactive/import', pullGuard, async (c) => {
   const form = await c.req.parseBody();
   const id = formText(form.id);
-  // Taken whatever happens next: a key is used for one import.
-  const pull = takePull(formText(form.pull), currentUser().id);
+  const user = currentUser();
+  // Taken whatever happens next: a list is used for one import.
+  const pull = takePull(formText(form.pull), user.id);
   if (!pull) return flashRedirect('/resumes', 'err', t('resumes.reactive.fail.expired'));
-  if (!pull.ids.includes(id)) return flashRedirect('/resumes', 'err', t('resumes.reactive.fail.pickOne'));
+  const back = pullBack(pull.target);
+  if (!pull.ids.includes(id)) return flashRedirect(back, 'err', t('resumes.reactive.fail.pickOne'));
   try {
-    // The name is looked up again and the person's standing read again: the check at list time is ten minutes old.
-    const base = new URL(pull.base);
+    // The version's resume is looked at first (it may be gone); the connection, the name and the person's standing
+    // are read again: the check at list time is ten minutes old.
+    const current = pull.target.kind === 'version' ? await getResume(user.id, pull.target.resumeId) : null;
+    if (pull.target.kind === 'version' && !current) return flashRedirect('/resumes', 'err', t('reactive.fail.versionGone'));
+    const saved = await readInstanceKey(user.id);
+    if (!saved) return flashRedirect(back, 'err', t('reactive.fail.noConnection'));
+    const base = new URL(saved.base);
     const reach = await reachable(base, { privileged: mayReachInward() });
-    if (!reach.ok) return flashRedirect('/resumes', 'err', t(REACH_FAILURE[reach.code]));
-    const got = await getInstanceResume(base, pull.key, id);
+    if (!reach.ok) return flashRedirect(back, 'err', t(REACH_FAILURE[reach.code]));
+    const got = await getInstanceResume(base, saved.key, id);
     const read = reactiveResumeText(got.data);
     const name = (got.name || read.name || t('upload.defaultName')).slice(0, MAX_RESUME_NAME_CHARS);
-    return await saveUploaded(c, markdownResume(name, read.text), name);
+    const upload = markdownResume(name, read.text);
+    return current ? await saveNewVersion(c, current, upload) : await saveUploaded(c, upload, name);
   } catch (err) {
-    if (err instanceof InstanceError) return flashRedirect('/resumes', 'err', t(INSTANCE_FAILURE[err.code]));
-    if (err instanceof ResumeTextError) return flashRedirect('/resumes', 'err', err.reason());
+    if (err instanceof InstanceError) return flashRedirect(back, 'err', t(SAVED_INSTANCE_FAILURE[err.code]));
+    if (err instanceof ResumeTextError) return flashRedirect(back, 'err', err.reason());
     throw err;
   }
 });
+
+/** The next version of a resume from an upload or a pull — one path, so both read alike. */
+async function saveNewVersion(c: Context, current: ResumeSummary, upload: UploadedResumeFile): Promise<Response> {
+  // R16: a new version that reads like the one in place changes nothing, and would pay for a scan of it.
+  if (sameTextAs(upload.text, [current])) {
+    return flashRedirect(`/resumes/${current.id}`, 'warn', t('resume.flash.sameAsCurrent', { version: current.version }));
+  }
+  const resume = await replaceResumeFile(currentUser().id, current.id, upload);
+  return startScanRun(c, resume, {
+    subtitle: t('resume.run.rescanSubtitle', { name: resume.name, version: resume.version }),
+    onScanned: () => t('resume.flash.versionUploaded', { version: resume.version }),
+    onFailed: t('resume.flash.versionScanFailed', { version: resume.version }),
+  });
+}
 
 resumesRoute.post('/resumes/:id/replace', resumeUploadLimit('/resumes'), onceGuard((c) => `resumes:replace:${c.req.param('id')}`, (c) => `/resumes/${c.req.param('id')}`), async (c) => {
   const id = idParam(c.req.param('id'));
@@ -220,16 +239,7 @@ resumesRoute.post('/resumes/:id/replace', resumeUploadLimit('/resumes'), onceGua
   if (!current) return c.text(t('http.notFound'), 404);
   const upload = await readResumeUpload(await c.req.parseBody());
   if ('error' in upload) return flashRedirect(`/resumes/${id}`, 'err', upload.error);
-  // R16: a new version that reads like the one in place changes nothing, and would pay for a scan of it.
-  if (sameTextAs(upload.text, [current])) {
-    return flashRedirect(`/resumes/${id}`, 'warn', t('resume.flash.sameAsCurrent', { version: current.version }));
-  }
-  const resume = await replaceResumeFile(currentUser().id, id, upload);
-  return startScanRun(c, resume, {
-    subtitle: t('resume.run.rescanSubtitle', { name: resume.name, version: resume.version }),
-    onScanned: () => t('resume.flash.versionUploaded', { version: resume.version }),
-    onFailed: t('resume.flash.versionScanFailed', { version: resume.version }),
-  });
+  return saveNewVersion(c, current, upload);
 });
 
 // TASKS R14: the same resume as another file, read beside the saved one — rendered, never stored, no AI.
@@ -249,7 +259,7 @@ resumesRoute.post('/resumes/:id/compare-format', resumeUploadLimit('/resumes'), 
 resumesRoute.get('/resumes/:id', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const [resume, matches, review, linkedProfiles, impact, tables, facts] = await Promise.all([
+  const [resume, matches, review, linkedProfiles, impact, tables, facts, reactive] = await Promise.all([
     getResume(currentUser().id, id),
     listMatchesForResume(currentUser().id, id),
     getLatestReviewForResume(currentUser().id, id),
@@ -257,6 +267,7 @@ resumesRoute.get('/resumes/:id', async (c) => {
     deleteImpact(currentUser().id, id),
     listLatestKeywordTables(currentUser().id, id),
     listFacts(currentUser().id),
+    getConnectionView(currentUser().id),
   ]);
   if (!resume) return c.text(t('http.notFound'), 404);
   // What the compared postings keep asking for (N10): no AI, the stored
@@ -291,6 +302,7 @@ resumesRoute.get('/resumes/:id', async (c) => {
         linkedProfiles,
         draft: resume.scannedAt && !resume.hidden ? newProfileDraft(resume) : null,
       }}
+      reactiveConnected={reactive !== null}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,

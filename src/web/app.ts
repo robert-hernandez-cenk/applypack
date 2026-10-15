@@ -27,6 +27,7 @@ import { jobsRoute } from './routes/jobs';
 import { packRoute } from './routes/pack';
 import { jobsImportRoute } from './routes/jobs-import';
 import { gmailRoute } from './gmail-live';
+import { reactiveResumeRoute } from './reactive-live';
 import { companiesRoute } from './routes/companies';
 import { foldersRoute } from './routes/folders';
 import { watchlistRoute } from './routes/watchlist';
@@ -212,6 +213,7 @@ app.route('/', countriesRoute);
 // Before jobsRoute: `/jobs/import` must not be read as `/jobs/:id`.
 app.route('/', jobsImportRoute);
 app.route('/', gmailRoute);
+app.route('/', reactiveResumeRoute);
 app.route('/', jobsRoute);
 app.route('/', packRoute);
 app.route('/', applicationsRoute);

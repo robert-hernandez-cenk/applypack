@@ -47,6 +47,7 @@ import type { Coverage, CoverageKind } from '../../resume/coverage';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
+import { ReactiveSource } from './reactive-card';
 
 export interface ResumeDetailProps {
   resume: ResumeSummary;
@@ -72,6 +73,8 @@ export interface ResumeDetailProps {
     linkedProfiles: { id: number; name: string }[];
     draft: ProfileDraft | null;
   };
+  /** A Reactive Resume connection is saved: the new-version card can pull from it (ADR 0075). */
+  reactiveConnected: boolean;
   flash?: FlashMessage | null;
 }
 
@@ -87,6 +90,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
   deleteImpact,
   warnings,
   search,
+  reactiveConnected,
   flash,
 }) => {
   const issues = readIssues(resume.issues);
@@ -241,6 +245,15 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
             {t('resume.editedTheResumeFromThe')}
           </Hint>
         </form>
+        <div class="mt-3 border-t border-line pt-3">
+          <ReactiveSource
+            connected={reactiveConnected}
+            action={`/resumes/${resume.id}/reactive/list`}
+            button={t('reactive.version.button')}
+            hint={t('reactive.version.hint')}
+            pointer="reactive.version.pointer"
+          />
+        </div>
       </Card>
 
       <Card class="mt-4" flush>

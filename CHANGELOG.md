@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.59.7] — 2026-10-15
+
+### Added
+- **Reactive Resume is a saved setting.** Settings → Job search has a
+  Reactive Resume card: enter the address of your instance and an API key
+  once; they are checked against the instance before they are saved, and the
+  key is never shown again. With one saved, **Resumes** lists your Reactive
+  Resume resumes with one button, and a resume's **Upload a new version** card
+  has a **From Reactive Resume** source: pick the resume that holds the
+  updated text and it becomes the next version, with the same "reads like the
+  current version" notice and re-scan as a file upload (#42).
+
+### Changed
+- The address-and-key form on the Resumes page is gone: the pull uses the saved
+  connection. The key is now kept per person (ADR 0075, which replaces the
+  "never saved" part of ADR 0073); members still cannot point it at the
+  server's own network.
+
 ## [2.59.5] — 2026-10-14
 
 ### Added
