@@ -55,3 +55,7 @@ marker. A self-hosted instance also answers an API with the owner's key.
   the posting-URL fetcher; the risk is accepted for the member case.
 - A member on a shared install with a self-hosted instance on a private address cannot use the pull and
   uses the file.
+
+## Addendum (2026-10-15): links survive the import (#44)
+
+A profile's address is written into the header contact line as the bare address (a profile with only a username stays `Network: username`), and the trailing `## Profiles` section is gone. A link in formatted text is kept as `words (address)` for `http`, `https` and `mailto` targets only. The original export is still not kept, so a resume imported earlier gets its links by importing again.

@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.59.8] — 2026-10-15
+
+### Fixed
+- **A Reactive Resume import keeps your GitHub and LinkedIn links.** The
+  addresses of your profiles now sit in the header line, next to your email
+  and phone, instead of being cut down to a username in a section at the end;
+  a profile with only a username stays `Network: username`. A link written
+  inside a summary or a bullet keeps its address too, as `words (address)`.
+  A resume you imported before keeps what it stored: import it again to get
+  the links (#44).
+
 ## [2.59.7] — 2026-10-15
 
 ### Added
