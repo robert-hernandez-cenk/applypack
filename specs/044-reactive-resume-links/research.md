@@ -64,7 +64,7 @@ Read from the owner's ApplyPack (resume 5, 2.59.7) and the Reactive Resume resum
 ## R9 — Limits of the plain reader this does not remove (follow-ups)
 
 - A company written in capitals with no lower-case letter ("IBM") is read as a section heading by `headingOf`, as it is in any `.docx` or `.pdf`; the role under it loses its company. Not changed here (the reader is shared).
-- A position that begins with a lower-case letter or a digit ("iOS Engineer") is joined to the company line by `joinWrapped`'s wrapped-line rule, as in any extracted text.
+- A company or a position that begins with a lower-case letter or a digit ("iOS Engineer", "3M") is joined to the line above it by `joinWrapped`'s wrapped-line rule, as in any extracted text.
 - A single date ("2006") is not a range, so it stays in the education line's text; `withDates` only strips ranges.
 - A description paragraph that opens with a bold sub-role and its dates reads as a further job without a company, as it does in a `.docx`.
 - Two jobs in a row where the first has no bullets merge into one: the reader starts a new job only after a bullet block, as in any extracted text.
