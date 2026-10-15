@@ -122,3 +122,9 @@
 {"timestamp":"2026-10-15T12:00:27Z","action":"handoff","status":"complete","feature_directory":"specs/042-reactive-resume-setting","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":""}
 {"timestamp":"2026-10-15T14:09:24.2979038Z","action":"guard","status":"allow","feature_directory":"specs/042-reactive-resume-setting","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.plan"}
 
+{"timestamp":"2026-10-15T14:12:00.6014822Z","action":"guard","status":"allow","feature_directory":"specs/042-reactive-resume-setting","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.tasks"}
+
+{"timestamp":"2026-10-15T14:13:11.1038823Z","action":"handoff","status":"ready","feature_directory":"specs/042-reactive-resume-setting","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T1413110609569Z-ready"}
+
+{"timestamp":"2026-10-15T14:13:24.3329475Z","action":"handoff","status":"ready","feature_directory":"specs/044-reactive-resume-links","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T1413243007631Z-ready"}
+
