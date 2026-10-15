@@ -160,12 +160,21 @@ function interest(item: Rec): Block {
   return [words.length > 0 ? `${name ? `${name}: ` : ''}${words.join(', ')}` : name];
 }
 
-function profile(item: Rec): Block {
-  const network = pick(item, 'network');
-  const user = pick(item, 'username');
-  const link = websiteOf(item);
-  const who = [user, link && !user ? link : ''].filter(Boolean).join(' ');
-  return [network && who ? `${network}: ${who}` : network || who];
+/**
+ * The visible profiles as header entries: the address alone when there is one,
+ * else `Network: username`. A bare network names nobody, so it adds nothing.
+ */
+function profileEntries(sections: Rec): string[] {
+  const sec = rec(sections.profiles);
+  if (hiddenItem(sec)) return [];
+  return list(sec.items)
+    .map(rec)
+    .filter((item) => !hiddenItem(item))
+    .map((item) => {
+      const user = pick(item, 'username');
+      const network = pick(item, 'network');
+      return websiteOf(item) || (network && user ? `${network}: ${user}` : user);
+    });
 }
 
 function reference(item: Rec): Block {
@@ -186,7 +195,6 @@ const SECTIONS: SectionKind[] = [
   { key: 'publications', title: 'Publications', item: titled(['publisher']) },
   { key: 'volunteer', title: 'Volunteer', item: volunteer },
   { key: 'interests', title: 'Interests', item: interest },
-  { key: 'profiles', title: 'Profiles', item: profile },
   { key: 'references', title: 'References', item: reference },
 ];
 
@@ -203,9 +211,11 @@ function generationOf(root: Rec, sections: Rec): Generation {
   return dated ? 'v6' : 'v5';
 }
 
-function contactLine(basics: Rec): string {
+/** Email, phone, place, website, custom fields, then the profiles; an address the line already holds is not said twice. */
+function contactLine(basics: Rec, sections: Rec): string {
   const custom = list(basics.customFields).map((f) => pick(rec(f), 'text')).filter(Boolean);
-  return [pick(basics, 'email'), pick(basics, 'phone'), pick(basics, 'location'), websiteOf(basics), ...custom].filter(Boolean).join(' · ');
+  const parts = [pick(basics, 'email'), pick(basics, 'phone'), pick(basics, 'location'), websiteOf(basics), ...custom, ...profileEntries(sections)];
+  return [...new Set(parts.filter(Boolean))].join(' · ');
 }
 
 function customSection(sec: Rec): { title: string; lines: Block } | null {
@@ -225,7 +235,7 @@ export function readReactiveResume(json: unknown): ReactiveResumeRead {
   const out: string[] = [];
   const name = pick(basics, 'name');
   const headline = pick(basics, 'headline');
-  const contact = contactLine(basics);
+  const contact = contactLine(basics, sections);
 
   const blocks: string[][] = [];
   const summary = summaryOf(json, sections);

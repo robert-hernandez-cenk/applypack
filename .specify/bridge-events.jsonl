@@ -128,3 +128,7 @@
 
 {"timestamp":"2026-10-15T14:13:24.3329475Z","action":"handoff","status":"ready","feature_directory":"specs/044-reactive-resume-links","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T1413243007631Z-ready"}
 
+{"timestamp":"2026-10-15T14:13:47.6424779Z","action":"handoff","status":"executing","feature_directory":"specs/044-reactive-resume-links","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T1413476026075Z-executing"}
+
+{"timestamp":"2026-10-15T14:13:48.0712355Z","action":"guard","status":"allow","feature_directory":"specs/044-reactive-resume-links","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
+

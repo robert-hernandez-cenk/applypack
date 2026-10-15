@@ -52,7 +52,86 @@ test('v6: the other visible sections are written out', () => {
   assert.ok(markdown.includes('### ledger-kit · 2021'));
   assert.ok(markdown.includes('English — Native'));
   assert.ok(markdown.includes('### CKA — CNCF · Jun 2023'));
-  assert.ok(markdown.includes('GitHub: arivera'));
+  assert.ok(markdown.includes('https://github.com/arivera'));
+});
+
+/** The contact line: the third line, under the name and the headline. */
+const contactOf = (markdown: string): string => markdown.split('\n')[2] ?? '';
+
+test('profile addresses are written into the header, after the website, in the export order', () => {
+  assert.equal(
+    contactOf(read('v6').markdown),
+    'alex@example.com · +1 555 0100 · Austin, TX · https://alex.example.com · https://github.com/arivera · https://www.linkedin.com/in/alex-rivera',
+  );
+  assert.equal(
+    contactOf(read('v5').markdown),
+    'jonas@example.com · +49 30 5550100 · Berlin, Germany · https://jonas.example.com · https://gitlab.com/jweber · Mastodon: @jonas',
+  );
+  assert.equal(
+    contactOf(read('v4').markdown),
+    'mina@example.com · Lagos, Nigeria · https://mina.example.com · https://www.linkedin.com/in/mina-o',
+  );
+});
+
+test('no generation writes a trailing Profiles section', () => {
+  for (const name of ['v4', 'v5', 'v6']) assert.ok(!read(name).markdown.includes('## Profiles'), name);
+});
+
+test('a profile with an address is the address alone, with or without a username', () => {
+  const got = readReactiveResume({
+    basics: { name: 'Ann', headline: 'Engineer', email: 'ann@example.com' },
+    summary: { content: '<p>Summary text of some length</p>' },
+    sections: { profiles: { items: [{ network: 'GitHub', username: 'ann', website: { url: 'https://github.com/ann' } }, { website: { url: 'https://ann.example/x' } }] } },
+  });
+  assert.ok(got.ok);
+  assert.equal(contactOf(got.markdown), 'ann@example.com · https://github.com/ann · https://ann.example/x');
+});
+
+test('a profile with a username and no address is Network: username; a bare network adds nothing', () => {
+  const got = readReactiveResume({
+    basics: { name: 'Ann', headline: 'Engineer', email: 'ann@example.com' },
+    summary: { content: '<p>Summary text of some length</p>' },
+    sections: { profiles: { items: [{ network: 'Mastodon', username: '@ann' }, { username: 'ann-bare' }, { network: 'Orphan' }, {}] } },
+  });
+  assert.ok(got.ok);
+  assert.equal(contactOf(got.markdown), 'ann@example.com · Mastodon: @ann · ann-bare');
+});
+
+test('a hidden profile, a hidden profiles section and a not-visible one write nothing', () => {
+  const item = { network: 'Ghostnet', username: 'ghost', website: { url: 'https://ghost.example/h' } };
+  const base = { basics: { name: 'Ann', headline: 'Engineer', email: 'ann@example.com' }, summary: { content: '<p>Summary text of some length</p>' } };
+  for (const sections of [
+    { profiles: { items: [{ ...item, hidden: true }] } },
+    { profiles: { items: [{ ...item, visible: false }] } },
+    { profiles: { hidden: true, items: [item] } },
+    { profiles: { visible: false, items: [item] } },
+  ]) {
+    const got = readReactiveResume({ ...base, sections });
+    assert.ok(got.ok);
+    assert.equal(contactOf(got.markdown), 'ann@example.com');
+    assert.ok(!got.markdown.includes('ghost'));
+  }
+  assert.ok(!read('v6').markdown.includes('ghost'));
+  assert.ok(!read('v4').markdown.includes('ghostmina'));
+});
+
+test('an address the website already gave is shown once', () => {
+  const line = contactOf(read('v6').markdown);
+  assert.equal(line.split('https://alex.example.com').length - 1, 1);
+});
+
+test('a resume with no profiles keeps the header it always had', () => {
+  const data = fixture('v5') as { sections: Record<string, unknown> };
+  delete data.sections.profiles;
+  const got = readReactiveResume(data);
+  assert.ok(got.ok);
+  assert.equal(contactOf(got.markdown), 'jonas@example.com · +49 30 5550100 · Berlin, Germany · https://jonas.example.com');
+});
+
+test('an export holding only a profile is empty, as one holding only an email already is', () => {
+  const only = { basics: { name: 'Ann' }, sections: { profiles: { items: [{ network: 'GitHub', website: { url: 'https://github.com/ann' } }] } } };
+  assert.deepEqual(readReactiveResume(only), { ok: false, code: 'empty' });
+  assert.deepEqual(readReactiveResume({ basics: { name: 'Ann', headline: 'Engineer', email: 'ann@example.com' }, sections: {} }), { ok: false, code: 'empty' });
 });
 
 test('hidden sections and hidden items never appear', () => {

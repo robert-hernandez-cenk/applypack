@@ -15,7 +15,11 @@
   },
   "sections": {
     "profiles": { "title": "Profiles", "hidden": false, "items": [
-      { "id": "p1", "hidden": false, "network": "GitHub", "username": "arivera", "website": { "url": "https://github.com/arivera", "label": "" } }
+      { "id": "p1", "hidden": false, "network": "GitHub", "username": "arivera", "website": { "url": "https://github.com/arivera", "label": "" } },
+      { "id": "p2", "hidden": false, "network": "LinkedIn", "username": "alex-rivera", "website": { "url": "https://www.linkedin.com/in/alex-rivera", "label": "" } },
+      { "id": "p3", "hidden": false, "network": "Website", "username": "alex-site", "website": { "url": "https://alex.example.com", "label": "" } },
+      { "id": "p4", "hidden": false, "network": "", "username": "", "website": { "url": "", "label": "" } },
+      { "id": "p5", "hidden": true, "network": "Ghostnet", "username": "ghostnet-user", "website": { "url": "https://ghost.example/hidden", "label": "" } }
     ] },
     "experience": { "title": "Experience", "hidden": false, "items": [
       { "id": "e1", "hidden": false, "company": "Northwind Pay", "position": "Senior Engineer", "location": "Remote",
