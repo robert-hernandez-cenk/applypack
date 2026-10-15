@@ -175,9 +175,74 @@ test('v4: an item marked not visible is dropped', () => {
 
 test('formatted text keeps paragraphs and lists and loses its markup and entities', () => {
   const { markdown } = read('hidden-and-html');
-  assert.ok(markdown.includes('Line one & bold <3 a link\n\nLine two\n\n- First\n- Second'));
+  assert.ok(markdown.includes('Line one & bold <3 a link (https://example.com)\n\nLine two\n\n- First\n- Second'));
   assert.ok(!/<\/?[a-z]/i.test(markdown));
   assert.ok(!markdown.includes('&amp;'));
+});
+
+/** A summary of formatted text, read back as the text it was written out to. */
+function summaryText(html: string): string {
+  const got = readReactiveResume({ basics: { name: 'Ann' }, summary: { content: html }, sections: {} });
+  assert.ok(got.ok);
+  return got.markdown.split('## Summary\n')[1] ?? '';
+}
+
+test('a link keeps its address next to its words', () => {
+  assert.equal(summaryText('<p>Read <a href="https://x.example/p">the post</a> now</p>'), 'Read the post (https://x.example/p) now');
+  assert.equal(summaryText('<p><a href="mailto:a@b.example">write</a></p>'), 'write (mailto:a@b.example)');
+  assert.equal(summaryText('<p><a href="HTTPS://X.example/Q">go</a></p>'), 'go (HTTPS://X.example/Q)');
+});
+
+test('a link whose words are empty or are the address says the address once', () => {
+  assert.equal(summaryText('<p><a href="https://x.example/p">https://x.example/p</a></p>'), 'https://x.example/p');
+  assert.equal(summaryText('<p>See <a href="https://x.example/p"></a></p>'), 'See https://x.example/p');
+  assert.equal(summaryText('<p><a href="https://x.example/?a=1&amp;b=2">https://x.example/?a=1&amp;b=2</a></p>'), 'https://x.example/?a=1&b=2');
+});
+
+test('a target that is not a web or mail address is dropped and the words stay', () => {
+  for (const href of ['javascript:alert(1)', ' JavaScript:alert(1)', 'data:text/html;base64,AAAA', '/relative/path', '//evil.example/x', '#top', '']) {
+    assert.equal(summaryText(`<p>Go <a href="${href}">there</a></p>`), 'Go there', JSON.stringify(href));
+  }
+  assert.equal(summaryText('<p><a>no target</a> and <a name="x">an anchor</a></p>'), 'no target and an anchor');
+});
+
+test('single-quoted and unquoted targets are read; tags inside the words are not kept', () => {
+  assert.equal(summaryText("<p><a href='https://x.example/s'>single</a></p>"), 'single (https://x.example/s)');
+  assert.equal(summaryText('<p><a href=https://x.example/u>bare</a></p>'), 'bare (https://x.example/u)');
+  assert.equal(summaryText('<p><a target="_blank" href="https://x.example/t" rel="noopener"><strong>bold</strong> link</a></p>'), 'bold link (https://x.example/t)');
+});
+
+test('entities in a target are decoded once, never twice', () => {
+  assert.equal(summaryText('<p><a href="https://x.example/?a=1&amp;b=2">q</a></p>'), 'q (https://x.example/?a=1&b=2)');
+  assert.equal(summaryText('<p><a href="https://x.example/?a=&amp;lt;">q</a></p>'), 'q (https://x.example/?a=&lt;)');
+});
+
+test('a link inside a list item or a custom section keeps its address', () => {
+  assert.equal(summaryText('<ul><li><p>See <a href="https://x.example/d">docs</a></p></li></ul>'), '- See docs (https://x.example/d)');
+  const got = readReactiveResume({
+    basics: { name: 'Ann' },
+    summary: { content: '<p>Summary text of some length</p>' },
+    sections: {},
+    customSections: [{ title: 'Extras', content: '<p><a href="https://x.example/c">site</a></p>' }],
+  });
+  assert.ok(got.ok);
+  assert.ok(got.markdown.includes('## Extras\nsite (https://x.example/c)'));
+});
+
+test('markup that never closes is read in linear time and leaves the real text alone', () => {
+  const real = '<p>Real text here</p>';
+  for (const junk of [
+    '<a '.repeat(100_000),
+    '<a href="'.repeat(100_000),
+    '<a href="https://x.example/p">'.repeat(20_000) + '</a>',
+  ]) {
+    const started = performance.now();
+    const got = readReactiveResume({ basics: { name: 'Ann' }, summary: { content: real + junk }, sections: {} });
+    const ms = performance.now() - started;
+    assert.ok(got.ok);
+    assert.ok(got.markdown.includes('Real text here'));
+    assert.ok(ms < 1_000, `${junk.slice(0, 12)} took ${Math.round(ms)} ms`);
+  }
 });
 
 test('a date Reactive Resume kept only as written stays as written', () => {

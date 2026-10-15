@@ -36,14 +36,72 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const PRESENT = 'Present';
 const YEAR_MONTH = /^(\d{4})-(\d{2})$/;
 
+/** How far past `<a` a tag's end and its `</a>` are looked for: a link spread wider than this is left as its words. */
+const LINK_WINDOW_CHARS = 2_000;
+const LINK_OPEN = '<a';
+const LINK_CLOSE = '</a>';
+/** The only targets worth keeping: a web or a mail address. */
+const LINK_SCHEME = /^(?:https?:|mailto:)/i;
+const HREF = /\shref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i;
+const TAG = /<[^>]*>/g;
+const AMP_ENTITY = /&amp;/g;
+
+const hrefOf = (tag: string): string => {
+  const m = HREF.exec(tag);
+  const target = (m?.[1] ?? m?.[2] ?? m?.[3] ?? '').trim();
+  return LINK_SCHEME.test(target) && !/[<>]/.test(target) ? target : '';
+};
+
+const asText = (s: string): string => s.replace(TAG, '').replace(AMP_ENTITY, '&').trim();
+
+/** `words (address)`, or the address alone when there are no words or they are the address. */
+const linkText = (words: string, target: string): string => {
+  const said = asText(words);
+  return said === '' || said === asText(target) ? target : `${words} (${target})`;
+};
+
+/**
+ * `<a href="X">words</a>` → `words (X)` for a web or mail address; any other
+ * anchor is left for `stripHtml` to reduce to its words. One pass: the next
+ * `>` and `</a>` only ever move forward, so a run of openers that never close
+ * costs its length, not its square — `replaceUpTo` in http.ts is the case
+ * that taught this (300 kB of `<a ` took nine seconds). The text comes out
+ * still markup, for the one `stripHtml` pass that follows (it decodes `&amp;`
+ * last; never run it twice).
+ */
+function withLinkTargets(html: string): string {
+  let out = '';
+  let copied = 0;
+  let from = 0;
+  let tagEnd = -1;
+  let close = -1;
+  for (;;) {
+    const open = html.indexOf(LINK_OPEN, from);
+    if (open === -1) break;
+    from = open + LINK_OPEN.length;
+    if (!/\s/.test(html.charAt(from))) continue;
+    if (tagEnd < open) tagEnd = html.indexOf('>', open);
+    if (tagEnd === -1) break;
+    if (close < tagEnd) close = html.indexOf(LINK_CLOSE, tagEnd);
+    if (close === -1) break;
+    if (close - open > LINK_WINDOW_CHARS) continue;
+    const target = hrefOf(html.slice(open, tagEnd));
+    if (!target) continue;
+    out += html.slice(copied, open) + linkText(html.slice(tagEnd + 1, close), target);
+    copied = from = close + LINK_CLOSE.length;
+  }
+  return out + html.slice(copied);
+}
+
 /**
  * Formatted text → plain lines. The bullets stripHtml writes become Markdown
  * list lines — the editor wraps each item's text in a paragraph, so the
- * bullet can sit alone on its line — and a list stays one block.
+ * bullet can sit alone on its line — and a list stays one block. A link keeps
+ * its address next to its words.
  */
 function plain(html: unknown): string {
   const s = text(html);
-  return s ? stripHtml(s).replace(/^•\s*/gm, '- ').replace(/^(- .*)\n\n(?=- )/gm, '$1\n') : '';
+  return s ? stripHtml(withLinkTargets(s)).replace(/^•\s*/gm, '- ').replace(/^(- .*)\n\n(?=- )/gm, '$1\n') : '';
 }
 
 function datePoint(s: string): string {
