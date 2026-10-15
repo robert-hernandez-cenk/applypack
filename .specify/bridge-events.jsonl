@@ -95,3 +95,7 @@
 
 {"timestamp":"2026-10-14T23:34:40.9015859Z","action":"guard","status":"allow","feature_directory":"specs/038-resume-length-control","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
 
+{"timestamp":"2026-10-15T00:04:16.8052061Z","action":"handoff","status":"complete","feature_directory":"specs/038-resume-length-control","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T0004167457866Z-complete"}
+
+{"event":"artifact_drift_detected","timestamp":"2026-10-15T00:04:16.8113478Z","actor":"claude","feature_directory":"specs/038-resume-length-control","drifted_artifacts":[{"path":"tasks.md","old_sha256":"2c5edd38ff3a9099004952619ad58847415d271033e379ba046cd0e6acfd4910","new_sha256":"276831e5898cef3c41c0353f9e6927cabc7143086c4b78bf6dbcee0f37d13026"}]}
+
