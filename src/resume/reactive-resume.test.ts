@@ -217,6 +217,11 @@ test('entities in a target are decoded once, never twice', () => {
   assert.equal(summaryText('<p><a href="https://x.example/?a=&amp;lt;">q</a></p>'), 'q (https://x.example/?a=&lt;)');
 });
 
+test('a link spread wider than the look-ahead window is left as its words', () => {
+  const words = 'w'.repeat(2_100);
+  assert.equal(summaryText(`<p><a href="https://x.example/w">${words}</a></p>`), words);
+});
+
 test('a link inside a list item or a custom section keeps its address', () => {
   assert.equal(summaryText('<ul><li><p>See <a href="https://x.example/d">docs</a></p></li></ul>'), '- See docs (https://x.example/d)');
   const got = readReactiveResume({
