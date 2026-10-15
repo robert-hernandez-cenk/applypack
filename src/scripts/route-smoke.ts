@@ -772,6 +772,20 @@ async function main(): Promise<void> {
       })(),
       expect: (res) => res.status === 303 && res.headers.get('location') === '/resumes' && flashOf(res).includes('Reactive Resume'),
     },
+    {
+      // #46: the pasted posting is the default person's alone, so its text is theirs to edit.
+      name: 'POST /jobs/:id/edit (a sole holder adds context)',
+      init: form({ title: 'Smoke edited title', company: '', location: 'Remote · Germany', description: POSTING, tab: 'posting' }),
+      expect: async (res) => {
+        const job = await prisma.job.findUnique({ where: { id: f.jobId }, select: { title: true, workplace: true, countries: true, descriptionOriginal: true } });
+        return res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}` && job?.title === 'Smoke edited title' && job.workplace === 'REMOTE' && job.countries.includes('DE');
+      },
+    },
+    {
+      name: 'POST /jobs/:id/edit with an empty title (refused, the form comes back)',
+      init: form({ title: ' ', company: '', location: '', description: POSTING }),
+      expect: (res) => res.status === 400,
+    },
   ];
   const postPaths = [
     '/jobs/new',
@@ -832,6 +846,8 @@ async function main(): Promise<void> {
     `/jobs/${f.jobId}/status`,
     '/resumes',
     '/resumes',
+    `/jobs/${f.jobId}/edit`,
+    `/jobs/${f.jobId}/edit`,
   ];
   for (const [i, p] of posts.entries()) {
     const res = await app.request(postPaths[i]!, p.init);

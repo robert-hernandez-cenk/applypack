@@ -7,6 +7,7 @@ import { parseLocation } from '../location';
 import { logger } from '../logger';
 import { hashShortId } from '../text-utils';
 import { classifyExistingJob, type ClassifiableJob } from './classify-existing';
+import { MAX_POSTING_CHARS, MIN_DESCRIPTION_CHARS } from './posting-limits';
 import { employerKey } from '../employer';
 
 /*
@@ -17,9 +18,7 @@ import { employerKey } from '../employer';
  * `UserJob` is Saved, and nobody else gets a row (ADR 0067).
  */
 
-export const MIN_DESCRIPTION_CHARS = 200;
-/** The most a pasted or replaced posting may run to — the model reads 30 k of it (posting-url.ts caps a fetched page there too). */
-export const MAX_POSTING_CHARS = 60_000;
+export { MIN_DESCRIPTION_CHARS, MAX_POSTING_CHARS };
 export const MAX_FIELD_CHARS = 200;
 
 /** '' and absent both mean "no salary" — hidden form fields post empty strings. */
