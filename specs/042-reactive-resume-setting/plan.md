@@ -74,7 +74,7 @@ src/resume/reactive-connection-store.ts               # ONLY file touching the t
 src/resume/reactive-connection-access.test.ts         # closed list of files that may name the key accessor / table; select present; view has no key
 src/web/pull-stash.ts                                 # Pull = { userId, ids, target }; no base, no key
 src/web/pull-stash.test.ts
-src/web/routes/reactive-resume.tsx                    # POST /settings/reactive-resume (save), /settings/reactive-resume/remove
+src/web/routes/reactive-resume.ts                    # POST /settings/reactive-resume (save), /settings/reactive-resume/remove
 src/web/routes/resumes.tsx                            # list (new + per-resume), import (target-aware); extract saveNewVersion shared with /replace
 src/web/pages/reactive-card.tsx                       # Settings card body
 src/web/pages/settings.tsx + routes/settings.tsx      # section next to Gmail, view passed in

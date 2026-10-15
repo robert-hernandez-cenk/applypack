@@ -59,10 +59,13 @@ export const PERSONAL_ROUTES = [
   'GET /target/runs/:id',
   'POST /target',
   // Resumes and what hangs off them.
+  'POST /settings/reactive-resume',
+  'POST /settings/reactive-resume/remove',
   'GET /resumes',
   'POST /resumes',
   'POST /resumes/reactive/list',
   'POST /resumes/reactive/import',
+  'POST /resumes/:id/reactive/list',
   'POST /resumes/:id/replace',
   'POST /resumes/:id/compare-format',
   'GET /resumes/:id',

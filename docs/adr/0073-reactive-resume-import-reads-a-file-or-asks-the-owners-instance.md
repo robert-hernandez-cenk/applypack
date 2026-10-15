@@ -1,3 +1,5 @@
+> **Update (2026-10-15):** the key is no longer memory-only — see [0075](./0075-reactive-resume-connection-is-a-saved-setting.md).
+
 # 0073 — A Reactive Resume resume is read from its export file or from the owner's own instance
 
 **Status:** Accepted (2026-10-14). Issue #39. Builds on [0005](./0005-no-linkedin-indeed-workday.md)

@@ -32,6 +32,7 @@ import type { FlashMessage } from '../flash';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
 import { t } from '../../i18n/t';
+import { ReactiveSource } from './reactive-card';
 
 /** What the upload card takes: the resume formats and a Reactive Resume export (ADR 0073). */
 const UPLOAD_TYPES = [...ACCEPTED_EXTENSIONS, '.json'];
@@ -77,10 +78,13 @@ export const ResumesPage: FC<{
   resumes: ResumeRow[];
   facts: FactRow[];
   flash?: FlashMessage | null;
+  /** A Reactive Resume connection is saved (ADR 0075). */
+  reactiveConnected: boolean;
 }> = ({
   resumes,
   facts,
   flash,
+  reactiveConnected,
 }) => (
   <Layout title={t('nav.resumes')} active="resumes">
     <PageHeader title={t('nav.resumes')} meta={t('resumes.uploadedCount', { n: resumes.length })}>
@@ -97,7 +101,13 @@ export const ResumesPage: FC<{
     </Disclosure>
     <Disclosure variant="button" summary={t('resumes.reactive.summary')} class="mb-4">
       <Card class="mt-3">
-        <ReactiveImportForm />
+        <ReactiveSource
+          connected={reactiveConnected}
+          action="/resumes/reactive/list"
+          button={t('resumes.reactive.list')}
+          hint={t('resumes.reactive.v4Hint')}
+          pointer="reactive.use.pointer"
+        />
       </Card>
     </Disclosure>
 
@@ -341,47 +351,34 @@ const StrengthCell: FC<{ resume: ResumeRow }> = ({ resume }) =>
     </div>
   );
 
-/** Address and API key of a Reactive Resume instance; the next page lists the resumes found there (ADR 0073). */
-const ReactiveImportForm: FC = () => (
-  <form
-    method="post"
-    action="/resumes/reactive/list"
-    onsubmit={SUBMIT_ONCE}
-    class="grid gap-3 sm:grid-cols-[1.4fr_1fr_auto]"
-  >
-    <Field label={t('resumes.reactive.url')} hint={t('resumes.reactive.urlHint')}>
-      <Input type="text" name="url" required placeholder="https://rxresu.me" translate="no" inputmode="url" autocomplete="off" spellcheck="false" />
-    </Field>
-    <Field label={t('resumes.reactive.key')} hint={t('resumes.reactive.keyHint')}>
-      <Input type="password" name="key" required autocomplete="off" spellcheck="false" />
-    </Field>
-    <div class="flex items-end">
-      <Button class="w-full">{t('resumes.reactive.list')}</Button>
-    </div>
-    <Hint class="sm:col-span-3">{t('resumes.reactive.v4Hint')}</Hint>
-  </form>
-);
-
-/** The resumes found on the instance; the key is not on this page, only the id of the short-lived entry that holds it. */
-export const ReactivePickPage: FC<{ pull: string; host: string; resumes: { id: string; name: string }[] }> = ({ pull, host, resumes }) => (
-  <Layout title={t('resumes.reactive.pickTitle')} active="resumes">
-    <PageHeader title={t('resumes.reactive.pickTitle')} back={{ href: '/resumes', label: t('nav.resumes') }}>
-      {t('resumes.reactive.pickIntro', { host })}
-    </PageHeader>
-    <Card>
-      <form method="post" action="/resumes/reactive/import" onsubmit={SUBMIT_ONCE} class="grid gap-3">
-        <input type="hidden" name="pull" value={pull} />
-        {resumes.map((r, i) => (
-          <Radio name="id" value={r.id} required={i === 0} title={<span translate="no">{r.name}</span>} />
-        ))}
-        <div class="flex items-center gap-3">
-          <Button>{t('resumes.reactive.import')}</Button>
-          <a href="/resumes" class="text-sm text-ink-muted hover:text-ink">{t('resumes.reactive.cancel')}</a>
-        </div>
-      </form>
-    </Card>
-  </Layout>
-);
+/** The resumes found on the instance; the pull holds their ids, no address and no key. `forResume` is set when the pick becomes that resume's next version. */
+export const ReactivePickPage: FC<{
+  pull: string;
+  host: string;
+  resumes: { id: string; name: string }[];
+  forResume?: { id: number; name: string };
+}> = ({ pull, host, resumes, forResume }) => {
+  const cancelHref = forResume ? `/resumes/${forResume.id}` : '/resumes';
+  return (
+    <Layout title={t('resumes.reactive.pickTitle')} active="resumes">
+      <PageHeader title={t('resumes.reactive.pickTitle')} back={{ href: cancelHref, label: forResume ? forResume.name : t('nav.resumes') }}>
+        {forResume ? t('reactive.pickIntroVersion', { host, name: forResume.name }) : t('resumes.reactive.pickIntro', { host })}
+      </PageHeader>
+      <Card>
+        <form method="post" action="/resumes/reactive/import" onsubmit={SUBMIT_ONCE} class="grid gap-3">
+          <input type="hidden" name="pull" value={pull} />
+          {resumes.map((r, i) => (
+            <Radio name="id" value={r.id} required={i === 0} title={<span translate="no">{r.name}</span>} />
+          ))}
+          <div class="flex items-center gap-3">
+            <Button>{t('resumes.reactive.import')}</Button>
+            <a href={cancelHref} class="text-sm text-ink-muted hover:text-ink">{t('resumes.reactive.cancel')}</a>
+          </div>
+        </form>
+      </Card>
+    </Layout>
+  );
+};
 
 /** Shared by /resumes and the Settings card. Posts to /resumes and lands on the new resume. */
 const ResumeUploadForm: FC = () => (

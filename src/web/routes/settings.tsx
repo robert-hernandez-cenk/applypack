@@ -56,6 +56,7 @@ import { config } from '../../config';
 import { cardView } from '../../gmail/card-view';
 import { googleSettings } from '../../gmail/settings';
 import { getConnection } from '../../gmail/store';
+import { getConnectionView as getReactiveConnection } from '../../resume/reactive-connection-store';
 import { ALL_DAYS, MAX_DIGEST_HOURS, ScheduleSchema, describeSchedule } from '../../user-schedule';
 import { formForRole, planScheduleSave } from '../../settings-split';
 import { loadHeldLine, loadNextCheck } from '../schedule-view';
@@ -269,7 +270,7 @@ function cardRank(e: { enabled: boolean; position: number; lastResort: boolean }
 async function loadSettingsProps() {
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const aiKeys = await getAiKeys();
-  const [settings, own, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth, recentAttempts, gmailConnection] =
+  const [settings, own, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth, recentAttempts, gmailConnection, reactiveResume] =
     await Promise.all([
       getSettings(),
       getUserSettings(currentUser().id),
@@ -287,6 +288,7 @@ async function loadSettingsProps() {
       billedThisMonth(),
       loadRecentAttempts(),
       getConnection(currentUser().id),
+      getReactiveConnection(currentUser().id),
     ]);
   // "available" is what the probe found on disk; whether calls get through is what the ledger's last rows say (#413).
   const troubles = new Map(engineTroubles(recentAttempts).map((trouble) => [trouble.engine, troubleLine(trouble)]));
@@ -404,6 +406,7 @@ async function loadSettingsProps() {
     reapplyDays: own.reapplyDays,
     pack: parsePackSettings(own.pack),
     gmail: cardView(gmailConnection, googleSettings(config) !== null),
+    reactiveResume,
     loginItem: loginItemState(),
     updates: {
       enabled: settings.updateCheck,

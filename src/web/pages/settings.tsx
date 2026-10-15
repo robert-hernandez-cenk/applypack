@@ -57,6 +57,8 @@ import { KIND_LABEL } from '../../notify/targets';
 import { SCHEDULE_HREF, type HeldLine } from '../held-line';
 import { AiPlan, BILLING_TONE } from './ai-plan';
 import { GmailCardBody } from './gmail-card';
+import { ReactiveCardBody } from './reactive-card';
+import type { ConnectionView as ReactiveView } from '../../resume/reactive-connection';
 import type { CardView } from '../../gmail/card-view';
 import { planSummary, type AiPlanRow } from '../ai-plan';
 import { billingWords, formatUsd } from '../../ai-spend';
@@ -222,6 +224,8 @@ export interface SettingsProps {
   fillResumeId?: number;
   /** The person's Gmail job-lead connection (ADR 0071), read into what the card shows. */
   gmail: CardView;
+  /** The person's saved Reactive Resume connection (ADR 0075); null when there is none. */
+  reactiveResume: ReactiveView | null;
   telegramEnabled: boolean;
   classifierMode: 'single' | 'two_stage';
   applicationTrackingEnabled: boolean;
@@ -622,6 +626,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   admin,
   fillResumeId,
   gmail,
+  reactiveResume,
   telegramEnabled,
   classifierMode,
   applicationTrackingEnabled,
@@ -796,6 +801,12 @@ export const SettingsPage: FC<SettingsProps> = ({
       {activeTab === 'profile' && (
       <Section id="gmail" title={t('gmail.title')} desc={t('gmail.intro')}>
         <GmailCardBody view={gmail} />
+      </Section>
+      )}
+
+      {activeTab === 'profile' && (
+      <Section id="reactive-resume" title={t('reactive.title')} desc={t('reactive.intro')}>
+        <ReactiveCardBody view={reactiveResume} />
       </Section>
       )}
 

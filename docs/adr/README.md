@@ -88,6 +88,7 @@ gets a dated addendum at the end of the ADR.
 - [0072 — A running job reports its progress through its own run row](./0072-running-jobs-report-progress-through-the-run-row.md) *(builds on 0003, 0069, 0070: `cron_run.progress`, a throttled reporter, a polled fragment on /runs)*
 - [0073 — A Reactive Resume resume is read from its export file or from the owner's own instance](./0073-reactive-resume-import-reads-a-file-or-asks-the-owners-instance.md) *(builds on 0005, 0011, 0070: Markdown as the stored form, `.json` handled in `readResumeUpload`, an API-key pull with the key in memory only, members kept off private addresses)*
 - [0074 — A page target steers the cuts in resume tailoring](./0073-page-target-for-tailoring.md) *(builds on 0022, 0029, 0037: `breakdown.pages`, a LENGTH TARGET block in the full match and suggestions user messages, cuts still gated in code, an editor meter)*
+- [0075 — The Reactive Resume connection is a saved setting](./0075-reactive-resume-connection-is-a-saved-setting.md) *(supersedes the in-memory key of 0073; builds on 0070, 0071: one row per person, one accessor, checked on save, a stash with no key, a new-version source)*
 
 ## When to write a new one
 
