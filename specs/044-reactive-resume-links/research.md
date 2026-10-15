@@ -51,3 +51,19 @@ All unknowns in the plan's Technical Context are resolved here; none remain.
 ## R7 — Verification environment
 
 **Decision**: run the touched tests directly (`node --import tsx --test src/resume/reactive-resume.test.ts src/resume/resume-text.test.ts`), plus `npm run lint:types` and the full `npm test`. A fresh worktree has no `.env`, so 35 files fail with "Invalid environment configuration" before any change (baseline 3531 pass / 35 fail); the plan is to compare against that baseline, not to chase it.
+
+## R8 — What the live instances showed (2026-10-15)
+
+Read from the owner's ApplyPack (resume 5, 2.59.7) and the Reactive Resume resume it was pulled from, through Bellhop (read-only; the key never printed).
+
+- **Profiles are empty; the links are contact fields.** `sections.profiles.items` is `[]`. `basics.customFields` holds `{ icon, text: "LinkedIn", link: "https://…" }` and `{ icon, text: "Github", link: "https://…" }`; `basics.website` is `{ url: "", label: "GitHub" }` (a label, no address). The importer read `text` only, so the stored header was `… · Morrisville, NC · LinkedIn · Github`. **Decision**: a custom field is written as its `link` when it has one, else its `text`. This is the cause of the owner's loss; the profile work of US1 covers the other place Reactive Resume keeps a link.
+- **The stored Markdown defeats the plain reader.** On the stored text, `parsedView` returns name `null`, all four contacts `null`, and one role of six; `Robert Cenk Hernandez` and every `### Role — Company · Dates` line appear as section headings. Cause: `structure-from-text.ts` `MD_HEADING` treats any `#`-level line as a heading (it was written for `## ` from Word heading styles), and a role is read from a company line followed by a dated position line, not from a heading. **Decision**: write the dialect the reader (and an ATS that extracts text) already gets from a `.docx`/`.pdf`: name, headline, contact line as plain lines; `## ` section headings; per job a company line then a `Position · Dates` line then bullets; plain lines for every other item. The reader is not changed.
+- **Shape of a real export** (v6): six experience items with `period` and `dates`, descriptions as `<p>Team</p><ul><li><p>…</p></li></ul>` (some with `<p><strong>Sub-role (dates)</strong></p>` paragraphs), three education items with single-year dates, ten skills groups with keywords, the other sections hidden and empty. `roles` is empty on every item; the fixtures' multi-role case is kept.
+- **The page's "missing" list was the reader, not the data**: `parseWarnings` checks email and phone on the text and found both; the missing name, phone, place and link are `parsedView` reading the Markdown shape.
+
+## R9 — Limits of the plain reader this does not remove (follow-ups)
+
+- A company written in capitals with no lower-case letter ("IBM") is read as a section heading by `headingOf`, as it is in any `.docx` or `.pdf`; the role under it loses its company. Not changed here (the reader is shared).
+- A position that begins with a lower-case letter or a digit ("iOS Engineer") is joined to the company line by `joinWrapped`'s wrapped-line rule, as in any extracted text.
+- A single date ("2006") is not a range, so it stays in the education line's text; `withDates` only strips ranges.
+- A description paragraph that opens with a bold sub-role and its dates reads as a further job without a company, as it does in a `.docx`.

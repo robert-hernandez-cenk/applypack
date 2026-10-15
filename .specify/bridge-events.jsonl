@@ -140,3 +140,9 @@
 
 {"event":"artifact_drift_detected","timestamp":"2026-10-15T14:21:42.1653890Z","actor":"claude","feature_directory":"specs/044-reactive-resume-links","drifted_artifacts":[{"path":"tasks.md","old_sha256":"2861eb549ab9f5c20194240cf2c467ff3ecd95aa49826b944293b66a23b714a1","new_sha256":"2f69d30714849766c435f7293069a2c0a06ab27a0337d2739e9db496a0caf2b0"}]}
 
+{"timestamp":"2026-10-15T14:30:37.4109380Z","action":"handoff","status":"blocked","feature_directory":"specs/044-reactive-resume-links","decision":"updated","reason":"Live check (resume 5): links are in basics.customFields[].link, and the Markdown dialect (# / ### headings) defeats structureFromText; spec 044 incomplete","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T1430373775893Z-blocked"}
+
+{"timestamp":"2026-10-15T14:32:57.5704512Z","action":"handoff","status":"executing","feature_directory":"specs/044-reactive-resume-links","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T1432575270064Z-executing"}
+
+{"timestamp":"2026-10-15T14:32:58.0214681Z","action":"guard","status":"allow","feature_directory":"specs/044-reactive-resume-links","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
+

@@ -10,6 +10,7 @@ No stored data changes: no table, column, migration or setting. The module reads
 | Profile network | `network` | label of a username-only entry |
 | Profile username | `username` | username-only entry |
 | Profile address | `website` / `url` as a string, or `{ url }` / `{ href }` | the bare address |
+| Contact field | `basics.customFields[]` as `{ text, link }` (v5, v6) | the link, else the words |
 | Hidden | `hidden === true` or `visible === false`, on the item or on `sections.profiles` | skipped |
 | Formatted text | `description`, `summary`, `content` HTML | scanned for anchors |
 

@@ -6,6 +6,8 @@
 
 ## Summary
 
+**Amended after the live check (research R8):** the real export keeps its LinkedIn and GitHub links in `basics.customFields[].link`, which the importer drops, and the Markdown it writes (`# Name`, `### Role`) is read by `structureFromText` as a stack of section headings, so the parser finds no name, contact or place and one job of six. The fix therefore also writes custom-field links and moves the output to the plain-line dialect the reader already understands (story 3); the design below still holds for profiles and anchors.
+
 `src/resume/reactive-resume.ts` writes a Reactive Resume export out as the Markdown a resume is stored as (ADR 0073). It loses links in three places: `profile()` keeps an address only when there is no username, `contactLine()` has no profiles at all (they trail the resume in a `## Profiles` section), and `plain()` strips every `<a href>` to its words. The fix stays inside that one pure module: profiles move into the header contact line as bare addresses, the trailing section goes, and `plain()` rewrites a link to `words (address)` before the existing tag strip, with a linear, bounded scan so a hostile description cannot cost seconds. Both ways in (file upload, pull from an instance) already go through `reactiveResumeText`, so neither needs a change. No schema, route, prompt, catalog or dependency changes.
 
 ## Technical Context
