@@ -1,0 +1,76 @@
+{
+  "picture": { "hidden": true, "url": "" },
+  "basics": {
+    "name": "Dana Whitfield",
+    "headline": "Platform Engineering Leader",
+    "email": "dana@example.com",
+    "phone": "(555) 010-4477",
+    "location": "Springfield, NC",
+    "website": { "url": "", "label": "Portfolio", "inlineLink": false },
+    "customFields": [
+      { "id": "f1", "icon": "linkedin-logo", "text": "LinkedIn", "link": "https://www.linkedin.com/in/dana-whitfield" },
+      { "id": "f2", "icon": "github-logo", "text": "Github", "link": "https://github.com/dana-whitfield" },
+      { "id": "f3", "icon": "", "text": "Authorized to work in the US", "link": "" }
+    ]
+  },
+  "summary": {
+    "title": "Summary", "hidden": false,
+    "content": "<p>Platform engineering leader with 20 years building enterprise software and cloud platforms. Most recently owned the discovery component of an AI product, cutting customer time to a usable plan by 85%.</p>"
+  },
+  "sections": {
+    "profiles": { "title": "Profiles", "hidden": false, "items": [] },
+    "experience": { "title": "Professional Experience", "hidden": false, "items": [
+      { "id": "e1", "hidden": false, "company": "Brightwave Labs", "position": "Staff Platform Engineer – Applied Automation", "location": "",
+        "period": "Dec 2025 – Sep 2026", "dates": { "start": "2025-12", "end": "2026-09", "present": false }, "website": { "url": "", "label": "", "inlineLink": false },
+        "description": "<p>Product Engineering</p><ul><li><p>Owned the discovery component of the core AI product, an agent-driven flow that turns scans and test documents into reviewable plans.</p></li><li><p>Reduced customer time from kickoff to a usable plan by 85%.</p></li><li><p>Led delivery across a 5-engineer team.</p></li></ul>",
+        "roles": [] },
+      { "id": "e2", "hidden": false, "company": "Harborline", "position": "Senior Principal Engineering Technologist", "location": "",
+        "period": "Jan 2022 – Sep 2025", "dates": { "start": "2022-01", "end": "2025-09", "present": false }, "website": { "url": "", "label": "", "inlineLink": false },
+        "description": "<p>Office of the CTO</p><ul><li><p>Researched and prototyped emerging technologies, including container orchestration and on-device AI.</p></li><li><p>Co-invented patents (5 granted, 1 allowed).</p></li></ul>",
+        "roles": [] },
+      { "id": "e3", "hidden": false, "company": "Northgate", "position": "Software Architect / Staff Software Engineer / Software Engineer", "location": "",
+        "period": "Jun 2015 – Jan 2022", "dates": { "start": "2015-06", "end": "2022-01", "present": false }, "website": { "url": "", "label": "", "inlineLink": false },
+        "description": "<p><strong>Software Architect (Jun 2018 – Jan 2022)</strong></p><ul><li><p>Architected a cloud deployment platform used across three business units.</p></li></ul><p><strong>Software Engineer (Jun 2015 – Jun 2018)</strong></p><ul><li><p>Built the first release of the provisioning service.</p></li></ul>",
+        "roles": [] },
+      { "id": "e4", "hidden": false, "company": "Quillmark, Inc", "position": "Software Engineer", "location": "",
+        "period": "Feb 2015 – May 2015", "dates": { "start": "2015-02", "end": "2015-05", "present": false }, "website": { "url": "", "label": "", "inlineLink": false },
+        "description": "<ul><li><p>Built web applications to upload spreadsheets and store the data in a database.</p></li></ul>",
+        "roles": [] },
+      { "id": "e5", "hidden": false, "company": "Tessera Systems, LLC", "position": "Software Development Team Lead", "location": "",
+        "period": "Jun 2010 – Feb 2015", "dates": { "start": "2010-06", "end": "2015-02", "present": false }, "website": { "url": "", "label": "", "inlineLink": false },
+        "description": "<ul><li><p>Led a team of 2 developers across 2 concurrent projects on a flagship pharmacy automation product.</p></li><li><p>Introduced code review and automated builds.</p></li></ul>",
+        "roles": [] },
+      { "id": "e6", "hidden": false, "company": "Ridgeline Inc. (RLI)", "position": "Software Developer / Hardware Developer", "location": "",
+        "period": "May 2006 – Jun 2010", "dates": { "start": "2006-05", "end": "2010-06", "present": false }, "website": { "url": "", "label": "", "inlineLink": false },
+        "description": "<p><strong>Software Developer</strong></p><ul><li><p>Delivered full-cycle development of a scalable desktop application.</p></li></ul><p><strong>Hardware Developer</strong></p><ul><li><p>Designed and tested custom hardware for rugged laptops.</p></li></ul>",
+        "roles": [] }
+    ] },
+    "education": { "title": "Education", "hidden": false, "items": [
+      { "id": "d1", "hidden": false, "school": "Ridgemont State University", "degree": "B.S.", "area": "Computer Science", "grade": "", "location": "Raleigh, NC", "period": "2006", "dates": { "start": "2006", "end": null, "present": false }, "website": { "url": "", "label": "", "inlineLink": false }, "description": "" },
+      { "id": "d2", "hidden": false, "school": "Ridgemont State University", "degree": "B.S.", "area": "Computer Engineering", "grade": "", "location": "Raleigh, NC", "period": "2007", "dates": { "start": "2007", "end": null, "present": false }, "website": { "url": "", "label": "", "inlineLink": false }, "description": "" },
+      { "id": "d3", "hidden": false, "school": "Ridgemont State University", "degree": "B.S.", "area": "Electrical Engineering", "grade": "", "location": "Raleigh, NC", "period": "2007", "dates": { "start": "2007", "end": null, "present": false }, "website": { "url": "", "label": "", "inlineLink": false }, "description": "" }
+    ] },
+    "skills": { "title": "Skills", "hidden": false, "items": [
+      { "id": "s1", "hidden": false, "icon": "", "iconColor": "", "name": "Applied AI & Agentic Engineering", "proficiency": "", "level": 0, "keywords": ["Claude Code", "Cursor", "On-device AI"] },
+      { "id": "s2", "hidden": false, "icon": "", "iconColor": "", "name": "Engineering Leadership", "proficiency": "", "level": 0, "keywords": ["Team & technical leadership", "mentoring", "roadmapping"] },
+      { "id": "s3", "hidden": false, "icon": "", "iconColor": "", "name": "Web & Application Development", "proficiency": "", "level": 0, "keywords": ["JavaScript", "TypeScript", "HTML5", "CSS"] },
+      { "id": "s4", "hidden": false, "icon": "", "iconColor": "", "name": "Backend & Services", "proficiency": "", "level": 0, "keywords": ["Go", "Node.js", "GraphQL", "REST"] },
+      { "id": "s5", "hidden": false, "icon": "", "iconColor": "", "name": "Cloud & Infrastructure", "proficiency": "", "level": 0, "keywords": ["Kubernetes", "Docker", "Terraform"] },
+      { "id": "s6", "hidden": false, "icon": "", "iconColor": "", "name": "Data", "proficiency": "", "level": 0, "keywords": ["PostgreSQL", "MongoDB", "Redis"] },
+      { "id": "s7", "hidden": false, "icon": "", "iconColor": "", "name": "Testing & Quality", "proficiency": "", "level": 0, "keywords": ["Playwright", "unit testing", "code review"] },
+      { "id": "s8", "hidden": false, "icon": "", "iconColor": "", "name": "DevOps & Delivery", "proficiency": "", "level": 0, "keywords": ["CI/CD", "GitHub Actions", "release management"] },
+      { "id": "s9", "hidden": false, "icon": "", "iconColor": "", "name": "Architecture", "proficiency": "", "level": 0, "keywords": ["distributed systems", "API design", "event-driven design"] },
+      { "id": "s10", "hidden": false, "icon": "", "iconColor": "", "name": "Methodologies", "proficiency": "", "level": 0, "keywords": ["Agile", "spec-driven development", "Scrum"] }
+    ] },
+    "projects": { "title": "Projects", "hidden": true, "items": [] },
+    "languages": { "title": "Languages", "hidden": true, "items": [] },
+    "interests": { "title": "Interests", "hidden": true, "items": [] },
+    "awards": { "title": "Awards", "hidden": true, "items": [] },
+    "certifications": { "title": "Certifications", "hidden": true, "items": [] },
+    "publications": { "title": "Publications", "hidden": true, "items": [] },
+    "volunteer": { "title": "Volunteer", "hidden": true, "items": [] },
+    "references": { "title": "References", "hidden": true, "items": [] }
+  },
+  "customSections": [],
+  "metadata": { "template": "azurill", "layout": {}, "page": {}, "design": {}, "typography": {}, "notes": "" }
+}

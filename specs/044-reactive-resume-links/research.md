@@ -67,3 +67,7 @@ Read from the owner's ApplyPack (resume 5, 2.59.7) and the Reactive Resume resum
 - A position that begins with a lower-case letter or a digit ("iOS Engineer") is joined to the company line by `joinWrapped`'s wrapped-line rule, as in any extracted text.
 - A single date ("2006") is not a range, so it stays in the education line's text; `withDates` only strips ranges.
 - A description paragraph that opens with a bold sub-role and its dates reads as a further job without a company, as it does in a `.docx`.
+- Two jobs in a row where the first has no bullets merge into one: the reader starts a new job only after a bullet block, as in any extracted text.
+- A text line that itself begins with `# ` ("# of users up 40%") would be read as a heading; the importer does not escape it.
+
+**Measured on the live export after the change** (the saved export, never committed): the page's reader finds the name, headline, email, phone, both links and the place; sections `Summary`, `Skills (10 groups)`, `Experience`, `Education` and no stray heading; all six employers; 10 roles (the sub-role paragraphs), 58 of the export's 58 bullets, 3 degrees, 10 skills groups; 0 lines beginning with `#` other than `## `. Before: no name, no contact, one role.

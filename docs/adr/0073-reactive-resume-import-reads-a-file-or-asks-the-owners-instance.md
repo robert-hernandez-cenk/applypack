@@ -56,6 +56,8 @@ marker. A self-hosted instance also answers an API with the owner's key.
 - A member on a shared install with a self-hosted instance on a private address cannot use the pull and
   uses the file.
 
-## Addendum (2026-10-15): links survive the import (#44)
+## Addendum (2026-10-15): the stored text is the dialect a plain reader understands (#44)
 
-A profile's address is written into the header contact line as the bare address (a profile with only a username stays `Network: username`), and the trailing `## Profiles` section is gone. A link in formatted text is kept as `words (address)` for `http`, `https` and `mailto` targets only. The original export is still not kept, so a resume imported earlier gets its links by importing again.
+Reading a live instance and the resume pulled from it showed two things the hand-written fixtures hid. The links were in `basics.customFields[].link` (the export's `profiles` was empty), and the importer kept only each field's `text`, so the header read `LinkedIn · Github` with no address. And the Markdown above (`# Name`, `### Role`, `#### Position`) is read by `structureFromText` as a stack of section headings: the page's "what a parser reads" found no name, no contact and one role of six.
+
+The stored text is therefore written the way a `.docx` or `.pdf` extracts, which every reader already handles, and the reader is unchanged: the name, headline and one contact line as plain lines; `## ` section headings; per job a company line, a `Position · Dates` line and its bullets (an employer with several positions repeats the company line above each); plain lines for education, certificates and the rest; `Language (fluency)`. A contact field is written as its link when it has one, a profile as its address (else `Network: username`), and a link in formatted text as `words (address)` for `http`, `https` and `mailto` only. Contract: `specs/044-reactive-resume-links/contracts/imported-markdown.md`. The file is still `.md` and the text is still valid Markdown; only the `#` lines are gone. The original export is still not kept, so a resume imported earlier gets all of this by importing again.

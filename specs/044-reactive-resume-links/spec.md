@@ -56,14 +56,14 @@ The imported text reads the way an ordinary resume's extracted text does: the pe
 
 **Why this priority**: Without it the links of Story 1 are written into a text the reader cannot place, and the page tells the person their name, phone and place are missing when they are all in Reactive Resume. This is the reason the import is worth having.
 
-**Independent Test**: Read the imported text of a resume shaped like the live one (six jobs, three degrees, ten skills groups, two contact links) with the plain reader: it reports the name, email, phone, place and both links, six jobs with their dates and bullet counts, three degrees and ten skills groups.
+**Independent Test**: Read the imported text of a resume shaped like the live one (six jobs, three degrees, ten skills groups, two contact links) with the plain reader: it reports the name, email, phone, place and both links, all six employers with every job's dates and bullets (a position an employer writes as a bold paragraph reads as a further role, as it does in a .docx), three degrees and ten skills groups.
 
 **Acceptance Scenarios**:
 
 1. **Given** an imported resume, **When** a plain reader reads it, **Then** the name is the first line of the text and the headline the second, with no `#` marker on either.
 2. **Given** a job with a company, a position and dates, **When** it is imported, **Then** it is two lines, the company (with its place after a `·` when it has one) and the position with its dates after a `·`, followed by its bullets; a plain reader finds one job with those fields.
 3. **Given** an employer that holds several positions, **When** it is imported, **Then** each position is a job of its own, the company line repeated above it.
-4. **Given** the six jobs, three degrees and ten skills groups of a real export, **When** it is imported, **Then** a plain reader finds six jobs, three degrees and ten skills groups, and no job, degree or name appears as a section heading.
+4. **Given** the six jobs, three degrees and ten skills groups of a real export, **When** it is imported, **Then** a plain reader finds all six employers with all of their bullets, three degrees and ten skills groups, and no job, degree or name appears as a section heading.
 5. **Given** a language with a fluency, **When** it is imported, **Then** it is written `Language (fluency)`, which a plain reader splits into the two.
 6. **Given** a section, **When** it is imported, **Then** its heading is `## ` plus the title it has in Reactive Resume.
 
@@ -116,7 +116,7 @@ The imported text reads the way an ordinary resume's extracted text does: the pe
 - **SC-003**: Importing the existing fixtures for v4, v5 and v6 produces, for every field other than profiles, contact links and anchors, exactly the words it produced before this change (only the line form differs).
 - **SC-004**: A description holding 300 000 characters of unterminated link markup imports in under one second.
 - **SC-005**: A person who imports their resume and presses "Download original" sees their GitHub and LinkedIn addresses in the file.
-- **SC-006**: For the live export (six jobs, three degrees, ten skills groups, two contact links), the plain reader finds the name, email, phone, place and both links, six jobs, three degrees and ten skills groups; the page lists none of the four contact kinds as missing.
+- **SC-006**: For the live export (six jobs, three degrees, ten skills groups, two contact links), the plain reader finds the name, email, phone, place and both links, all six employers and every one of the 58 bullets, three degrees and ten skills groups; the page lists none of the four contact kinds as missing.
 - **SC-007**: In the imported text of every fixture, 0 lines begin with `#` other than `## ` section headings.
 
 ## Assumptions

@@ -8,12 +8,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 - **A Reactive Resume import keeps your GitHub and LinkedIn links.** The
-  addresses of your profiles now sit in the header line, next to your email
-  and phone, instead of being cut down to a username in a section at the end;
-  a profile with only a username stays `Network: username`. A link written
-  inside a summary or a bullet keeps its address too, as `words (address)`.
-  A resume you imported before keeps what it stored: import it again to get
-  the links (#44).
+  contact links under your name (and your profiles) now sit in the header
+  line as full addresses, next to your email and phone, instead of the word
+  "LinkedIn" with nothing behind it; a link written inside a summary or a
+  bullet keeps its address too, as `words (address)` (#44).
+- **An imported Reactive Resume reads properly on the resume page.** Its text
+  was written with `#` headings that the parser took for sections, so "what a
+  parser reads" found no name, no phone, no place and no link, and one job of
+  six. It is now written the way a Word or PDF resume reads — your name, your
+  headline, one contact line, then each job as a company line, a position line
+  with its dates, and its bullets — and the parser finds all of it (#44).
+  A resume you imported before keeps what it stored: import it again.
 
 ## [2.59.7] — 2026-10-15
 
