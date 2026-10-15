@@ -33,6 +33,8 @@ export const PERSONAL_ROUTES = [
   'POST /jobs/:id/description/refresh',
   'POST /jobs/:id/description',
   'POST /jobs/:id/description/restore',
+  'GET /jobs/:id/edit',
+  'POST /jobs/:id/edit',
   'POST /jobs/:id/verify',
   'POST /jobs/:id/match',
   'POST /jobs/:id/matches/:matchId/suggestions',

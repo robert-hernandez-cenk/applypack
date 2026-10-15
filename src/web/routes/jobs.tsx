@@ -32,6 +32,10 @@ import { onceGuard } from '../once-guard';
 import { fetchPostingText } from '../../jobs/posting-url';
 import { describeRefresh, foldOps, normaliseDescription, planRefresh, refreshFlash, restoreFlash } from '../../jobs/description-diff';
 import { refreshDescription, restoreDescription } from '../../jobs/description-refresh';
+import { canEdit, isUnchanged, planEdit } from '../../jobs/job-edit';
+import { editJob, holderIdsOf } from '../../jobs/job-edit-store';
+import { jobEditFlash } from '../job-edit-flash';
+import { JobEditPage, JobEditSharedPage } from '../pages/job-edit';
 import { loadLineDiff } from '../../resume/line-diff';
 import { DescriptionRefreshPage } from '../pages/description-refresh';
 import { checkLiveness, listVerificationsForJob, verifyJob } from '../../verification/verify';
@@ -520,8 +524,10 @@ jobsRoute.get('/jobs/:id', async (c) => {
         job.title,
       )
     : null;
+  const editable = canEdit(await holderIdsOf(id), userId);
   return c.html(
     <JobDetailPage
+      editable={editable}
       tab={resolveJobTab({ tab: c.req.query('tab'), match: c.req.query('match'), letter: c.req.query('letter') })}
       tabs={jobTabLabels({
         matchScore: selected?.matchScore ?? null,
@@ -749,6 +755,49 @@ jobsRoute.post('/jobs/:id/description/restore', async (c) => {
   const swap = await restoreDescription(job, currentUser().id);
   if (!swap) return flashRedirect(`/jobs/${id}`, 'warn', t('jobRoute.restore.nothing'));
   return flashRedirect(`/jobs/${id}`, 'ok', restoreFlash(swap.job.description.length, swap.reclassified));
+});
+
+/**
+ * #46: a person adds the context a posting arrived without. Only the one who
+ * alone holds it may (job-edit.ts:canEdit) — the posting is shared, and a
+ * change under another holder is a change to their copy too.
+ */
+async function loadEditable(id: number) {
+  const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true, sourceConfig: true } } } });
+  if (!job) return null;
+  return { job, editable: canEdit(await holderIdsOf(id), currentUser().id) };
+}
+
+jobsRoute.get('/jobs/:id/edit', async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  const loaded = await loadEditable(id);
+  if (!loaded) return c.text(t('http.notFound'), 404);
+  const { job, editable } = loaded;
+  const tab = formTab(c.req.query('tab'));
+  if (!editable) return c.html(<JobEditSharedPage job={job} tab={tab} />, 403);
+  const values = { title: job.title, company: hiringName(job.employer, job.company) ?? '', location: job.location, description: job.description };
+  return c.html(<JobEditPage job={job} values={values} tab={tab} />);
+});
+
+jobsRoute.post('/jobs/:id/edit', onceGuard((c) => `edit:${c.req.param('id')}`, (c) => `/jobs/${c.req.param('id')}`), async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  const loaded = await loadEditable(id);
+  if (!loaded) return c.text(t('http.notFound'), 404);
+  const { job, editable } = loaded;
+  const body = await c.req.parseBody();
+  const tab = formTab(body.tab);
+  if (!editable) return c.html(<JobEditSharedPage job={job} tab={tab} />, 403);
+  const text = (key: string): string => (typeof body[key] === 'string' ? body[key] : '');
+  const form = { title: text('title'), company: text('company'), location: text('location'), description: text('description') };
+  const plan = planEdit({ title: job.title, shownCompany: hiringName(job.employer, job.company), location: job.location, description: job.description }, form);
+  if (!plan.ok) return c.html(<JobEditPage job={job} values={form} error={plan.error} tab={tab} />, 400);
+  if (isUnchanged(plan.changes)) return flashRedirect(jobHref(id, tab), 'warn', t('jobEdit.unchanged'));
+  const saved = await editJob(job, currentUser().id, plan.changes);
+  if (saved.kind === 'refused') return c.html(<JobEditSharedPage job={job} tab={tab} />, 403);
+  const said = jobEditFlash(saved.rescored);
+  return flashRedirect(jobHref(id, tab), said.kind, said.text);
 });
 
 jobsRoute.post('/jobs/:id/verify', async (c) => {

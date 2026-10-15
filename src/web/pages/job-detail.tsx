@@ -146,6 +146,8 @@ export interface JobDetailProps {
   /** Every search that has scored this posting, best first. */
   profileScores: ProfileScore[];
   applicationTrackingEnabled: boolean;
+  /** The signed-in person alone holds this posting, so its text is theirs to edit (#46). */
+  editable: boolean;
   /** Configured funnel stages in order (ADR 0025). */
   pipelineStages: StageDef[];
   verification: VerificationCardProps['verification'];
@@ -187,6 +189,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
   appliedResumePicker,
   profileScores,
   applicationTrackingEnabled,
+  editable,
   pipelineStages,
   verification,
   verificationCount,
@@ -405,7 +408,14 @@ export const JobDetailPage: FC<JobDetailProps> = ({
         )}
 
         <Card variant="flat" class="p-5">
-          <SectionTitle>{t('job.description')}</SectionTitle>
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <SectionTitle>{t('job.description')}</SectionTitle>
+            {editable && (
+              <Button href={`/jobs/${job.id}/edit?tab=${tab}`} variant="secondary" size="sm">
+                {t('job.edit')}
+              </Button>
+            )}
+          </div>
           {job.descriptionRefreshedAt && (
             <div class="mb-3 flex flex-wrap items-center gap-2 text-note text-ink-muted">
               <span>

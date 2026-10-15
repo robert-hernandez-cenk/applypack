@@ -1,8 +1,8 @@
 import type { Job } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
-import { simhash64, toDbBigInt } from '../fingerprint';
 import { classifyExistingJob, type ClassifiableJob } from './classify-existing';
+import { descriptionColumns } from './description-columns';
 import { normaliseDescription } from './description-diff';
 
 /*
@@ -25,32 +25,21 @@ export interface DescriptionSwap {
 /** Replace the description with the listing's text; the first refresh keeps the original, later ones keep the first. */
 export async function refreshDescription(job: ClassifiableJob, fetched: string, userId: number): Promise<DescriptionSwap> {
   const description = normaliseDescription(fetched);
-  return swap(job, userId, {
-    description,
-    descriptionOriginal: job.descriptionOriginal ?? job.description,
-    descriptionRefreshedAt: new Date(),
-  });
+  return swap(job, userId, descriptionColumns(job, description));
 }
 
 /** Put the original back; the swap stays dated so stored comparisons of the listing's text are not reused either. */
 export async function restoreDescription(job: ClassifiableJob, userId: number): Promise<DescriptionSwap | null> {
   if (job.descriptionOriginal === null) return null;
-  return swap(job, userId, {
-    description: job.descriptionOriginal,
-    descriptionOriginal: null,
-    descriptionRefreshedAt: new Date(),
-  });
+  return swap(job, userId, { ...descriptionColumns(job, job.descriptionOriginal), descriptionOriginal: null });
 }
 
 async function swap(
   job: ClassifiableJob,
   userId: number,
-  data: { description: string; descriptionOriginal: string | null; descriptionRefreshedAt: Date },
+  data: ReturnType<typeof descriptionColumns>,
 ): Promise<DescriptionSwap> {
-  const updated = await prisma.job.update({
-    where: { id: job.id },
-    data: { ...data, descriptionSimhash: toDbBigInt(simhash64(data.description)) },
-  });
+  const updated = await prisma.job.update({ where: { id: job.id }, data });
   let reclassified = false;
   try {
     // The user cares about this posting — they just refreshed it — so a
