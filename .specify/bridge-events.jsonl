@@ -156,3 +156,10 @@
 
 {"timestamp":"2026-10-15T20:59:13.8457271Z","action":"handoff","status":"ready","feature_directory":"specs/046-edit-reclassify-jobs","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T2059138144225Z-ready"}
 
+{"timestamp":"2026-10-15T20:59:27.3789472Z","action":"handoff","status":"executing","feature_directory":"specs/046-edit-reclassify-jobs","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T2059273342821Z-executing"}
+
+{"timestamp":"2026-10-15T20:59:27Z","action":"guard","status":"allow","feature_directory":"specs/046-edit-reclassify-jobs","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
+{"timestamp":"2026-10-15T21:20:27.9472561Z","action":"handoff","status":"complete","feature_directory":"specs/046-edit-reclassify-jobs","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T2120278870280Z-complete"}
+
+{"event":"artifact_drift_detected","timestamp":"2026-10-15T21:20:27.9539160Z","actor":"claude","feature_directory":"specs/046-edit-reclassify-jobs","drifted_artifacts":[{"path":"spec.md","old_sha256":"6a7b6ec0a071c2732f1929d6102a61848edfe521b87ac48ea84830e0255d6d27","new_sha256":"885b7cb2d2ca19c5ab2b3f37b423d89e23e1c7f8fdec1fcec2d3854748af8048"},{"path":"tasks.md","old_sha256":"b739f01d3e3980e824f2c48f61600d6990e61f6c455bdaeeaaca47b56afa5366","new_sha256":"f1c5333fdbac3c392bfa8a38ad55fa19d1d9dda719cad090f53910566e8b4935"}]}
+
