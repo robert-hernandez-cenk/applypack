@@ -10,14 +10,19 @@
 
 export const CHARS_PER_PAGE = 3500;
 
+/** Carriage returns are not counted: the editor's text has none, and the two must agree on the same document. */
+function charCount(text) {
+  return text.replace(/\r/g, '').length;
+}
+
 export function estimatePages(text) {
-  return text.length / CHARS_PER_PAGE;
+  return charCount(text) / CHARS_PER_PAGE;
 }
 
 /** `target` is 1, 2, 3 or 'keep'. */
 export function lengthPlan(text, target) {
   const budgetChars = target === 'keep' ? null : target * CHARS_PER_PAGE;
-  const overshootChars = budgetChars === null ? 0 : Math.max(0, Math.ceil(text.length - budgetChars));
+  const overshootChars = budgetChars === null ? 0 : Math.max(0, Math.ceil(charCount(text) - budgetChars));
   return { target, pages: estimatePages(text), budgetChars, overshootChars, met: overshootChars === 0 };
 }
 

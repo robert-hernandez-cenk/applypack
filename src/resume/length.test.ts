@@ -43,6 +43,20 @@ test('estimatePages: characters over the one per-page constant', () => {
   assert.equal(estimatePages(''), 0);
 });
 
+test('a carriage return is not a character: a CRLF document measures as the editor shows it', () => {
+  const lf = 'line\n'.repeat(2000);
+  const crlf = lf.replace(/\n/g, '\r\n');
+  assert.equal(estimatePages(crlf), estimatePages(lf));
+  assert.deepEqual(lengthPlan(crlf, 2), lengthPlan(lf, 2));
+});
+
+test('the cuts a target may ask for fit what one removal can quote (~200 chars), up to the schema cap', () => {
+  assert.equal(CUTS_MAX, 30);
+  assert.equal(cutBudget(CHARS_PER_PAGE), Math.ceil(CHARS_PER_PAGE / 250), 'a page over asks for a removal per ~250 characters');
+  assert.equal(cutBudget(CHARS_PER_PAGE / 2), CUTS_DEFAULT, 'half a page over stays at the default');
+  assert.equal(cutBudget(CHARS_PER_PAGE * 10), CUTS_MAX);
+});
+
 test('lengthPlan: "keep" has no budget and is always met', () => {
   const plan = lengthPlan(text(CHARS_PER_PAGE * 4), 'keep');
   assert.equal(plan.budgetChars, null);
@@ -76,7 +90,7 @@ test('lengthExtraTokens: no more room without a target or when it is met, more w
   assert.equal(lengthExtraTokens(lengthPlan(text(CHARS_PER_PAGE * 4), 'keep')), 0);
   assert.equal(lengthExtraTokens(lengthPlan(text(CHARS_PER_PAGE), 2)), 0);
   const small = lengthExtraTokens(lengthPlan(text(CHARS_PER_PAGE * 2 + 700), 2));
-  const mid = lengthExtraTokens(lengthPlan(text(CHARS_PER_PAGE * 6), 1));
+  const mid = lengthExtraTokens(lengthPlan(text(CHARS_PER_PAGE * 3), 2));
   const big = lengthExtraTokens(lengthPlan(text(CHARS_PER_PAGE * 20), 1));
   assert.ok(small >= 0 && mid > small && big > mid);
   assert.equal(big, (CUTS_MAX - CUTS_DEFAULT) * 120, 'the cap of cuts is the cap of the extra room');
@@ -98,7 +112,7 @@ test('lengthLines: states target, estimate, overshoot and the cap, and how to ch
   assert.match(block, /least relevant to THIS posting/);
   assert.match(block, /older roles/i);
   assert.match(block, /must-have/i);
-  assert.match(block, /overrides the default/i);
+  assert.match(block, /overrides the "~8 removals" pace/);
   // Our own instruction: it sits outside every fence (ADR 0022).
   assert.doesNotMatch(block, /=== (BEGIN|END)/);
 });

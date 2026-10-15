@@ -31,6 +31,7 @@ import { dropMalformedKeywords } from './keyword-shape';
 import { annotateEvidence } from './evidence';
 import { planKeywordFrame } from './keyword-frame';
 import { loadKeywordMatcher } from './keyword-matcher';
+import { anthropicAnswerRoom } from '../ai-provider-parse';
 import { lengthExtraTokens, lengthPlan, readPageTarget, type PageTarget } from './length';
 import { readMatchEvidence, readMatchMode, type MatchEvidence, type MatchMode } from './match-mode';
 import { pickReusable, readPromptVersion, readVerificationId } from './match-reuse';
@@ -153,7 +154,7 @@ export async function matchResumeToJob(
     await getAiRuntime(),
     {
       ...buildMatchPrompt(resume.text, job, mode, context),
-      maxTokens: mode === 'fast' ? MATCH_FAST_MAX_TOKENS : MATCH_MAX_TOKENS + lengthExtraTokens(length),
+      maxTokens: mode === 'fast' ? MATCH_FAST_MAX_TOKENS : MATCH_MAX_TOKENS + Math.min(lengthExtraTokens(length), anthropicAnswerRoom(MATCH_MAX_TOKENS)),
       label: mode === 'fast' ? 'resume-match-fast' : 'resume-match',
       role: 'resume',
       subject: { jobId: job.id, resumeId: resume.id },

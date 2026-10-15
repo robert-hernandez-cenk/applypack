@@ -22,7 +22,7 @@ text in the editor was.
 - **The block is in the user message, in two prompts.** `lengthLines` adds a LENGTH TARGET block — the
   estimated pages, the overshoot in characters, how to choose (least relevant to this posting first, older
   roles to a line or two, the strongest evidence for the must-haves kept) and a removals cap scaled with
-  the overshoot (one per ~600 characters, 8 to 40) — to `buildMatchPrompt` in `full` mode and to
+  the overshoot (one per ~250 characters, 8 to 30 — the reply schema takes at most 30 removals) — to `buildMatchPrompt` in `full` mode and to
   `buildSuggestionsPrompt`. The full report writes its own removals, so the sketch that named only the
   suggestions call would have missed the normal path. The suggestions call reads the stored marker, so
   "Rewrite all" and the floor's re-ask aim at the same target.
@@ -30,8 +30,8 @@ text in the editor was.
   byte-identical (`prompts.test.ts`). A bump would have invalidated every stored keyword frame and
   memo for everyone, for a feature most comparisons do not use.
 - **The answer budget grows with the cuts, only when a target is set** (`lengthExtraTokens`, 120 tokens
-  per removal beyond the default 8). The thinking headroom is capped by `anthropicMaxTokens`, so it is the
-  headroom that gives way at the ceiling.
+  per removal beyond the default 8). The extra is clamped by `anthropicAnswerRoom` so it never comes out of the thinking headroom (gotcha 16):
+  1 000 tokens for the match call, 3 000 for the suggestions call.
 - **Safety stays in code.** Every cut still goes through `gateRemovals` (contact details and wanted
   keywords). The block states a size, not a permission. Cuts arrive as the existing strike-through
   suggestions; nothing changes until the person applies them and saves.
@@ -52,7 +52,7 @@ text in the editor was.
 
 ## Consequences
 
-- Rows made for a target are never reused for another, so changing the target costs one new analysis.
+- Rows made for a target are never reused for another, so changing the target costs one new analysis; a full request with a target also does not reuse a stored quick check (it re-runs the full analysis rather than only the suggestions call). Teaching the suggestions-only path to stamp the target is a follow-up.
 - The estimate can be off by a page for a dense or sparse layout; the meter says so.
 - The unattended pack (ADR 0063) never sets a target and is unchanged.
 

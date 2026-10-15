@@ -24,7 +24,7 @@ import {
   parseBriefResponse,
   parseRewriteResponse,
 } from './prompts';
-import { CHARS_PER_PAGE, lengthPlan } from './length';
+import { CHARS_PER_PAGE, CUTS_MAX, lengthPlan } from './length';
 import { MATCH_MODES } from './match-mode';
 import { REVIEW_DIMENSIONS } from './review-score';
 import { factCheck } from './fact-check';
@@ -1170,6 +1170,19 @@ test('page target (ADR 0073): "keep", a met target or no plan leave every prompt
     }
     assert.deepEqual(buildSuggestionsPrompt('resume', JOB, { ...SUGGEST_INPUT, length }), buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT));
   }
+});
+
+test('page target (ADR 0073): a reply with as many removals as the prompt may ask for still parses', () => {
+  const removals = Array.from({ length: CUTS_MAX }, (_, i) => ({
+    section: 'experience',
+    where: `role ${i}`,
+    what: 'older bullet',
+    why: 'not relevant here',
+    quote: `bullet ${i}`,
+  }));
+  const parsed = parseSuggestionsResponse(JSON.stringify({ removals }));
+  assert.equal(parsed.ok, true, parsed.ok ? '' : parsed.error);
+  if (parsed.ok) assert.equal(parsed.data.removals.length, CUTS_MAX);
 });
 
 test('page target (ADR 0073): the system prompts do not change with a target — only the user message does', () => {

@@ -29,8 +29,8 @@ Seams were read in the code before planning. Two differ from the first sketch; b
 - **Rationale**: spec FR-010; the existing "over the 2-page US norm" warning already uses the same figure, so the two never disagree.
 
 ### D6. Cut-cap scaling
-- **Decision**: `cutBudget(overshootChars)` — roughly one removal per ~600 chars over, floored at the default 8 and capped at 40 — passed to the model as a number in the block. The caps are code constants; `gateRemovals` is unchanged.
-- **Output budget** (decided in T008): the answer budget grows only when a target is set, by 120 tokens per extra removal beyond the default 8 (`length.ts:lengthExtraTokens`, at most 32 × 120 = 3 840). The full match budget is 12 000 + 8 000 thinking headroom against the ~21 300 non-streaming ceiling, so the headroom (not the answer) is what gives way at the cap; `keep` budgets are unchanged.
+- **Decision**: `cutBudget(overshootChars)` — roughly one removal per ~250 chars over (about one bullet), floored at the default 8 and capped at 30 — the reply schema takes at most 30 removals (guarded by a parse test) — passed to the model as a number in the block. The caps are code constants; `gateRemovals` is unchanged.
+- **Output budget** (decided in T008): the answer budget grows only when a target is set, by 120 tokens per extra removal beyond the default 8 (`length.ts:lengthExtraTokens`, at most 22 × 120 = 2 640, further clamped by `anthropicAnswerRoom` so it never comes out of the thinking headroom (1 000 for the match call, 3 000 for suggestions)). The full match budget is 12 000 + 8 000 thinking headroom against the ~21 300 non-streaming ceiling, so the headroom (not the answer) is what gives way at the cap; `keep` budgets are unchanged.
 
 ### D7. Pack is untouched
 - `src/pack/prepare.ts` calls the comparison without a target, so the marker is `keep` and nothing changes (FR-011). `matchResumeToJob`'s new option is optional with default `keep`.

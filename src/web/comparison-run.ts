@@ -62,6 +62,7 @@ export async function startComparison(c: Context, req: ComparisonRequest): Promi
       return flashRedirect(req.resultUrl(reused.row.id), 'warn', reuseNotice(formatRelative(reused.row.createdAt)), {
         rerun: true,
         mode,
+        pages: String(req.pages),
       });
     }
     if (reused) {

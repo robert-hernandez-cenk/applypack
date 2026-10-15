@@ -181,6 +181,15 @@ export function anthropicMaxTokens(answerTokens: number): number {
 }
 
 /**
+ * How much more answer a budget can take before the ceiling starts eating the
+ * thinking headroom (gotcha 16): a caller that wants a bigger answer asks for
+ * at most this much, so the extra never comes out of the thinking.
+ */
+export function anthropicAnswerRoom(answerTokens: number): number {
+  return Math.max(0, ANTHROPIC_NONSTREAMING_MAX_TOKENS - ANTHROPIC_THINKING_HEADROOM_TOKENS - answerTokens);
+}
+
+/**
  * The 2026-02-09 web tools filter their results through code execution, and
  * that needs programmatic tool calling — Opus 4.6+, Sonnet 4.6+ and their
  * successors. Haiku 4.5 (and anything older) answered 400 to the same request

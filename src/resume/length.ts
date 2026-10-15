@@ -8,11 +8,16 @@
 /** ~3500 chars ≈ one US letter page of resume text. */
 export const CHARS_PER_PAGE = 3_500;
 
-/** What a prompt may ask for with no target, and the most a target may ask for. */
+/**
+ * What a prompt may ask for with no target, and the most a target may ask for:
+ * the reply schema takes at most 30 removals (`MatchSchema` in prompts.ts —
+ * `prompts.test.ts` parses a reply of exactly this many), so a prompt that asked
+ * for more would fail its own parse.
+ */
 export const CUTS_DEFAULT = 8;
-export const CUTS_MAX = 40;
-/** One removal per this many characters over the target. */
-const CHARS_PER_CUT = 600;
+export const CUTS_MAX = 30;
+/** One removal per this many characters over the target: about one bullet, since a quote is at most ~200 characters. */
+const CHARS_PER_CUT = 250;
 
 export const PAGE_TARGETS = [1, 2, 3] as const;
 /** `keep` is no limit: the flow behaves exactly as before the target existed. */
@@ -35,8 +40,13 @@ export function readPageTarget(breakdown: unknown): PageTarget {
   return typeof v === 'number' ? asTarget(v) : 'keep';
 }
 
+/** Carriage returns are not counted: the editor's text has none, and the two must agree on the same document. */
+function charCount(text: string): number {
+  return text.replace(/\r/g, '').length;
+}
+
 export function estimatePages(text: string): number {
-  return text.length / CHARS_PER_PAGE;
+  return charCount(text) / CHARS_PER_PAGE;
 }
 
 /** One decimal, as the editor's meter shows it. */
@@ -56,7 +66,7 @@ export interface LengthPlan {
 
 export function lengthPlan(text: string, target: PageTarget): LengthPlan {
   const budgetChars = target === 'keep' ? null : target * CHARS_PER_PAGE;
-  const overshootChars = budgetChars === null ? 0 : Math.max(0, Math.ceil(text.length - budgetChars));
+  const overshootChars = budgetChars === null ? 0 : Math.max(0, Math.ceil(charCount(text) - budgetChars));
   return { target, pages: estimatePages(text), budgetChars, overshootChars, met: overshootChars === 0 };
 }
 
@@ -88,7 +98,7 @@ export function lengthLines(plan: LengthPlan): string[] {
   const cuts = cutBudget(plan.overshootChars);
   return [
     `LENGTH TARGET: the candidate wants this resume to fit ${plan.target} ${plan.target === 1 ? 'page' : 'pages'}. It runs about ${plan.pages.toFixed(1)} pages, roughly ${plan.overshootChars} characters over.`,
-    `Cut toward the target through "removals" (and short rewrites in "actions" that condense a bullet): drop what is least relevant to THIS posting first, condense older roles to a line or two, and keep the strongest evidence for the posting's must-have terms. Propose up to ${cuts} removals — this overrides the default cap on removals — each quoting its exact text. Do not touch the contact line.`,
+    `Cut toward the target through "removals" (and short rewrites in "actions" that condense a bullet): drop what is least relevant to THIS posting first, condense older roles to a line or two, and keep the strongest evidence for the posting's must-have terms. Propose up to ${cuts} removals — this overrides the "~8 removals" pace stated above — each quoting its exact text. Do not touch the contact line.`,
     '',
   ];
 }

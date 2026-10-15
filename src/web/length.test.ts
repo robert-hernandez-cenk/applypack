@@ -18,6 +18,13 @@ interface BrowserLength {
 // @ts-expect-error — plain JS with no declaration file; parity is asserted below.
 const browser = import('./public/length.mjs') as Promise<BrowserLength>;
 
+test('the browser mirror counts a CRLF document as the server does', async () => {
+  const b = await browser;
+  const crlf = 'line\r\n'.repeat(2000);
+  assert.equal(b.estimatePages(crlf), estimatePages(crlf));
+  assert.deepEqual(b.lengthPlan(crlf, 2), lengthPlan(crlf, 2));
+});
+
 const SIZES = [0, 1, 300, CHARS_PER_PAGE - 1, CHARS_PER_PAGE, CHARS_PER_PAGE + 1, CHARS_PER_PAGE * 2, CHARS_PER_PAGE * 3.5, CHARS_PER_PAGE * 4, 15_001];
 const TARGETS: PageTarget[] = ['keep', 1, 2, 3];
 
