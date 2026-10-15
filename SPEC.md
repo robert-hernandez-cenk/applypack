@@ -757,6 +757,17 @@ on confirmation the stored text is replaced, the original kept next to it
 (`descriptionOriginal`, `descriptionRefreshedAt`), the posting re-classified
 and the next comparison's keyword frame read afresh (ADR 0043).
 
+A person adds the context a posting arrived without — a thin mail from a
+Gmail label, a short paste — with **Edit** on `/jobs/:id` (#46): title,
+company (`Job.employer`, with `employerKey` rewritten), location (the place
+columns re-read from the new string) and description (the original kept in
+`descriptionOriginal`, so "Restore the original" works after an edit too).
+Only the one person who alone holds the posting may — `Job` is shared, so a
+posting someone else also holds is refused on the page and in the store, which
+asks again right before it writes. A save re-scores with every status left as
+it was, and the description's length limits apply only when the description
+itself changed.
+
 ## Imported rows (ADR 0062)
 
 `/jobs/import` takes a file of jobs the user already has: a JSON array, an

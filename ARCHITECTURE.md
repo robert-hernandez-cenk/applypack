@@ -519,6 +519,10 @@ src/
     posting-extract.ts          ← one cheap classifier-model call: company, title, location, salary of a pasted posting
     description-diff.ts         ← pure: what "Refresh the description" is about to do (sizes, folded diff rows, the flashes — ADR 0043)
     description-refresh.ts      ← the swap: replace / restore Job.description, keep the original, re-fingerprint, re-classify
+    description-columns.ts      ← pure: the four columns a changed description writes (shared by the swap and by an edit)
+    job-edit.ts                 ← pure: who may edit a posting (its one holder) and what a form changes (#46)
+    job-edit-store.ts           ← the write behind Edit: holders asked again, one update, re-score with keepStatus
+    posting-limits.ts           ← pure: the shortest and longest description (manual-job.ts re-exports them)
     manual-job.ts               ← pasted posting → MANUAL company + Job, classified unless the caller passes classify: false
                                   (used by /jobs/new, /target, /letter and /screen/new; the last three pass it,
                                   and /target classifies a new job in the background instead)
@@ -688,6 +692,7 @@ src/
       cover-letter-card.tsx     ← the "Cover letter" tab (F8, ADR 0021)
       verification-card.tsx     ← the "Is it real?" tab
       description-refresh.tsx   ← the line-by-line preview before a description is replaced with the company's listing (ADR 0043)
+      job-edit.tsx              ← the Edit page for a posting only its holder has (#46), and the page a shared one gets
       attribution.tsx           ← what a vendor's terms make a listing say (AdzunaLabel, FranceTravailLine) (ADR 0034)
       applications.tsx          ← /applications (board + quick-move + closed panel)
       companies.tsx             ← /companies
