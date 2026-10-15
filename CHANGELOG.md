@@ -19,6 +19,10 @@ All notable changes to this project are documented here. The format follows
   headline, one contact line, then each job as a company line, a position line
   with its dates, and its bullets — and the parser finds all of it (#44).
   A resume you imported before keeps what it stored: import it again.
+- **A role line in capitals with years, such as `CTO · 2020 – 2021`, is no
+  longer taken for a section heading** when a Word or PDF resume is read, and
+  an education line with a date range in the middle keeps its school and its
+  degree apart (#44).
 
 ## [2.59.7] — 2026-10-15
 

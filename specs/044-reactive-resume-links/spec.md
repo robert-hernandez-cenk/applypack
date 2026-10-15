@@ -99,6 +99,10 @@ The imported text reads the way an ordinary resume's extracted text does: the pe
 - **FR-015**: A job MUST be written as a company line (`Company`, or `Company · Place`) followed by a position line (`Position · Dates`, or the dates alone when there is no position) followed by its text; an employer's several positions MUST each be written this way. An item that names neither a company nor a position MUST write only its text, never a line of dates alone.
 - **FR-016**: No imported line MAY begin with `#` except a section heading, which MUST be `## ` plus the section's title.
 - **FR-017**: An education entry, a certificate, an award, a publication, a volunteer entry, a reference and a project MUST each be written as plain lines, none as a heading; a language with a fluency MUST be written `Language (fluency)`.
+- **FR-019**: A section heading MUST be `## ` plus its title, with the commas replaced by semicolons when the title has two or more and cut at 80 characters, so the reader takes it for a heading instead of content.
+- **FR-020**: A job whose text is only paragraphs MUST be written with each paragraph as a bullet (the reader starts the next job only after bullets); a text that has a list is written as it is. A volunteer entry MUST be written as a job (organisation line, then `Position · Dates`).
+- **FR-021**: A v4 contact field (`name`, `value`) MUST be written `name: value`, or the value alone; a mail link whose words are its address MUST be written as the address once, without the scheme.
+- **FR-022**: `structureFromText` MUST NOT take a line that holds a date range for a bare heading (`CTO · 2020 – 2021`), and MUST take out of a line only the separators next to a range it removes, leaving the parts it sat between apart (`MIT · BSc · Boston · 2010 – 2014` stays school, degree and place).
 - **FR-018**: Every piece of text Reactive Resume shows on the resume (name, headline, contact, summary, each visible item's fields, description and keywords) MUST appear in the imported text; only what Reactive Resume hides, and its design settings, MAY be left out.
 
 ### Key Entities
@@ -124,5 +128,5 @@ The imported text reads the way an ordinary resume's extracted text does: the pe
 - The three generations of export ApplyPack already reads (v4, v5, v6) keep a profile's address in the places ADR 0073 and the fixtures record; no new generation is added.
 - A bare address in a contact line is how a resume header already reads, and the later steps that read a resume's header already recognise GitHub and LinkedIn addresses there.
 - The original export file is not kept (ADR 0073); only the written-out text is, so resumes imported before this change are fixed by importing again, not by a migration.
-- Out of scope: migrating stored resumes, keeping the original JSON, changing how a header is parsed into a structure or drawn, and any change to what other upload kinds produce.
+- Out of scope: migrating stored resumes, keeping the original JSON, drawing the render differently, and any change to what other upload kinds produce — except FR-022, two narrow corrections to the shared reader that an independent review showed the importer's own lines trip over, and that are wrong for a .docx or .pdf line too (a role in capitals with years read as a heading; a date range in the middle of an education line mis-split).
 - Released as a patch version, 2.59.8.

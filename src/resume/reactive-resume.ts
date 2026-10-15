@@ -54,6 +54,9 @@ const LINK_SCHEME = /^(?:https?:|mailto:)/i;
 const HREF = /\shref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i;
 const TAG = /<[^>]*>/g;
 const AMP_ENTITY = /&amp;/g;
+const MAILTO = /^mailto:/i;
+/** The longest `## ` heading the reader takes for one (`structure-from-text.ts`); a longer one is read as content. */
+const MAX_HEADING_CHARS = 80;
 
 const hrefOf = (tag: string): string => {
   const m = HREF.exec(tag);
@@ -66,7 +69,10 @@ const asText = (s: string): string => s.replace(TAG, '').replace(AMP_ENTITY, '&'
 /** `words (address)`, or the address alone when there are no words or they are the address. */
 const linkText = (words: string, target: string): string => {
   const said = asText(words);
-  return said === '' || said === asText(target) ? target : `${words} (${target})`;
+  const address = asText(target);
+  if (said === '' || said === address) return target;
+  // "a@b.example (mailto:a@b.example)" says it twice.
+  return said === address.replace(MAILTO, '') ? words : `${words} (${target})`;
 };
 
 /**
@@ -145,6 +151,23 @@ const entry = (main: string, ...rest: string[]): string => (main ? dotted(main, 
 const job = (company: string, position: string, dates: string, text: string[]): string[] =>
   company || position ? [company, dotted(position, dates), ...text] : text;
 
+/**
+ * A job described only in paragraphs gets each one as a bullet: the reader
+ * starts the next job after a block of bullets and at no other place, so two
+ * jobs without any would run into one. A description that has a list keeps its
+ * paragraphs as written.
+ */
+const bulleted = (text: string[]): string[] => {
+  const lines = text.flatMap((t) => t.split('\n')).filter((l) => l.trim());
+  return lines.some((l) => l.startsWith('- ')) ? text : lines.map((l) => `- ${l}`);
+};
+
+/** `## Title`, made a heading the reader accepts: it refuses two commas (a list) and anything past 80 characters. */
+const sectionHeading = (title: string): string => {
+  const plain = title.split(',').length > 2 ? title.replace(/,/g, ';') : title;
+  return `## ${plain.slice(0, MAX_HEADING_CHARS).trim()}`;
+};
+
 /** A link written as text, or as `{ url }` (v5, v6) or `{ href }` (v4). */
 const linkOf = (x: unknown): string => (typeof x === 'string' ? text(x) : pick(rec(x), 'url', 'href'));
 const websiteOf = (item: Rec): string => linkOf(item.website) || linkOf(item.url);
@@ -165,9 +188,11 @@ function experience(item: Rec): Block {
   const company = entry(pick(item, 'company'), pick(item, 'location'));
   const position = pick(item, 'position');
   const roles = list(item.roles).map(rec).filter((r) => !hiddenItem(r));
-  const text = body(item.description, item.summary);
+  const text = bulleted(body(item.description, item.summary));
   // An employer that holds several positions has none of its own: each position is a job, the company line repeated above it.
-  const held = roles.flatMap((r, i) => job(company, pick(r, 'position'), when(r), [...(i === 0 && !position ? text : []), ...body(r.description, r.summary)]));
+  const held = roles.flatMap((r, i) =>
+    job(company, pick(r, 'position'), when(r), [...(i === 0 && !position ? text : []), ...bulleted(body(r.description, r.summary))]),
+  );
   return position || roles.length === 0 ? [...job(company, position, when(item), text), ...held] : held;
 }
 
@@ -214,12 +239,9 @@ const titled = (by: string[]) => (item: Rec): Block => {
   return [entry(title && giver ? `${title} — ${giver}` : title || giver, when(item)), ...body(item.description, item.summary)];
 };
 
+/** Written like a job — people retitle this section "Volunteer Experience", and the reader then reads it as work. */
 function volunteer(item: Rec): Block {
-  return [
-    entry(pick(item, 'organization', 'company'), pick(item, 'location'), when(item)),
-    ...(pick(item, 'position') ? [pick(item, 'position')] : []),
-    ...body(item.description, item.summary),
-  ];
+  return job(entry(pick(item, 'organization', 'company'), pick(item, 'location')), pick(item, 'position'), when(item), bulleted(body(item.description, item.summary)));
 }
 
 function interest(item: Rec): Block {
@@ -279,6 +301,12 @@ function generationOf(root: Rec, sections: Rec): Generation {
   return dated ? 'v6' : 'v5';
 }
 
+/** A contact field: its link, else its words; v4 keeps `name` and `value` instead, written `name: value`. */
+function contactField(f: Rec): string {
+  const value = pick(f, 'value');
+  return linkOf(f.link) || pick(f, 'text') || (value && pick(f, 'name') ? `${pick(f, 'name')}: ${value}` : value);
+}
+
 /**
  * Email, phone, place, website, contact fields, then the profiles; an address
  * the line already holds is not said twice. A contact field is its link when
@@ -286,7 +314,7 @@ function generationOf(root: Rec, sections: Rec): Generation {
  * and its words when it has not.
  */
 function contactLine(basics: Rec, sections: Rec): string {
-  const custom = list(basics.customFields).map(rec).map((f) => linkOf(f.link) || pick(f, 'text')).filter(Boolean);
+  const custom = list(basics.customFields).map(rec).map(contactField).filter(Boolean);
   const parts = [pick(basics, 'email'), pick(basics, 'phone'), pick(basics, 'location'), websiteOf(basics), ...custom, ...profileEntries(sections)];
   return [...new Set(parts.filter(Boolean))].join(' · ');
 }
@@ -312,18 +340,18 @@ export function readReactiveResume(json: unknown): ReactiveResumeRead {
 
   const blocks: string[][] = [];
   const summary = summaryOf(json, sections);
-  if (summary && summary.content) blocks.push([`## ${summary.title || 'Summary'}`, summary.content]);
+  if (summary && summary.content) blocks.push([sectionHeading(summary.title || 'Summary'), summary.content]);
   for (const kind of SECTIONS) {
     const sec = rec(sections[kind.key]);
     if (sec.hidden === true || sec.visible === false) continue;
     const items = list(sec.items).map(rec).filter((i) => !hiddenItem(i));
     const lines = items.flatMap((i) => kind.item(i)).filter(Boolean);
-    if (lines.length > 0) blocks.push([`## ${pick(sec, 'title', 'name') || kind.title}`, ...lines]);
+    if (lines.length > 0) blocks.push([sectionHeading(pick(sec, 'title', 'name') || kind.title), ...lines]);
   }
   // v5 and v6 keep them in `customSections`, v4 in `sections.custom`, an object keyed by id.
   for (const c of [...list(json.customSections), ...Object.values(rec(sections.custom))]) {
     const custom = customSection(rec(c));
-    if (custom) blocks.push([`## ${custom.title}`, ...custom.lines]);
+    if (custom) blocks.push([sectionHeading(custom.title), ...custom.lines]);
   }
   if (blocks.length === 0) return { ok: false, code: 'empty' };
 

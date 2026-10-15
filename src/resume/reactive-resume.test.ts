@@ -39,7 +39,7 @@ test('v6: experience carries position, company, place, dates and bullets', () =>
 
 test('v6: roles sit under their employer with their own dates', () => {
   const { markdown } = read('v6');
-  assert.ok(markdown.includes('Contoso Labs · Dallas, TX\nTech Lead · 2019 – 2022\nOwned the billing platform.'));
+  assert.ok(markdown.includes('Contoso Labs · Dallas, TX\nTech Lead · 2019 – 2022\n- Owned the billing platform.'));
   assert.ok(markdown.includes('Contoso Labs · Dallas, TX\nEngineer · 2016 – 2019'));
   // The employer's own dates are not a role: each position carries its own.
   assert.ok(!markdown.includes('2016 – 2022'));
@@ -423,4 +423,78 @@ test('the page panel that says what a parser reads finds every contact', () => {
   assert.deepEqual(live.contacts.map((c) => c.kind + ':' + (c.value ? 'yes' : 'no')), ['email:yes', 'phone:yes', 'link:yes', 'location:yes']);
   assert.equal(live.ownHeadings, 0);
   assert.deepEqual(live.sections, ['Summary', 'Skills (10 groups)', 'Experience (8 roles)', 'Education']);
+});
+
+/** A one-section export, read back with the plain reader. */
+function sectionOf(key: string, title: string, items: unknown[]) {
+  const got = readReactiveResume({
+    basics: { name: 'Ann', headline: 'Engineer', email: 'ann@example.com' },
+    summary: { content: '<p>Summary text of some length</p>' },
+    sections: { [key]: { title, items } },
+  });
+  assert.ok(got.ok);
+  return { markdown: got.markdown, read: structureFromText(got.markdown) };
+}
+
+test('a section title the reader would not take for a heading is made one, never left as content', () => {
+  const { markdown, read: r } = sectionOf('publications', 'Publications, Talks, and Patents', [{ title: 'A paper', publisher: 'Journal' }]);
+  assert.ok(markdown.includes('## Publications; Talks; and Patents\n'));
+  assert.deepEqual(r.extras.map((e) => e.heading), ['Publications; Talks; and Patents']);
+  const long = sectionOf('publications', 'P'.repeat(90), [{ title: 'A paper', publisher: 'Journal' }]).markdown;
+  assert.ok(long.split('\n').every((l) => !l.startsWith('## ') || l.length <= 83), 'a heading past the reader\'s limit');
+  assert.equal(sectionOf('publications', 'Publications and Talks', [{ title: 'A paper' }]).markdown.includes('## Publications and Talks\n'), true);
+});
+
+test('a job described in plain paragraphs is bulleted, so the next job starts where it should', () => {
+  const { markdown, read: r } = sectionOf('experience', 'Experience', [
+    { company: 'Acme', position: 'Engineer', dates: { start: '2020-01', end: '2021-01', present: false }, description: '<p>Built things.</p>' },
+    { company: 'Globex', position: 'Lead', dates: { start: '2021-02', end: '2022-02', present: false }, description: '<p>Led things.</p>' },
+  ]);
+  assert.ok(markdown.includes('Acme\nEngineer · Jan 2020 – Jan 2021\n- Built things.\nGlobex\nLead · Feb 2021 – Feb 2022\n- Led things.'));
+  assert.deepEqual(r.work.map((w) => [w.name, w.position, w.highlights]), [['Acme', 'Engineer', ['Built things.']], ['Globex', 'Lead', ['Led things.']]]);
+});
+
+test('a description that already has a list keeps its paragraphs as written', () => {
+  const { markdown } = sectionOf('experience', 'Experience', [
+    { company: 'Acme', position: 'Engineer', description: '<p>Platform team</p><ul><li><p>Built things.</p></li></ul>' },
+  ]);
+  assert.ok(markdown.includes('Acme\nEngineer\nPlatform team\n\n- Built things.'));
+});
+
+test('volunteering is written like a job, so it reads the same under either section name', () => {
+  const { markdown, read: r } = sectionOf('volunteer', 'Volunteer Experience', [
+    { organization: 'Red Cross', location: 'Rome', position: 'Helper', dates: { start: '2019', end: '2020', present: false }, description: '<p>Helped.</p>' },
+  ]);
+  assert.ok(markdown.includes('Red Cross · Rome\nHelper · 2019 – 2020\n- Helped.'));
+  assert.deepEqual(r.work.map((w) => [w.name, w.location, w.position, w.startDate, w.endDate]), [['Red Cross', 'Rome', 'Helper', '2019', '2020']]);
+});
+
+test('a v4 contact field keeps its value, with its name when it has one', () => {
+  const got = readReactiveResume({
+    basics: { name: 'Ann', headline: 'Engineer', email: 'ann@example.com', customFields: [{ name: 'Visa', value: 'H1B' }, { value: 'Remote only' }, { name: 'Empty', value: '' }] },
+    summary: { content: '<p>Summary text of some length</p>' },
+    sections: {},
+  });
+  assert.ok(got.ok);
+  assert.equal(contactOf(got.markdown), 'ann@example.com · Visa: H1B · Remote only');
+});
+
+test('a mail link whose words are the address says the address once, without the scheme', () => {
+  assert.equal(summaryText('<p><a href="mailto:a@b.example">a@b.example</a></p>'), 'a@b.example');
+});
+
+test('a position in capitals with year-only dates is read as a job by the plain reader', () => {
+  const { read: r } = sectionOf('experience', 'Experience', [
+    { company: 'Acme', position: 'CTO', dates: { start: '2020', end: '2021', present: false }, description: '<ul><li>Built.</li></ul>' },
+    { company: 'Globex', position: 'VP', dates: { start: '2018', end: '2019', present: false }, description: '<ul><li>Ran.</li></ul>' },
+  ]);
+  assert.deepEqual(r.extras, []);
+  assert.deepEqual(r.work.map((w) => [w.name, w.position, w.startDate, w.endDate]), [['Acme', 'CTO', '2020', '2021'], ['Globex', 'VP', '2018', '2019']]);
+});
+
+test('an education line with a date range in the middle of it reads as school, degree and dates', () => {
+  const { read: r } = sectionOf('education', 'Education', [
+    { school: 'MIT', degree: 'BSc', area: 'CS', location: 'Boston, MA', dates: { start: '2010', end: '2014', present: false } },
+  ]);
+  assert.deepEqual(r.education.map((e) => [e.institution, e.area, e.startDate, e.endDate]), [['MIT', 'BSc in CS · Boston, MA', '2010', '2014']]);
 });

@@ -64,6 +64,13 @@ None. The change is inside one pure module with no schema, route, prompt, catalo
 - [x] T019 [P] Update ADR 0073's addendum and the 2.59.8 CHANGELOG entry to say what the live check found and what changed (contact links; the text shape); `docs/where-to-look.md` only if a row moves (it does not).
 - [x] T020 Re-verify on the final tree and refresh the PR body's evidence: `lint:types`, both touched test files, `npm test` against the 35 environment failures (same file list), `npm run exports:audit`; commit `Mark #44 US3 verification complete`.
 
+### Independent review of Phase 6 (research R10)
+
+- [x] T021 [US3] Test first, then fix the shared reader (FR-022) in `src/resume/structure-from-text.ts`: `headingOf` returns null for a bare line that holds a date range, and `withDates` removes only the glue beside the range (and the brackets that held only the dates), joining what it sat between with ` · `. Tests in `src/resume/structure-from-text.test.ts`: a capitals position with year-only dates stays a job; `MIT · BSc in CS · Boston, MA · 2010 – 2014`, `MIT · 2006 – 2010` and `Oxford · 2001 – 2004 · Law` read as school, area and dates.
+- [x] T022 [US3] Test first, then fix the importer (FR-019 to FR-021) in `src/resume/reactive-resume.ts`: `sectionHeading` (commas, 80 characters), `bulleted` job text, volunteer written through `job`, `contactField` for v4 `name`/`value`, `linkText` without a redundant `mailto:`. Tests in `src/resume/reactive-resume.test.ts`, each read back through `structureFromText`.
+- [x] T023 [P] Spec FR-019 to FR-022, the contract, research R10 (fixed and deferred findings), the ADR 0073 addendum and the CHANGELOG say so.
+- [x] T024 Re-verify on the final tree and re-run the live export through the reader (employers, bullets, contacts, no `#` lines); commit `Address the independent review of #44`.
+
 ## Deferred to the owner (not an agent task)
 
 - [ ] T014 **Owner, not agent**: quickstart section 4 — import your real Reactive Resume export (file or pull), press **Download original**, confirm the GitHub and LinkedIn addresses are in the header line. The fixtures are hand-written, not checked against a live export; if an address is missing, save that export (redacted) as a fixture and widen `websiteOf` (research R1). Left unchecked on purpose; reported in the PR as unverified.

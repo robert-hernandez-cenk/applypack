@@ -15,17 +15,17 @@ Internal contract between `readReactiveResume` (producer) and everything that re
 
 ## Sections
 
-`## <title>` — the section's own title in Reactive Resume — then its lines.
+`## <title>` — the section's own title in Reactive Resume (commas after the first become semicolons when it has two or more; cut at 80 characters, the reader's limit) — then its lines.
 
 | Section | Lines |
 |---------|-------|
 | Summary | the paragraphs, as before |
-| Experience | per job (per position when an employer holds several): `<Company>` or `<Company> · <Place>`, then `<Position> · <Dates>` (just `<Dates>` with no position), then the description's lines, `- ` for list items; nothing at all above the text when the item names neither company nor position |
+| Experience | per job (per position when an employer holds several): `<Company>` or `<Company> · <Place>`, then `<Position> · <Dates>` (just `<Dates>` with no position), then the description's lines, `- ` for list items; a description of paragraphs only has each paragraph as a `- ` bullet; nothing at all above the text when the item names neither company nor position |
 | Education | one line: `<School> · <Degree> in <Area> · <Place> · <Dates>` (parts that exist), then `Grade <grade>` joined onto the line, then the description's lines |
 | Skills | `<Group>: <keyword>, <keyword>` per group, as before |
 | Languages | `<Language> (<fluency>)`, or `<Language>` |
 | Certifications, awards, publications | `<Title> — <Issuer> · <Date>` then the description's lines |
-| Volunteer | `<Organisation> · <Place> · <Dates>`, `<Position>`, the description's lines |
+| Volunteer | written as a job: `<Organisation>` or `<Organisation> · <Place>`, then `<Position> · <Dates>`, then the description's lines |
 | Projects | `<Name> · <Dates>`, the description's lines, `Keywords: …`, the link |
 | References | `<Name> — <Position>`, the description's lines |
 | Interests, custom sections | as before |
