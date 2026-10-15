@@ -51,6 +51,8 @@ None. The change is inside one pure module with no schema, route, prompt, catalo
 - [x] T011 [P] Bump the version to `2.59.8` in `package.json` and `package-lock.json` (patch only — the owner's standing rule); run `grep -rn "2\.59\.7" --include=*.json --include=*.ts --include=*.md . --exclude-dir=node_modules --exclude-dir=.git` and update any other place that carries the version the same way (leave the CHANGELOG's history alone).
 - [x] T012 Verification, with real output pasted into the PR body: `npm --prefix . run lint:types` clean; both touched test files green; `npm test` fails in exactly the same 35 files as T001 and nowhere new (compare the failing file lists, not just the counts); `npm run exports:audit` clean (no export was added). Commit `Mark #44 verification tasks complete`.
 - [x] T013 Review the whole branch diff (`git diff main...HEAD`) as the repo asks before a PR: every changed line needed, simpler where it can be; then run the `code-review` skill and fix what holds up.
+## Deferred to the owner (not an agent task)
+
 - [ ] T014 **Owner, not agent**: quickstart section 4 — import your real Reactive Resume export (file or pull), press **Download original**, confirm the GitHub and LinkedIn addresses are in the header line. The fixtures are hand-written, not checked against a live export; if an address is missing, save that export (redacted) as a fixture and widen `websiteOf` (research R1). Left unchecked on purpose; reported in the PR as unverified.
 
 ## Dependencies & execution order
