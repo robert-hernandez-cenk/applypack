@@ -25,7 +25,7 @@ export async function holderIdsOf(jobId: number): Promise<number[]> {
 
 /** Writes the changed fields, then scores the posting again with every status left where it is. */
 export async function editJob(job: ClassifiableJob, userId: number, changes: JobEditChanges): Promise<JobEditResult> {
-  if (!canEdit(await holderIdsOf(job.id), userId)) return { kind: 'refused' };
+  if (!canEdit(await holderIdsOf(job.id), userId, job.company.atsType)) return { kind: 'refused' };
 
   const data: Prisma.JobUpdateInput = {};
   if (changes.title !== undefined) data.title = changes.title;

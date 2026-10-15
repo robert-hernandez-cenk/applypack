@@ -4280,7 +4280,7 @@
   "jobEdit.hint.description": "Se conserva el texto con el que llegó la oferta: «Restaurar el original» en la oferta lo devuelve.",
   "jobEdit.save": "Guardar y puntuar de nuevo",
   "jobEdit.cancel": "Cancelar",
-  "jobEdit.shared": "Otras personas también tienen esta oferta, así que aquí no se puede editar. Aun así puedes reclasificarla desde su página.",
+  "jobEdit.shared": "Solo se puede editar una oferta que tú mismo has traído (pegada, de Gmail, importada o de una carpeta) y que nadie más tiene. Aun así puedes reclasificar esta desde su página.",
   "jobEdit.unchanged": "No se cambió nada.",
   "jobEdit.error.titleEmpty": "El título no puede estar vacío.",
   "jobEdit.error.titleTooLong": "El título es demasiado largo: {max} caracteres como máximo.",

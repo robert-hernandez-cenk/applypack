@@ -4280,7 +4280,7 @@
   "jobEdit.hint.description": "Le texte avec lequel l’annonce est arrivée est conservé : « Restaurer l’original » sur l’annonce le rétablit.",
   "jobEdit.save": "Enregistrer et noter de nouveau",
   "jobEdit.cancel": "Annuler",
-  "jobEdit.shared": "D’autres personnes ont aussi cette annonce, elle ne peut donc pas être modifiée ici. Vous pouvez toujours la reclasser depuis sa page.",
+  "jobEdit.shared": "Seule une annonce que vous avez apportée vous-même (collée, venue de Gmail, importée ou d’un dossier) et que personne d’autre n’a peut être modifiée. Vous pouvez toujours reclasser celle-ci depuis sa page.",
   "jobEdit.unchanged": "Rien n’a été modifié.",
   "jobEdit.error.titleEmpty": "L’intitulé ne peut pas être vide.",
   "jobEdit.error.titleTooLong": "L’intitulé est trop long : {max} caractères au maximum.",

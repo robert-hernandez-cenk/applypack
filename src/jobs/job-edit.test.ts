@@ -9,10 +9,15 @@ const same: JobEditForm = { title: 'Backend engineer', company: 'Acme', location
 const plan = (over: Partial<JobEditForm>, cur: JobEditCurrent = current) => planEdit(cur, { ...same, ...over });
 
 test('a posting is editable only by the one person who holds it', () => {
-  assert.equal(canEdit([7], 7), true);
-  assert.equal(canEdit([], 7), false);
-  assert.equal(canEdit([8], 7), false);
-  assert.equal(canEdit([7, 8], 7), false);
+  assert.equal(canEdit([7], 7, 'GMAIL'), true);
+  assert.equal(canEdit([], 7, 'GMAIL'), false);
+  assert.equal(canEdit([8], 7, 'GMAIL'), false);
+  assert.equal(canEdit([7, 8], 7, 'GMAIL'), false);
+});
+
+test('only what the person brought themselves is editable, however few hold it', () => {
+  for (const own of ['MANUAL', 'GMAIL', 'IMPORT', 'FOLDER']) assert.equal(canEdit([7], 7, own), true, own);
+  for (const theirs of ['GREENHOUSE', 'REMOTEOK', 'FRANCETRAVAIL', 'HN_HIRING', 'FEED']) assert.equal(canEdit([7], 7, theirs), false, theirs);
 });
 
 test('a form that says what is stored changes nothing, and a short stored description is not an error', () => {

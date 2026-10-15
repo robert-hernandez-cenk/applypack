@@ -524,7 +524,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         job.title,
       )
     : null;
-  const editable = canEdit(await holderIdsOf(id), userId);
+  const editable = canEdit(await holderIdsOf(id), userId, job.company.atsType);
   return c.html(
     <JobDetailPage
       editable={editable}
@@ -765,7 +765,7 @@ jobsRoute.post('/jobs/:id/description/restore', async (c) => {
 async function loadEditable(id: number) {
   const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true, sourceConfig: true } } } });
   if (!job) return null;
-  return { job, editable: canEdit(await holderIdsOf(id), currentUser().id) };
+  return { job, editable: canEdit(await holderIdsOf(id), currentUser().id, job.company.atsType) };
 }
 
 jobsRoute.get('/jobs/:id/edit', async (c) => {

@@ -72,7 +72,7 @@ Postings from boards and aggregators are held by everyone they reach. One person
 ### Functional Requirements
 
 - **FR-001**: A person MUST be able to edit a posting's title, company, location and description from its page.
-- **FR-002**: Editing MUST be offered and accepted only when the person is the only one holding the posting; otherwise it MUST be refused with an explanation and change nothing.
+- **FR-002**: Editing MUST be offered and accepted only for a posting the person brought themselves (pasted, Gmail, imported, folder) and nobody else holds; otherwise it MUST be refused with an explanation and change nothing.
 - **FR-003**: A description change MUST keep the text the posting arrived with, and "Restore the original" MUST bring it back, including after several edits.
 - **FR-004**: A location change MUST refresh the posting's place facets (workplace, countries, regions) from the new text.
 - **FR-005**: Saving a change MUST re-score the posting against the person's running searches, and MUST NOT change its status because of that re-score.

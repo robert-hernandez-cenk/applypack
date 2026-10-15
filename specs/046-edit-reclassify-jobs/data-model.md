@@ -24,3 +24,7 @@ Only the columns of fields that actually changed are written.
 ## State transitions
 
 - Description: `descriptionOriginal` null → first original set on the first edit; later edits keep it; "Restore the original" (existing) swaps it back and nulls it.
+
+## Editable sources (added after review)
+
+`editable = atsType ∈ {MANUAL, GMAIL, IMPORT, FOLDER} && holders.length === 1 && holders[0].userId === userId`.

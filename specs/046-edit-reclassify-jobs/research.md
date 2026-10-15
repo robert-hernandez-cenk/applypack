@@ -39,3 +39,7 @@
 ## R7 — Not touched
 
 URL, source/company row, salary, status, `postedAt`, fingerprint-based cross-listing link (annotation only, left as ADR 0043 leaves it). Stored comparisons are not deleted; they are not reused because the keyword frame keys on `descriptionRefreshedAt`.
+
+## R1 addendum — code review (2026-10-15)
+
+The holder rule alone made every posting editable on a single-person install, board and aggregator postings included. That contradicts the spec's non-goal and, for France Travail rows, the licence ("shown whole"; the sync rewrites them). `canEdit(holderIds, userId, atsType)` therefore also requires the source to be one the person brings themselves: `MANUAL`, `GMAIL`, `IMPORT`, `FOLDER`.

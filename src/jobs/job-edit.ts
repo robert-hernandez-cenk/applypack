@@ -44,9 +44,17 @@ export interface JobEditChanges {
   description?: string;
 }
 
-/** Everyone who holds the posting is the one asking. */
-export function canEdit(holderIds: readonly number[], userId: number): boolean {
-  return holderIds.length === 1 && holderIds[0] === userId;
+/**
+ * Postings a person brought themselves: pasted, from their Gmail label, an
+ * imported file, a folder. A board's or an aggregator's posting is the
+ * vendor's text — shown as received, rewritten by the next sync (France
+ * Travail's licence says whole) — whoever happens to hold it alone.
+ */
+const OWN_SOURCES: ReadonlySet<string> = new Set(['MANUAL', 'GMAIL', 'IMPORT', 'FOLDER']);
+
+/** The posting came in through the person's own hands and nobody else holds it. */
+export function canEdit(holderIds: readonly number[], userId: number, atsType: string): boolean {
+  return OWN_SOURCES.has(atsType) && holderIds.length === 1 && holderIds[0] === userId;
 }
 
 export function isUnchanged(changes: JobEditChanges): boolean {

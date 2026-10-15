@@ -4280,7 +4280,7 @@
   "jobEdit.hint.description": "The text the posting arrived with is kept: “Restore the original” on the posting brings it back.",
   "jobEdit.save": "Save and re-score",
   "jobEdit.cancel": "Cancel",
-  "jobEdit.shared": "Other people also hold this posting, so it cannot be edited here. You can still re-classify it from its page.",
+  "jobEdit.shared": "Only a posting you brought in yourself (pasted, from Gmail, imported or from a folder) and that nobody else holds can be edited. You can still re-classify this one from its page.",
   "jobEdit.unchanged": "Nothing was changed.",
   "jobEdit.error.titleEmpty": "The title cannot be empty.",
   "jobEdit.error.titleTooLong": "The title is too long: {max} characters at most.",
