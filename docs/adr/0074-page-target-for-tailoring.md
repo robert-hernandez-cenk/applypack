@@ -1,4 +1,4 @@
-# 0073 — A page target steers the cuts in resume tailoring
+# 0074 — A page target steers the cuts in resume tailoring
 
 **Status:** Accepted (2026-10-14). Issue #38. Builds on [0029](./0029-quick-check-and-lazy-suggestions.md)
 (the stored comparison's mode marker), [0037](./0037-suggestions-carry-replacement-text-gated-in-code.md) (what may be applied is decided

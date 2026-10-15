@@ -69,7 +69,7 @@ export async function suggestForMatch(
     brief: briefed?.brief ?? null,
     appliedFromLastRun: applied.map((a) => a.wording),
     candidateDomains: domainMismatch(industries, briefed?.brief),
-    // The target the comparison was made for, so "Rewrite all" and the floor's re-ask aim at it too (ADR 0073).
+    // The target the comparison was made for, so "Rewrite all" and the floor's re-ask aim at it too (ADR 0074).
     length,
   });
   const answer = await askForJson(

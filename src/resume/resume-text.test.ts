@@ -1,7 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { extractResumeText, ACCEPTED_EXTENSIONS } from './resume-text';
+import { join } from 'node:path';
+import { extractResumeText, ACCEPTED_EXTENSIONS, markdownResume, reactiveResumeFromBytes } from './resume-text';
 import { ResumeTextError } from './docx-text';
 import { buildZip } from './zip-write';
 
@@ -77,5 +78,44 @@ describe('extractResumeText — the files a user actually picks', () => {
 
   it('refuses a file with no extension at all', async () => {
     assert.match(await refusal('resume', Buffer.from(PROSE)), /Unsupported file type/);
+  });
+});
+
+describe('reactiveResumeFromBytes — a Reactive Resume export picked as a file', () => {
+  const fixture = (name: string): Buffer => readFileSync(join(__dirname, 'fixtures', 'reactive-resume', `${name}.json`));
+  const failure = (bytes: Buffer): string => {
+    try {
+      reactiveResumeFromBytes(bytes);
+    } catch (err) {
+      assert.ok(err instanceof ResumeTextError);
+      return err.failure;
+    }
+    return assert.fail('was read instead of refused');
+  };
+
+  it('reads all three generations', () => {
+    for (const name of ['v4', 'v5', 'v6']) assert.ok(reactiveResumeFromBytes(fixture(name)).text.length > 200, name);
+  });
+
+  it('survives a byte-order mark', () => {
+    assert.match(reactiveResumeFromBytes(Buffer.concat([Buffer.from('﻿'), fixture('v6')])).text, /Alex Rivera/);
+  });
+
+  it('refuses what is not JSON, not an export, empty, or too short, each with its own reason', () => {
+    assert.equal(failure(Buffer.from('{ nope')), 'badJson');
+    assert.equal(failure(fixture('not-rr')), 'notReactiveResume');
+    assert.equal(failure(Buffer.from('{"basics":{},"sections":{}}')), 'reactiveEmpty');
+    assert.equal(failure(Buffer.from('{"basics":{"name":"A"},"summary":{"content":"<p>Hi there</p>"},"sections":{}}')), 'tooShort');
+  });
+});
+
+describe('markdownResume', () => {
+  it('stores the text as a .md file under a name a file system accepts', () => {
+    const r = markdownResume('A/B: "C"?', 'body');
+    assert.deepEqual([r.sourceFilename, r.mimeType, r.original.toString('utf8'), r.text], ['A B C.md', 'text/markdown', 'body', 'body']);
+  });
+
+  it('falls back to a default name', () => {
+    assert.equal(markdownResume('  ', 'x').sourceFilename, 'Resume.md');
   });
 });

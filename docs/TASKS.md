@@ -2854,7 +2854,7 @@ it moves. Stage 0 carries no tag; the others are a minor each.
 ## 23. Page target for resume tailoring (issue #38, 2026-10-14; in review)
 
 Owner's ask: a veteran's resume runs four pages or more and the tailoring flow has no control over
-length. Spec, plan and tasks: `specs/038-resume-length-control/`; decision: [ADR 0073](./adr/0073-page-target-for-tailoring.md).
+length. Spec, plan and tasks: `specs/038-resume-length-control/`; decision: [ADR 0074](./adr/0074-page-target-for-tailoring.md).
 
 ### 23.1 Facts established (don't re-derive)
 
@@ -2875,5 +2875,5 @@ length. Spec, plan and tasks: `specs/038-resume-length-control/`; decision: [ADR
 
 - [x] `length.ts` + tests, marker, memo key, prompts, launcher control, stored target on the match card.
 - [x] Editor meter (`public/length.mjs` mirror, parity test, `target-page.mjs:paintLength`).
-- [x] ADR 0073, where-to-look rows, CHANGELOG, patch release 2.59.5.
+- [x] ADR 0074, where-to-look rows, CHANGELOG, patch release 2.59.5.
 - [ ] Verification with a live engine on a real 4-page resume (SC-001) — owner.

@@ -87,7 +87,7 @@ test('pickReusable: a full row behind a newer quick check on the same text is sh
   assert.equal(pickReusable([], text, 7, 'full', 1), null);
 });
 
-test('a full comparison made for one page target never answers for another (ADR 0073)', () => {
+test('a full comparison made for one page target never answers for another (ADR 0074)', () => {
   assert.equal(reuseDecision({ ...full, pages: 2 }, TEXT, 5, 'full', null, 'own', 'keep'), 'none');
   assert.equal(reuseDecision(full, TEXT, 5, 'full', null, 'own', 2), 'none', 'a row from before the marker was made for no target');
   assert.equal(reuseDecision({ ...full, pages: 2 }, TEXT, 5, 'full', null, 'own', 2), 'reuse');

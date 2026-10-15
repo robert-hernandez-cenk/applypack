@@ -19,6 +19,8 @@
 import { DEFAULT_USER_ID } from '../users/identity';
 import { SMOKE_INBOX } from './route-smoke-env';
 import { promises as fs } from 'node:fs';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { Hono } from 'hono';
 import { app } from '../web/app';
@@ -167,6 +169,35 @@ const RESUME = [
   'Experience: Acme (2021–2026), backend engineer — built the billing service in Node.js and TypeScript,',
   'moved it from MySQL to PostgreSQL, cut p95 latency by 40%. Education: BSc Computer Science.',
 ].join('\n');
+
+/** A Reactive Resume export long enough to be a resume; `name` keeps two of them from being the same text. */
+function reactiveExport(name: string): unknown {
+  return {
+    basics: { name, headline: 'Backend Engineer', email: 'smoke@example.com', location: 'Berlin' },
+    summary: { content: '<p>Backend engineer who builds billing services in Node.js and TypeScript on PostgreSQL.</p>' },
+    sections: {
+      experience: {
+        items: [
+          { company: 'Acme', position: 'Backend Engineer', period: '2021 - 2026', description: '<ul><li>Built the billing service</li><li>Moved it from MySQL to PostgreSQL</li></ul>' },
+          { company: 'Globex', position: 'Engineer', period: '2018 - 2021', description: '<p>Ran the on-call rota and kept the deploys boring.</p>' },
+        ],
+      },
+      skills: { items: [{ name: 'Backend', keywords: ['Node.js', 'TypeScript', 'PostgreSQL', 'Docker'] }] },
+    },
+  };
+}
+
+/** A server that answers like a Reactive Resume instance's API, and counts what reaches it. */
+async function reactiveStandIn(exportFor: unknown): Promise<{ url: string; hits: () => number; close: () => void }> {
+  let hits = 0;
+  const server = createServer((req, res) => {
+    hits++;
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(req.url?.endsWith('/resumes') ? [{ id: 'r1', name: 'Smoke pulled' }] : { id: 'r1', name: 'Smoke pulled', data: exportFor }));
+  });
+  await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+  return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, hits: () => hits, close: () => server.close() };
+}
 
 interface Fixtures {
   jobId: number;
@@ -721,6 +752,25 @@ async function main(): Promise<void> {
       init: form({ status: 'APPLIED', appliedResumeId: 'pack-1', tab: 'pack' }),
       expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}?tab=pack` && (res.headers.get('set-cookie') ?? '').includes('flash='),
     },
+    {
+      // ADR 0073: a Reactive Resume export is a resume, scanned like any upload.
+      name: 'POST /resumes (a Reactive Resume .json export)',
+      init: (() => {
+        const body = new FormData();
+        body.set('file', new File([JSON.stringify(reactiveExport('Smoke Export'))], 'smoke-export.json', { type: 'application/json' }));
+        return { method: 'POST', headers: ORIGIN, body } satisfies RequestInit;
+      })(),
+      expect: (res) => res.status === 303 && (res.headers.get('location') ?? '').startsWith('/target/runs/'),
+    },
+    {
+      name: 'POST /resumes (JSON that is not an export: refused in words, nothing saved)',
+      init: (() => {
+        const body = new FormData();
+        body.set('file', new File([JSON.stringify({ basics: { name: 'X' }, work: [] })], 'other.json', { type: 'application/json' }));
+        return { method: 'POST', headers: ORIGIN, body } satisfies RequestInit;
+      })(),
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/resumes' && flashOf(res).includes('Reactive Resume'),
+    },
   ];
   const postPaths = [
     '/jobs/new',
@@ -779,10 +829,51 @@ async function main(): Promise<void> {
     `/jobs/${f.jobId}?tab=pack`,
     `/jobs/${f.jobId}/pack/state`,
     `/jobs/${f.jobId}/status`,
+    '/resumes',
+    '/resumes',
   ];
   for (const [i, p] of posts.entries()) {
     const res = await app.request(postPaths[i]!, p.init);
     rows.push({ route: p.name, url: postPaths[i]!, status: res.status, ok: await p.expect(res) });
+  }
+
+  // ADR 0073: the pull from an instance, as the administrator who owns the fixtures — a loopback
+  // stand-in is theirs to reach. List shows the picker with no key in it; import saves a resume.
+  const instance = await reactiveStandIn(reactiveExport('Smoke Pulled'));
+  try {
+    const KEY = 'rr_smoke_SECRET_key';
+    const listed = await app.request('/resumes/reactive/list', form({ url: instance.url, key: KEY }));
+    const picker = listed.status === 200 ? await listed.text() : '';
+    const pull = /name="pull" value="([^"]+)"/.exec(picker)?.[1] ?? '';
+    rows.push({
+      route: 'POST /resumes/reactive/list (the picker, with no key on the page)',
+      url: '/resumes/reactive/list',
+      status: listed.status,
+      ok: listed.status === 200 && pull !== '' && picker.includes('Smoke pulled') && !picker.includes(KEY),
+    });
+    const imported = await app.request('/resumes/reactive/import', form({ pull, id: 'r1' }));
+    rows.push({
+      route: 'POST /resumes/reactive/import (the picked resume, scanned like an upload)',
+      url: '/resumes/reactive/import',
+      status: imported.status,
+      ok: imported.status === 303 && (imported.headers.get('location') ?? '').startsWith('/target/runs/'),
+    });
+    const again = await app.request('/resumes/reactive/import', form({ pull, id: 'r1' }));
+    rows.push({
+      route: 'POST /resumes/reactive/import with the same pull (used up: asked for again)',
+      url: '/resumes/reactive/import',
+      status: again.status,
+      ok: again.status === 303 && again.headers.get('location') === '/resumes' && flashOf(again).length > 0,
+    });
+    const refused = await app.request('/resumes/reactive/list', form({ url: 'ftp://nope.example.com', key: KEY }));
+    rows.push({
+      route: 'POST /resumes/reactive/list with an address that is not http(s) (refused before any request)',
+      url: '/resumes/reactive/list',
+      status: refused.status,
+      ok: refused.status === 303 && refused.headers.get('location') === '/resumes' && !flashOf(refused).includes(KEY),
+    });
+  } finally {
+    instance.close();
   }
 
   // What a request gets WRONG. Every one of these used to be a 500 or worse,
@@ -1252,6 +1343,20 @@ async function resumeIsolationChecks(ownResumeId: number): Promise<Check[]> {
   add('GET /resumes for a second person (their resumes only)', '/resumes', list.status, list.status === 200 && listHtml.includes('Teammate resume') && !listHtml.includes('Smoke resume'));
   const ownerList = await app.request('/resumes', { headers: ORIGIN });
   add('GET /resumes for the owner (not the other person\'s resume)', '/resumes', ownerList.status, ownerList.status === 200 && !(await ownerList.text()).includes('Teammate resume'));
+
+  // ADR 0073: a member is kept off the server's own network, whatever the install.
+  const inward = await reactiveStandIn(reactiveExport('Smoke Inward'));
+  try {
+    const refused = await asMate.request('/resumes/reactive/list', form({ url: inward.url, key: 'rr_smoke_key' }));
+    add(
+      'POST /resumes/reactive/list by a member to a loopback address (refused, no request made)',
+      '/resumes/reactive/list',
+      refused.status,
+      refused.status === 303 && inward.hits() === 0,
+    );
+  } finally {
+    inward.close();
+  }
   for (const [what, method, path] of [
     ['detail', 'GET', ''],
     ['download', 'GET', '/download'],

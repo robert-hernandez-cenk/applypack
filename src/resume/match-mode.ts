@@ -54,7 +54,7 @@ export function storedBreakdown(
     /** The verification whose company context a full row read; null for a quick check or none stored (#162 stage 2). */
     verificationId: number | null;
     evidence: MatchEvidence;
-    /** The page target the comparison was made for (ADR 0073); `keep` is no target. */
+    /** The page target the comparison was made for (ADR 0074); `keep` is no target. */
     pages: PageTarget;
   },
 ): Record<string, unknown> {

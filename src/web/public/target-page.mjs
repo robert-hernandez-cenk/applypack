@@ -260,7 +260,7 @@ export function init(data) {
     }
   }
 
-  /** The length line: the same words and arithmetic the server drew it with (ADR 0073). */
+  /** The length line: the same words and arithmetic the server drew it with (ADR 0074). */
   function paintLength(text) {
     if (!lengthMeter) return;
     const plan = lengthPlan(text, data.pageTarget ?? 'keep');

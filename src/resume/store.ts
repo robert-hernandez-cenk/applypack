@@ -460,14 +460,14 @@ export async function createMatch(input: {
   result: ResumeMatchResult;
   /** Computed by score.ts — the model never sets the number (ADR 0012). */
   breakdown: ScoreBreakdown;
-  /** All six ride inside the breakdown JSON — the memo key (match-reuse.ts), the row's shape (ADR 0029), where its keyword frame came from (keyword-frame.ts), which verification's company context it read (ADR 0042), whose evidence it used (TASKS R1) and the page target it was made for (ADR 0073). */
+  /** All six ride inside the breakdown JSON — the memo key (match-reuse.ts), the row's shape (ADR 0029), where its keyword frame came from (keyword-frame.ts), which verification's company context it read (ADR 0042), whose evidence it used (TASKS R1) and the page target it was made for (ADR 0074). */
   promptVersion: number;
   mode: MatchMode;
   frame: FrameReason;
   verificationId: number | null;
   /** R1: whether the owner's facts and other resumes were used, or the text alone. */
   evidence: MatchEvidence;
-  /** ADR 0073: the page target the suggestions were asked to cut toward. */
+  /** ADR 0074: the page target the suggestions were asked to cut toward. */
   pages: PageTarget;
 }): Promise<ResumeMatch> {
   const r = input.result;

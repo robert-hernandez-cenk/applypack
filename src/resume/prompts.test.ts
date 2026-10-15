@@ -1152,7 +1152,7 @@ test("the candidate's domains reach the full analysis and the suggestions, fence
   assert.match(buildSuggestionsPrompt('resume', JOB, { ...SUGGEST_INPUT, candidateDomains: different }).user, /never claim experience in that sector/);
 });
 
-test('page target (ADR 0073): the block reaches the full analysis and the suggestions, never the quick check', () => {
+test('page target (ADR 0074): the block reaches the full analysis and the suggestions, never the quick check', () => {
   const over = lengthPlan('x'.repeat(CHARS_PER_PAGE * 4), 2);
   const full = buildMatchPrompt('resume', JOB, 'full', { length: over }).user;
   assert.equal(full.split('LENGTH TARGET').length, 2, 'exactly once');
@@ -1161,7 +1161,7 @@ test('page target (ADR 0073): the block reaches the full analysis and the sugges
   assert.match(buildSuggestionsPrompt('resume', JOB, { ...SUGGEST_INPUT, length: over }).user, /LENGTH TARGET/);
 });
 
-test('page target (ADR 0073): "keep", a met target or no plan leave every prompt byte-for-byte as it was', () => {
+test('page target (ADR 0074): "keep", a met target or no plan leave every prompt byte-for-byte as it was', () => {
   const keep = lengthPlan('x'.repeat(CHARS_PER_PAGE * 4), 'keep');
   const met = lengthPlan('x'.repeat(CHARS_PER_PAGE), 2);
   for (const length of [keep, met]) {
@@ -1172,7 +1172,7 @@ test('page target (ADR 0073): "keep", a met target or no plan leave every prompt
   }
 });
 
-test('page target (ADR 0073): a reply with as many removals as the prompt may ask for still parses', () => {
+test('page target (ADR 0074): a reply with as many removals as the prompt may ask for still parses', () => {
   const removals = Array.from({ length: CUTS_MAX }, (_, i) => ({
     section: 'experience',
     where: `role ${i}`,
@@ -1185,7 +1185,7 @@ test('page target (ADR 0073): a reply with as many removals as the prompt may as
   if (parsed.ok) assert.equal(parsed.data.removals.length, CUTS_MAX);
 });
 
-test('page target (ADR 0073): the system prompts do not change with a target — only the user message does', () => {
+test('page target (ADR 0074): the system prompts do not change with a target — only the user message does', () => {
   const over = lengthPlan('x'.repeat(CHARS_PER_PAGE * 4), 2);
   assert.equal(buildMatchPrompt('resume', JOB, 'full', { length: over }).system, buildMatchPrompt('resume', JOB, 'full').system);
   assert.equal(buildSuggestionsPrompt('resume', JOB, { ...SUGGEST_INPUT, length: over }).system, buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT).system);

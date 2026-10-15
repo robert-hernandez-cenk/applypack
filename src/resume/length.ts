@@ -1,5 +1,5 @@
 /*
- * How long a resume is, and how far over a page target it runs (ADR 0073).
+ * How long a resume is, and how far over a page target it runs (ADR 0074).
  * The estimate is characters over one per-page constant — a guide, not a
  * layout measurement — and `src/web/public/length.mjs` mirrors it for the
  * editor's live meter (`src/web/length.test.ts` enforces parity). Pure.

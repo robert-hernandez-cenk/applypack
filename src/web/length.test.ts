@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { CHARS_PER_PAGE, estimatePages, lengthPlan, roundPages, type PageTarget } from '../resume/length';
 
 /*
- * public/length.mjs is the browser copy of resume/length.ts (ADR 0073): the
+ * public/length.mjs is the browser copy of resume/length.ts (ADR 0074): the
  * meter under the editor is recomputed on every edit, the server computed the
  * first figure, and the two must never disagree about the same text.
  */

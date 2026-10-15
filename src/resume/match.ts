@@ -82,7 +82,7 @@ export async function matchResumeToJob(
      * the Tailor resume page may be a friend's or an old one.
      */
     evidence?: MatchEvidence;
-    /** ADR 0073: the pages the candidate wants the resume to fit; the full analysis aims its cuts at it. */
+    /** ADR 0074: the pages the candidate wants the resume to fit; the full analysis aims its cuts at it. */
     pages?: PageTarget;
     onError?: (reason: string) => void;
   } = {},

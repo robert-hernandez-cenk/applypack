@@ -1056,7 +1056,7 @@ export interface MatchJobInput {
 export interface MatchContext {
   /** ask_user answers the user confirmed, with their own where/when context. */
   confirmedFacts?: { term: string; note: string | null }[];
-  /** The page target (ADR 0073): read by the full analysis and the suggestions call only; none, or met, adds nothing. */
+  /** The page target (ADR 0074): read by the full analysis and the suggestions call only; none, or met, adds nothing. */
   length?: LengthPlan;
   /** Terms the user said they do NOT have — always cannot_claim. */
   deniedTerms?: string[];

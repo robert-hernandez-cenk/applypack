@@ -1,0 +1,22 @@
+{
+  "picture": { "hidden": true, "url": "" },
+  "basics": {
+    "name": "Jonas Weber", "headline": "Platform Engineer", "email": "jonas@example.com", "phone": "+49 30 5550100",
+    "location": "Berlin, Germany", "website": { "url": "https://jonas.example.com", "label": "" }
+  },
+  "summary": { "title": "Summary", "hidden": false, "content": "<p>Platform engineer focused on developer tooling.</p>" },
+  "sections": {
+    "experience": { "title": "Experience", "hidden": false, "items": [
+      { "id": "e1", "hidden": false, "company": "Adatum", "position": "Platform Engineer", "location": "Berlin",
+        "period": "2021 - Present", "website": { "url": "", "label": "" },
+        "description": "<p>Built the internal CI platform.</p><ul><li>Cut build time from 25 to 8 minutes</li></ul>" }
+    ] },
+    "education": { "title": "Education", "hidden": false, "items": [
+      { "id": "d1", "hidden": false, "school": "TU Berlin", "degree": "MSc", "area": "Informatics", "grade": "", "location": "", "period": "2017 - 2019", "website": { "url": "", "label": "" }, "description": "" }
+    ] },
+    "skills": { "title": "Skills", "hidden": false, "items": [
+      { "id": "s1", "hidden": false, "name": "Tooling", "proficiency": "", "level": 4, "keywords": ["Bazel", "GitHub Actions", "Rust"] }
+    ] }
+  },
+  "metadata": { "template": "onyx" }
+}

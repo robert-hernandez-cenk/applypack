@@ -7,6 +7,19 @@ All notable changes to this project are documented here. The format follows
 ## [2.59.5] — 2026-10-14
 
 ### Added
+- **Import a resume from Reactive Resume.** On `/resumes`, upload the JSON
+  export (versions 4, 5 and 6 are told apart from the file itself) and it
+  becomes an ordinary, scanned resume: hidden sections and items left out,
+  formatted text flattened, dates written out. Or open **Import from Reactive
+  Resume**, enter the address of a hosted or self-hosted instance and an API
+  key, pick a resume from the list and import it. The key is used for those
+  requests only and is never saved; on a shared install a member cannot point
+  it at the server's own network; an administrator can.
+  Version 4 has no API, so it goes through the file (#39).
+
+## [2.59.6] — 2026-10-15
+
+### Added
 - **A page target for tailoring.** On the Tailor resume page, a new **Length**
   choice — *Keep as is* (the default), 1, 2 or 3 pages — asks the comparison to
   aim its cuts at that size. The removals and shorter wordings it suggests drop

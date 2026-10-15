@@ -31,7 +31,7 @@ export interface ComparisonRequest {
   mode: MatchMode;
   /** R1: the owner's facts and other resumes, or the text alone — a file on the Tailor resume page may not be theirs. */
   evidence: MatchEvidence;
-  /** ADR 0073: the pages the resume should fit; `keep` for every caller without the control. */
+  /** ADR 0074: the pages the resume should fit; `keep` for every caller without the control. */
   pages: PageTarget;
   rebuild: boolean;
   force: boolean;

@@ -1,0 +1,5 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jsonresume/resume-schema/v1.0.0/schema.json",
+  "basics": { "name": "Not Reactive", "label": "Programmer", "email": "x@example.com" },
+  "work": [{ "name": "Acme", "position": "Dev", "startDate": "2020-01-01" }]
+}

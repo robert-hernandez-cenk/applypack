@@ -26,7 +26,7 @@ export interface FlashMessage {
   rerun?: boolean;
   /** Which comparison the user asked for, so "Re-run anyway" repeats THAT one (ADR 0029). */
   mode?: string;
-  /** The page target it was made for, so "Re-run anyway" keeps it (ADR 0073). */
+  /** The page target it was made for, so "Re-run anyway" keeps it (ADR 0074). */
   pages?: string;
   /** The editor for the comparison just made — the flash offers "Tailor resume →" (#164). */
   tailor?: string;

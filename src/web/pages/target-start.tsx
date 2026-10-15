@@ -178,7 +178,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
           </Card>
         </div>
 
-        {/* ADR 0073: the pages the resume should fit. The default asks for nothing. */}
+        {/* ADR 0074: the pages the resume should fit. The default asks for nothing. */}
         <Field label={t('target.pages.label')} hint={t('target.pages.hint')} class="mt-4 sm:max-w-sm">
           <Select name="pages">
             <option value="keep" selected>

@@ -26,7 +26,7 @@ export interface StoredMatch {
   verificationId?: number | null;
   /** Whose evidence it used (R1): a text-only judgment never answers for one with the owner's facts, or back. */
   evidence?: MatchEvidence;
-  /** The page target it was made for (ADR 0073); a row from before the marker has none. */
+  /** The page target it was made for (ADR 0074); a row from before the marker has none. */
   pages?: PageTarget;
 }
 

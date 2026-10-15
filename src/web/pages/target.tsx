@@ -113,7 +113,7 @@ const READY_TO_APPLY = FIT_OK_FLOOR;
 const RING_LENGTH = 263.9;
 
 /**
- * The editor's length line as first drawn (ADR 0073). target-page.mjs repaints
+ * The editor's length line as first drawn (ADR 0074). target-page.mjs repaints
  * it on every edit with the same words — `browser.length.*` — and the same
  * arithmetic (public/length.mjs mirrors resume/length.ts).
  */
@@ -186,7 +186,7 @@ export const TargetPage: FC<TargetPageProps> = ({
     // Heads "Copy my changes"; the suggestion sheet is rendered server-side.
     // The title also keeps the posting's own title off the skills lines (skillGaps).
     sheet: { jobTitle: job.title, companyName: job.companyName, resumeName: resume.name },
-    // The pages this comparison was made for; null when none (ADR 0073).
+    // The pages this comparison was made for; null when none (ADR 0074).
     pageTarget: pageTarget === 'keep' ? null : pageTarget,
     // The document pane draws the draft through POST /resumes/:id/document.
     resumeId: resume.id,
@@ -342,7 +342,7 @@ export const TargetPage: FC<TargetPageProps> = ({
             </p>
             <MainAdviceLine advice={advice} />
             {breakdown && <ScoreCeilingLine bd={breakdown} />}
-            {/* The length of the text in the editor, repainted by target-page.mjs on every edit (ADR 0073). */}
+            {/* The length of the text in the editor, repainted by target-page.mjs on every edit (ADR 0074). */}
             <p id="length-meter" data-ui="hint" class="text-note tabular-nums text-ink-faint" title={t('target.length.title')}>
               {lengthMeterText(lengthPlan(resumeText, pageTarget))}
             </p>

@@ -36,7 +36,7 @@ const TargetFormSchema = ManualJobSchema.extend({
   description: z.string().trim().default(''),
   /** The quick check unless "Full analysis" was pressed (ADR 0029). */
   mode: z.unknown().transform(parseMatchMode),
-  /** The pages the resume should fit; anything else keeps its length (ADR 0073). */
+  /** The pages the resume should fit; anything else keeps its length (ADR 0074). */
   pages: z.unknown().transform(parsePageTarget),
   ...ResumeSourceFields,
 });

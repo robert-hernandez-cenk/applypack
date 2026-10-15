@@ -1,8 +1,8 @@
-import { extname } from 'node:path';
+import { basename, extname } from 'node:path';
 import { bodyLimit } from 'hono/body-limit';
 import { logger } from '../logger';
 import { ResumeTextError } from '../resume/docx-text';
-import { ACCEPTED_EXTENSIONS, extractResumeText } from '../resume/resume-text';
+import { ACCEPTED_EXTENSIONS, extractResumeText, markdownResume, reactiveResumeFromBytes } from '../resume/resume-text';
 import { flashRedirect } from './flash';
 import { t } from '../i18n/t';
 
@@ -32,6 +32,8 @@ export function nameFromFilename(filename: string): string {
   return base.replace(/[_\-\s]+/g, ' ').trim().slice(0, MAX_RESUME_NAME_CHARS) || t('upload.defaultName');
 }
 
+const JSON_EXTENSION = '.json';
+
 /** Reads the multipart `file` field into bytes + extracted text, or a user-facing error. */
 export async function readResumeUpload(
   form: Record<string, unknown>,
@@ -42,6 +44,12 @@ export async function readResumeUpload(
   }
   const original = Buffer.from(await file.arrayBuffer());
   try {
+    if (extname(file.name).toLowerCase() === JSON_EXTENSION) {
+      // Not in ACCEPTED_EXTENSIONS: that list also gates screening intake (ADR 0073).
+      const { text } = reactiveResumeFromBytes(original);
+      logger.info({ file: file.name, bytes: original.length, chars: text.length }, 'resume: Reactive Resume export parsed');
+      return markdownResume(basename(file.name, extname(file.name)), text);
+    }
     const started = Date.now();
     const text = await extractResumeText(file.name, original);
     // The parse is the whole cost of an instant check (docs/target-plan.md §3.4).

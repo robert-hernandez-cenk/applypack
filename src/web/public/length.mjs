@@ -1,6 +1,6 @@
 /*
  * How long the resume is against a page target — browser copy of
- * src/resume/length.ts (ADR 0073), for the editor's live meter: the estimate
+ * src/resume/length.ts (ADR 0074), for the editor's live meter: the estimate
  * is characters over one per-page constant, and the figure under the editor
  * must never disagree with the one the server computed for the same text.
  *
