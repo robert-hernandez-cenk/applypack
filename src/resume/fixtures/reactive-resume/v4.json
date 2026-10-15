@@ -5,6 +5,10 @@
   },
   "sections": {
     "summary": { "name": "Summary", "visible": true, "content": "<p>Analyst who turns messy data into decisions.</p>" },
+    "profiles": { "name": "Profiles", "visible": true, "items": [
+      { "id": "p1", "visible": true, "network": "LinkedIn", "username": "mina-o", "icon": "linkedin", "url": { "label": "", "href": "https://www.linkedin.com/in/mina-o" } },
+      { "id": "p2", "visible": false, "network": "Twitter", "username": "ghostmina", "icon": "twitter", "url": { "label": "", "href": "https://twitter.com/ghostmina" } }
+    ] },
     "experience": { "name": "Experience", "visible": true, "items": [
       { "id": "e1", "visible": true, "company": "Fabrikam", "position": "Data Analyst", "location": "Lagos", "date": "Jan 2020 - Present", "summary": "<p>Built dashboards in Looker.</p>", "url": { "label": "", "href": "" } }
     ] },

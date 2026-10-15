@@ -97,6 +97,10 @@ describe('reactiveResumeFromBytes — a Reactive Resume export picked as a file'
     for (const name of ['v4', 'v5', 'v6']) assert.ok(reactiveResumeFromBytes(fixture(name)).text.length > 200, name);
   });
 
+  it('keeps the profile addresses in the header, where the file upload and the pull both read them', () => {
+    assert.match(reactiveResumeFromBytes(fixture('v6')).text, /Austin, TX · https:\/\/alex\.example\.com · https:\/\/github\.com\/arivera · /);
+  });
+
   it('survives a byte-order mark', () => {
     assert.match(reactiveResumeFromBytes(Buffer.concat([Buffer.from('﻿'), fixture('v6')])).text, /Alex Rivera/);
   });

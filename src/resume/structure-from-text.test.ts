@@ -217,3 +217,29 @@ test('a contact line that opens with the title gives the label, and a date takes
   assert.equal(r.work[0]?.position, 'Senior Developer - Harborline (remote)');
   assert.equal(r.work[0]?.startDate, '2022');
 });
+
+test('a line that holds a date range is never a section heading, even in capitals', () => {
+  const r = structureFromText(
+    'Dana Ruiz\nEngineer\ndana@example.com\n\n## Experience\nAcme\nCTO · 2020 – 2021\n- Built the thing\nGlobex\nLead · 2018 – 2019\n- Ran the thing\n',
+  );
+  assert.deepEqual(r.extras, []);
+  assert.deepEqual(
+    r.work.map((w) => [w.name, w.position, w.startDate, w.endDate, w.highlights.length]),
+    [
+      ['Acme', 'CTO', '2020', '2021', 1],
+      ['Globex', 'Lead', '2018', '2019', 1],
+    ],
+  );
+});
+
+test('the dates come out of an education line whatever else it holds, and only their own separator goes', () => {
+  const r = structureFromText('Dana Ruiz\nEngineer\ndana@example.com\n\n## Education\nMIT · BSc in CS · Boston, MA · 2010 – 2014\nMIT · 2006 – 2010\nOxford · 2001 – 2004 · Law\n');
+  assert.deepEqual(
+    r.education.map((e) => [e.institution, e.area, e.startDate, e.endDate]),
+    [
+      ['MIT', 'BSc in CS · Boston, MA', '2010', '2014'],
+      ['MIT', null, '2006', '2010'],
+      ['Oxford', 'Law', '2001', '2004'],
+    ],
+  );
+});

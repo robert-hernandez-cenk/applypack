@@ -120,3 +120,33 @@
 {"timestamp":"2026-10-15T11:44:18Z","action":"handoff","status":"blocked","feature_directory":"specs/042-reactive-resume-setting","decision":"updated","reason":"Missing required Spec Kit artifacts: specs/042-reactive-resume-setting/spec.md,specs/042-reactive-resume-setting/plan.md,specs/042-reactive-resume-setting/tasks.md","actor":"claude","prior_actor":"claude","snapshot_id":""}
 {"timestamp":"2026-10-15T11:44:18Z","action":"guard","status":"allow","feature_directory":"specs/042-reactive-resume-setting","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
 {"timestamp":"2026-10-15T12:00:27Z","action":"handoff","status":"complete","feature_directory":"specs/042-reactive-resume-setting","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":""}
+{"timestamp":"2026-10-15T14:09:24.2979038Z","action":"guard","status":"allow","feature_directory":"specs/042-reactive-resume-setting","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.plan"}
+
+{"timestamp":"2026-10-15T14:12:00.6014822Z","action":"guard","status":"allow","feature_directory":"specs/042-reactive-resume-setting","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.tasks"}
+
+{"timestamp":"2026-10-15T14:13:11.1038823Z","action":"handoff","status":"ready","feature_directory":"specs/042-reactive-resume-setting","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T1413110609569Z-ready"}
+
+{"timestamp":"2026-10-15T14:13:24.3329475Z","action":"handoff","status":"ready","feature_directory":"specs/044-reactive-resume-links","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T1413243007631Z-ready"}
+
+{"timestamp":"2026-10-15T14:13:47.6424779Z","action":"handoff","status":"executing","feature_directory":"specs/044-reactive-resume-links","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T1413476026075Z-executing"}
+
+{"timestamp":"2026-10-15T14:13:48.0712355Z","action":"guard","status":"allow","feature_directory":"specs/044-reactive-resume-links","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
+
+{"timestamp":"2026-10-15T14:21:04.0270553Z","action":"handoff","status":"complete","feature_directory":"specs/044-reactive-resume-links","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T1421039597649Z-complete"}
+
+{"event":"artifact_drift_detected","timestamp":"2026-10-15T14:21:04.0326604Z","actor":"claude","feature_directory":"specs/044-reactive-resume-links","drifted_artifacts":[{"path":"tasks.md","old_sha256":"abcdbc2ffe7ebf9a83d3d6b6fdd8c8f032e793376e4d31d9df3f3198d63a113a","new_sha256":"2861eb549ab9f5c20194240cf2c467ff3ecd95aa49826b944293b66a23b714a1"}]}
+
+{"timestamp":"2026-10-15T14:21:42.1593426Z","action":"handoff","status":"complete","feature_directory":"specs/044-reactive-resume-links","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T1421421121655Z-complete"}
+
+{"event":"artifact_drift_detected","timestamp":"2026-10-15T14:21:42.1653890Z","actor":"claude","feature_directory":"specs/044-reactive-resume-links","drifted_artifacts":[{"path":"tasks.md","old_sha256":"2861eb549ab9f5c20194240cf2c467ff3ecd95aa49826b944293b66a23b714a1","new_sha256":"2f69d30714849766c435f7293069a2c0a06ab27a0337d2739e9db496a0caf2b0"}]}
+
+{"timestamp":"2026-10-15T14:30:37.4109380Z","action":"handoff","status":"blocked","feature_directory":"specs/044-reactive-resume-links","decision":"updated","reason":"Live check (resume 5): links are in basics.customFields[].link, and the Markdown dialect (# / ### headings) defeats structureFromText; spec 044 incomplete","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T1430373775893Z-blocked"}
+
+{"timestamp":"2026-10-15T14:32:57.5704512Z","action":"handoff","status":"executing","feature_directory":"specs/044-reactive-resume-links","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T1432575270064Z-executing"}
+
+{"timestamp":"2026-10-15T14:32:58.0214681Z","action":"guard","status":"allow","feature_directory":"specs/044-reactive-resume-links","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
+
+{"timestamp":"2026-10-15T14:49:54.4022558Z","action":"handoff","status":"complete","feature_directory":"specs/044-reactive-resume-links","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T1449543519431Z-complete"}
+
+{"event":"artifact_drift_detected","timestamp":"2026-10-15T14:49:54.4085208Z","actor":"claude","feature_directory":"specs/044-reactive-resume-links","drifted_artifacts":[{"path":"spec.md","old_sha256":"316d8d4a9acd45e47148b1c0ab81d1f26bec7ec1e9623cc246ed7d6e1c2ff393","new_sha256":"7136585bb2adbba9f317c4b1f52544f5c3fb1619a929f4e25ef2bcbf78a2717b"},{"path":"tasks.md","old_sha256":"6fea4aaf8bf4a2811a6c02fddf3f1cfa12cfa233313fa30d0142a1741f206558","new_sha256":"f08cb88bfc09f7cb15b18eeed4ccc1783094ed33c0ede1fd8b3fd29f4c94edb1"}]}
+

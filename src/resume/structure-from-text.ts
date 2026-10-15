@@ -163,6 +163,8 @@ function headingOf(line: string): string | null {
   const t = line.trim();
   if (t.length === 0 || t.length > MAX_HEADING_CHARS) return null;
   if (BULLET.test(line) || EMAIL.test(t) || URL.test(t)) return null;
+  // "CTO · 2020 – 2021" has no lower-case letter either, and it is a role, not a section.
+  if (DATE_RANGE.test(t)) return null;
   // "AWS, S3, EC2, SQS, RDS, OWASP" is shouting too, and it is a list, not a section.
   if (LIST_LIKE.test(t)) return null;
   // "Experience" or "Work experience:" as the whole line: the heading a plain-text
@@ -399,13 +401,22 @@ function splitTail(line: string): [string, string] {
   return [parts[0] ?? '', parts.slice(1).join(' · ')];
 }
 
+/** What holds a range to the rest of its line: spaces, punctuation, dashes and the separators. */
+const RANGE_GLUE = /^[\s,;·|•∙–—-]+|[\s,;·|•∙–—-]+$/g;
+
 function withDates(line: string): { text: string; start: string | null; end: string | null } {
   const m = DATE_RANGE.exec(line);
   if (!m) return { text: line.trim(), start: null, end: null };
-  // What held the dates to the rest goes with them: "Harborline (remote), 2022-present" is not a company ending in a comma.
-  const text = (line.slice(0, m.index) + line.slice(m.index + m[0].length))
-    .replace(SEPARATORS, ' ')
-    .replace(/^[\s,;–—-]+|[\s,;–—-]+$/g, '');
+  let head = line.slice(0, m.index);
+  let tail = line.slice(m.index + m[0].length);
+  // "Architect (Jun 2018 – Jan 2022)": the brackets held only the dates.
+  if (/\(\s*$/.test(head) && /^\s*\)/.test(tail)) {
+    head = head.replace(/\(\s*$/, '');
+    tail = tail.replace(/^\s*\)/, '');
+  }
+  // The glue that went with the dates goes with them — "Harborline (remote), 2022-present" is not a company
+  // ending in a comma — and only that: what the range sat between stays two parts, still apart.
+  const text = [head, tail].map((part) => part.replace(RANGE_GLUE, '')).filter(Boolean).join(' · ');
   return { text, start: m[1]?.trim() ?? null, end: m[2]?.trim() ?? null };
 }
 

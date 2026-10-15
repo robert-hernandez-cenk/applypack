@@ -2,11 +2,20 @@ import { z } from 'zod';
 import { stripHtml } from '../http';
 
 /*
- * A Reactive Resume export (v4, v5 or v6 JSON) → the Markdown a resume is
- * stored as (ADR 0073). Pure. The files carry no version marker, so the
- * generation is read off the shape; every key is optional and an unknown one
- * is ignored — the shapes are written from the published schema and have not
- * been checked against a live instance (specs/039-…/contracts).
+ * A Reactive Resume export (v4, v5 or v6 JSON) → the text a resume is stored
+ * as (ADR 0073). Pure. The files carry no version marker, so the generation
+ * is read off the shape; every key is optional and an unknown one is ignored.
+ * The shapes are written from the published schema and, for v6, checked
+ * against one real export (specs/044-…/research R8).
+ *
+ * The text is written in the dialect a .docx or .pdf extracts to, because
+ * that is what every reader of a stored resume — `structureFromText`, the
+ * page's "what a parser reads" panel, an ATS that extracts text — already
+ * understands: the name, the headline and one contact line as plain lines,
+ * `## ` section headings, and per job a company line, a `Position · Dates`
+ * line and its bullets. A `#` heading for the name or a `###` one per job read
+ * as a stack of sections, and the parser found no name, no contact and one job
+ * of six. No line here begins with `#` except a section heading.
  */
 
 export type Generation = 'v4' | 'v5' | 'v6';
@@ -36,14 +45,78 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const PRESENT = 'Present';
 const YEAR_MONTH = /^(\d{4})-(\d{2})$/;
 
+/** How far past `<a` a tag's end and its `</a>` are looked for: a link spread wider than this is left as its words. */
+const LINK_WINDOW_CHARS = 2_000;
+const LINK_OPEN = '<a';
+const LINK_CLOSE = '</a>';
+/** The only targets worth keeping: a web or a mail address. */
+const LINK_SCHEME = /^(?:https?:|mailto:)/i;
+const HREF = /\shref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i;
+const TAG = /<[^>]*>/g;
+const AMP_ENTITY = /&amp;/g;
+const MAILTO = /^mailto:/i;
+/** The longest `## ` heading the reader takes for one (`structure-from-text.ts`); a longer one is read as content. */
+const MAX_HEADING_CHARS = 80;
+
+const hrefOf = (tag: string): string => {
+  const m = HREF.exec(tag);
+  const target = (m?.[1] ?? m?.[2] ?? m?.[3] ?? '').trim();
+  return LINK_SCHEME.test(target) && !/[<>]/.test(target) ? target : '';
+};
+
+const asText = (s: string): string => s.replace(TAG, '').replace(AMP_ENTITY, '&').trim();
+
+/** `words (address)`, or the address alone when there are no words or they are the address. */
+const linkText = (words: string, target: string): string => {
+  const said = asText(words);
+  const address = asText(target);
+  if (said === '' || said === address) return target;
+  // "a@b.example (mailto:a@b.example)" says it twice.
+  return said === address.replace(MAILTO, '') ? words : `${words} (${target})`;
+};
+
+/**
+ * `<a href="X">words</a>` → `words (X)` for a web or mail address; any other
+ * anchor is left for `stripHtml` to reduce to its words. One pass: the next
+ * `>` and `</a>` only ever move forward, so a run of openers that never close
+ * costs its length, not its square — `replaceUpTo` in http.ts is the case
+ * that taught this (300 kB of `<a ` took nine seconds). The text comes out
+ * still markup, for the one `stripHtml` pass that follows (it decodes `&amp;`
+ * last; never run it twice).
+ */
+function withLinkTargets(html: string): string {
+  let out = '';
+  let copied = 0;
+  let from = 0;
+  let tagEnd = -1;
+  let close = -1;
+  for (;;) {
+    const open = html.indexOf(LINK_OPEN, from);
+    if (open === -1) break;
+    from = open + LINK_OPEN.length;
+    if (!/\s/.test(html.charAt(from))) continue;
+    if (tagEnd < open) tagEnd = html.indexOf('>', open);
+    if (tagEnd === -1) break;
+    if (close < tagEnd) close = html.indexOf(LINK_CLOSE, tagEnd);
+    if (close === -1) break;
+    if (close - open > LINK_WINDOW_CHARS) continue;
+    const target = hrefOf(html.slice(open, tagEnd));
+    if (!target) continue;
+    out += html.slice(copied, open) + linkText(html.slice(tagEnd + 1, close), target);
+    copied = from = close + LINK_CLOSE.length;
+  }
+  return out + html.slice(copied);
+}
+
 /**
  * Formatted text → plain lines. The bullets stripHtml writes become Markdown
  * list lines — the editor wraps each item's text in a paragraph, so the
- * bullet can sit alone on its line — and a list stays one block.
+ * bullet can sit alone on its line — and a list stays one block. A link keeps
+ * its address next to its words.
  */
 function plain(html: unknown): string {
   const s = text(html);
-  return s ? stripHtml(s).replace(/^•\s*/gm, '- ').replace(/^(- .*)\n\n(?=- )/gm, '$1\n') : '';
+  return s ? stripHtml(withLinkTargets(s)).replace(/^•\s*/gm, '- ').replace(/^(- .*)\n\n(?=- )/gm, '$1\n') : '';
 }
 
 function datePoint(s: string): string {
@@ -68,12 +141,32 @@ function when(item: Rec): string {
 
 const hiddenItem = (x: Rec): boolean => x.hidden === true || x.visible === false;
 
-/** A heading line: the place in brackets and the dates after a dot; no line at all for an item that names nothing. */
-function heading(level: number, main: string, place: string, dates: string): string {
-  if (!main) return '';
-  const where = place ? `${main} (${place})` : main;
-  return `${'#'.repeat(level)} ${[where, dates].filter(Boolean).join(' · ')}`;
-}
+/** Parts joined by a dot, the separator the reader splits a line on. */
+const dotted = (...parts: string[]): string => parts.filter(Boolean).join(' · ');
+
+/** An item's line: `main · rest…`; none at all for an item that names nothing, so its dates never stand alone. */
+const entry = (main: string, ...rest: string[]): string => (main ? dotted(main, ...rest) : '');
+
+/** A job: the company line, then the position line with its dates, then its text; just the text when it names neither. */
+const job = (company: string, position: string, dates: string, text: string[]): string[] =>
+  company || position ? [company, dotted(position, dates), ...text] : text;
+
+/**
+ * A job described only in paragraphs gets each one as a bullet: the reader
+ * starts the next job after a block of bullets and at no other place, so two
+ * jobs without any would run into one. A description that has a list keeps its
+ * paragraphs as written.
+ */
+const bulleted = (text: string[]): string[] => {
+  const lines = text.flatMap((t) => t.split('\n')).filter((l) => l.trim());
+  return lines.some((l) => l.startsWith('- ')) ? text : lines.map((l) => `- ${l}`);
+};
+
+/** `## Title`, made a heading the reader accepts: it refuses two commas (a list) and anything past 80 characters. */
+const sectionHeading = (title: string): string => {
+  const plain = title.split(',').length > 2 ? title.replace(/,/g, ';') : title;
+  return `## ${plain.slice(0, MAX_HEADING_CHARS).trim()}`;
+};
 
 /** A link written as text, or as `{ url }` (v5, v6) or `{ href }` (v4). */
 const linkOf = (x: unknown): string => (typeof x === 'string' ? text(x) : pick(rec(x), 'url', 'href'));
@@ -81,37 +174,36 @@ const websiteOf = (item: Rec): string => linkOf(item.website) || linkOf(item.url
 
 type Block = string[];
 
-/** One section's items → Markdown lines. */
+/** One section's items → lines. */
 interface SectionKind {
   key: string;
   title: string;
-  /** An item is a heading with a body, or plain lines. */
+  /** An item is a line or two and its text; never a heading. */
   item: (item: Rec) => Block;
 }
 
 const body = (...parts: unknown[]): Block => parts.map(plain).filter(Boolean);
 
 function experience(item: Rec): Block {
-  const company = pick(item, 'company');
+  const company = entry(pick(item, 'company'), pick(item, 'location'));
   const position = pick(item, 'position');
   const roles = list(item.roles).map(rec).filter((r) => !hiddenItem(r));
-  // An employer that holds several roles has none of its own: the heading is the company.
-  const main = position && company ? `${position} — ${company}` : position || company;
-  return [
-    heading(3, main, pick(item, 'location'), when(item)),
-    ...body(item.description, item.summary),
-    ...roles.flatMap((r) => [heading(4, pick(r, 'position'), '', when(r)), ...body(r.description, r.summary)]),
-  ];
+  const text = bulleted(body(item.description, item.summary));
+  // An employer that holds several positions has none of its own: each position is a job, the company line repeated above it.
+  const held = roles.flatMap((r, i) =>
+    job(company, pick(r, 'position'), when(r), [...(i === 0 && !position ? text : []), ...bulleted(body(r.description, r.summary))]),
+  );
+  return position || roles.length === 0 ? [...job(company, position, when(item), text), ...held] : held;
 }
 
+/** The school first, because that is where the reader looks for it. */
 function education(item: Rec): Block {
   const degree = pick(item, 'degree', 'studyType');
   const area = pick(item, 'area');
-  const school = pick(item, 'school', 'institution');
   const what = degree && area ? `${degree} in ${area}` : degree || area;
-  const main = what && school ? `${what} — ${school}` : what || school;
   const grade = pick(item, 'grade', 'score');
-  return [heading(3, main, pick(item, 'location'), when(item)), ...(grade ? [`Grade: ${grade}`] : []), ...body(item.description, item.summary)];
+  const main = pick(item, 'school', 'institution') || what;
+  return [entry(main, main === what ? '' : what, pick(item, 'location'), when(item), grade ? `Grade ${grade}` : ''), ...body(item.description, item.summary)];
 }
 
 function skills(item: Rec): Block {
@@ -126,32 +218,30 @@ function project(item: Rec): Block {
   const words = list(item.keywords).map(text).filter(Boolean);
   const link = websiteOf(item);
   return [
-    heading(3, pick(item, 'name'), '', when(item)),
+    entry(pick(item, 'name'), when(item)),
     ...body(item.description, item.summary),
     ...(words.length > 0 ? [`Keywords: ${words.join(', ')}`] : []),
     ...(link ? [link] : []),
   ];
 }
 
+/** `English (Native)`: the form the reader splits into a language and its fluency. */
 function language(item: Rec): Block {
   const name = pick(item, 'language', 'name');
   const level = pick(item, 'fluency', 'description');
-  return [name && level ? `${name} — ${level}` : name];
+  return [name && level ? `${name} (${level})` : name];
 }
 
 /** Certifications, awards and publications: a title, who gave it, when. */
 const titled = (by: string[]) => (item: Rec): Block => {
   const title = pick(item, 'title', 'name');
   const giver = pick(item, ...by);
-  return [heading(3, title && giver ? `${title} — ${giver}` : title || giver, '', when(item)), ...body(item.description, item.summary)];
+  return [entry(title && giver ? `${title} — ${giver}` : title || giver, when(item)), ...body(item.description, item.summary)];
 };
 
+/** Written like a job — people retitle this section "Volunteer Experience", and the reader then reads it as work. */
 function volunteer(item: Rec): Block {
-  return [
-    heading(3, pick(item, 'organization', 'company'), pick(item, 'location'), when(item)),
-    ...(pick(item, 'position') ? [pick(item, 'position')] : []),
-    ...body(item.description, item.summary),
-  ];
+  return job(entry(pick(item, 'organization', 'company'), pick(item, 'location')), pick(item, 'position'), when(item), bulleted(body(item.description, item.summary)));
 }
 
 function interest(item: Rec): Block {
@@ -160,18 +250,27 @@ function interest(item: Rec): Block {
   return [words.length > 0 ? `${name ? `${name}: ` : ''}${words.join(', ')}` : name];
 }
 
-function profile(item: Rec): Block {
-  const network = pick(item, 'network');
-  const user = pick(item, 'username');
-  const link = websiteOf(item);
-  const who = [user, link && !user ? link : ''].filter(Boolean).join(' ');
-  return [network && who ? `${network}: ${who}` : network || who];
+/**
+ * The visible profiles as header entries: the address alone when there is one,
+ * else `Network: username`. A bare network names nobody, so it adds nothing.
+ */
+function profileEntries(sections: Rec): string[] {
+  const sec = rec(sections.profiles);
+  if (hiddenItem(sec)) return [];
+  return list(sec.items)
+    .map(rec)
+    .filter((item) => !hiddenItem(item))
+    .map((item) => {
+      const user = pick(item, 'username');
+      const network = pick(item, 'network');
+      return websiteOf(item) || (network && user ? `${network}: ${user}` : user);
+    });
 }
 
 function reference(item: Rec): Block {
   const name = pick(item, 'name');
   const role = pick(item, 'position');
-  return [heading(3, name && role ? `${name} — ${role}` : name || role, '', ''), ...body(item.description, item.summary)];
+  return [name && role ? `${name} — ${role}` : name || role, ...body(item.description, item.summary)];
 }
 
 /** The order a resume reads in. */
@@ -186,7 +285,6 @@ const SECTIONS: SectionKind[] = [
   { key: 'publications', title: 'Publications', item: titled(['publisher']) },
   { key: 'volunteer', title: 'Volunteer', item: volunteer },
   { key: 'interests', title: 'Interests', item: interest },
-  { key: 'profiles', title: 'Profiles', item: profile },
   { key: 'references', title: 'References', item: reference },
 ];
 
@@ -203,9 +301,22 @@ function generationOf(root: Rec, sections: Rec): Generation {
   return dated ? 'v6' : 'v5';
 }
 
-function contactLine(basics: Rec): string {
-  const custom = list(basics.customFields).map((f) => pick(rec(f), 'text')).filter(Boolean);
-  return [pick(basics, 'email'), pick(basics, 'phone'), pick(basics, 'location'), websiteOf(basics), ...custom].filter(Boolean).join(' · ');
+/** A contact field: its link, else its words; v4 keeps `name` and `value` instead, written `name: value`. */
+function contactField(f: Rec): string {
+  const value = pick(f, 'value');
+  return linkOf(f.link) || pick(f, 'text') || (value && pick(f, 'name') ? `${pick(f, 'name')}: ${value}` : value);
+}
+
+/**
+ * Email, phone, place, website, contact fields, then the profiles; an address
+ * the line already holds is not said twice. A contact field is its link when
+ * it has one — "LinkedIn" is a label, the address is what a reader can use —
+ * and its words when it has not.
+ */
+function contactLine(basics: Rec, sections: Rec): string {
+  const custom = list(basics.customFields).map(rec).map(contactField).filter(Boolean);
+  const parts = [pick(basics, 'email'), pick(basics, 'phone'), pick(basics, 'location'), websiteOf(basics), ...custom, ...profileEntries(sections)];
+  return [...new Set(parts.filter(Boolean))].join(' · ');
 }
 
 function customSection(sec: Rec): { title: string; lines: Block } | null {
@@ -225,26 +336,26 @@ export function readReactiveResume(json: unknown): ReactiveResumeRead {
   const out: string[] = [];
   const name = pick(basics, 'name');
   const headline = pick(basics, 'headline');
-  const contact = contactLine(basics);
+  const contact = contactLine(basics, sections);
 
   const blocks: string[][] = [];
   const summary = summaryOf(json, sections);
-  if (summary && summary.content) blocks.push([`## ${summary.title || 'Summary'}`, summary.content]);
+  if (summary && summary.content) blocks.push([sectionHeading(summary.title || 'Summary'), summary.content]);
   for (const kind of SECTIONS) {
     const sec = rec(sections[kind.key]);
     if (sec.hidden === true || sec.visible === false) continue;
     const items = list(sec.items).map(rec).filter((i) => !hiddenItem(i));
     const lines = items.flatMap((i) => kind.item(i)).filter(Boolean);
-    if (lines.length > 0) blocks.push([`## ${pick(sec, 'title', 'name') || kind.title}`, ...lines]);
+    if (lines.length > 0) blocks.push([sectionHeading(pick(sec, 'title', 'name') || kind.title), ...lines]);
   }
   // v5 and v6 keep them in `customSections`, v4 in `sections.custom`, an object keyed by id.
   for (const c of [...list(json.customSections), ...Object.values(rec(sections.custom))]) {
     const custom = customSection(rec(c));
-    if (custom) blocks.push([`## ${custom.title}`, ...custom.lines]);
+    if (custom) blocks.push([sectionHeading(custom.title), ...custom.lines]);
   }
   if (blocks.length === 0) return { ok: false, code: 'empty' };
 
-  if (name) out.push(`# ${name}`);
+  if (name) out.push(name);
   if (headline) out.push(headline);
   if (contact) out.push(contact);
   const head = out.join('\n');

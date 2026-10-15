@@ -6,6 +6,10 @@
   },
   "summary": { "title": "Summary", "hidden": false, "content": "<p>Platform engineer focused on developer tooling.</p>" },
   "sections": {
+    "profiles": { "title": "Profiles", "hidden": false, "items": [
+      { "id": "p1", "hidden": false, "network": "GitLab", "username": "jweber", "website": { "url": "https://gitlab.com/jweber", "label": "" } },
+      { "id": "p2", "hidden": false, "network": "Mastodon", "username": "@jonas", "website": { "url": "", "label": "" } }
+    ] },
     "experience": { "title": "Experience", "hidden": false, "items": [
       { "id": "e1", "hidden": false, "company": "Adatum", "position": "Platform Engineer", "location": "Berlin",
         "period": "2021 - Present", "website": { "url": "", "label": "" },

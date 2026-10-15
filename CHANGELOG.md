@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.59.8] — 2026-10-15
+
+### Fixed
+- **A Reactive Resume import keeps your GitHub and LinkedIn links.** The
+  contact links under your name (and your profiles) now sit in the header
+  line as full addresses, next to your email and phone, instead of the word
+  "LinkedIn" with nothing behind it; a link written inside a summary or a
+  bullet keeps its address too, as `words (address)` (#44).
+- **An imported Reactive Resume reads properly on the resume page.** Its text
+  was written with `#` headings that the parser took for sections, so "what a
+  parser reads" found no name, no phone, no place and no link, and one job of
+  six. It is now written the way a Word or PDF resume reads — your name, your
+  headline, one contact line, then each job as a company line, a position line
+  with its dates, and its bullets — and the parser finds all of it (#44).
+  A resume you imported before keeps what it stored: import it again.
+- **A role line in capitals with years, such as `CTO · 2020 – 2021`, is no
+  longer taken for a section heading** when a Word or PDF resume is read, and
+  an education line with a date range in the middle keeps its school and its
+  degree apart (#44).
+
 ## [2.59.7] — 2026-10-15
 
 ### Added

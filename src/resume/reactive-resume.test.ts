@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readReactiveResume } from './reactive-resume';
+import { structureFromText } from './structure-from-text';
+import { parsedView } from '../web/parsed-view';
 
 const fixture = (name: string): unknown =>
   JSON.parse(readFileSync(join(__dirname, 'fixtures', 'reactive-resume', `${name}.json`), 'utf8'));
@@ -23,36 +25,115 @@ test('v6: header, summary and contact line come first', () => {
   const { name, markdown } = read('v6');
   assert.equal(name, 'Alex Rivera');
   const lines = markdown.split('\n');
-  assert.equal(lines[0], '# Alex Rivera');
-  assert.ok(markdown.includes('Senior Backend Engineer'));
+  assert.equal(lines[0], 'Alex Rivera');
+  assert.equal(lines[1], 'Senior Backend Engineer');
   assert.ok(markdown.includes('alex@example.com · +1 555 0100 · Austin, TX · https://alex.example.com'));
   assert.ok(markdown.includes('## Summary\nBackend engineer with 9 years building payment systems & APIs.\n\nLed teams'));
 });
 
 test('v6: experience carries position, company, place, dates and bullets', () => {
   const { markdown } = read('v6');
-  assert.ok(markdown.includes('### Senior Engineer — Northwind Pay (Remote) · Mar 2022 – Present'));
-  assert.ok(markdown.includes('- Cut settlement latency by 40%'));
+  assert.ok(markdown.includes('Northwind Pay · Remote\nSenior Engineer · Mar 2022 – Present\n- Cut settlement latency by 40%'));
   assert.ok(markdown.includes('- Moved 12 services to Kubernetes'));
 });
 
 test('v6: roles sit under their employer with their own dates', () => {
   const { markdown } = read('v6');
-  assert.ok(markdown.includes('### Contoso Labs (Dallas, TX) · 2016 – 2022'));
-  assert.ok(markdown.includes('#### Tech Lead · 2019 – 2022\nOwned the billing platform.'));
-  assert.ok(markdown.includes('#### Engineer · 2016 – 2019'));
+  assert.ok(markdown.includes('Contoso Labs · Dallas, TX\nTech Lead · 2019 – 2022\n- Owned the billing platform.'));
+  assert.ok(markdown.includes('Contoso Labs · Dallas, TX\nEngineer · 2016 – 2019'));
+  // The employer's own dates are not a role: each position carries its own.
+  assert.ok(!markdown.includes('2016 – 2022'));
 });
 
 test('v6: the other visible sections are written out', () => {
   const { markdown } = read('v6');
   assert.ok(markdown.includes('## Education'));
-  assert.ok(markdown.includes('### BSc in Computer Science — University of Texas (Austin, TX) · 2008 – 2012'));
+  assert.ok(markdown.includes('University of Texas · BSc in Computer Science · Austin, TX · 2008 – 2012'));
   assert.ok(markdown.includes('Languages: TypeScript, Go, SQL'));
   assert.ok(markdown.includes('Infrastructure: Kubernetes, PostgreSQL'));
-  assert.ok(markdown.includes('### ledger-kit · 2021'));
-  assert.ok(markdown.includes('English — Native'));
-  assert.ok(markdown.includes('### CKA — CNCF · Jun 2023'));
-  assert.ok(markdown.includes('GitHub: arivera'));
+  assert.ok(markdown.includes('ledger-kit · 2021\nOpen-source double-entry library.'));
+  assert.ok(markdown.includes('English (Native)\nSpanish (Professional)'));
+  assert.ok(markdown.includes('CKA — CNCF · Jun 2023'));
+  assert.ok(markdown.includes('https://github.com/arivera'));
+});
+
+/** The contact line: the third line, under the name and the headline. */
+const contactOf = (markdown: string): string => markdown.split('\n')[2] ?? '';
+
+test('profile addresses are written into the header, after the website, in the export order', () => {
+  assert.equal(
+    contactOf(read('v6').markdown),
+    'alex@example.com · +1 555 0100 · Austin, TX · https://alex.example.com · https://github.com/arivera · https://www.linkedin.com/in/alex-rivera',
+  );
+  assert.equal(
+    contactOf(read('v5').markdown),
+    'jonas@example.com · +49 30 5550100 · Berlin, Germany · https://jonas.example.com · https://gitlab.com/jweber · Mastodon: @jonas',
+  );
+  assert.equal(
+    contactOf(read('v4').markdown),
+    'mina@example.com · Lagos, Nigeria · https://mina.example.com · https://www.linkedin.com/in/mina-o',
+  );
+});
+
+test('no generation writes a trailing Profiles section', () => {
+  for (const name of ['v4', 'v5', 'v6']) assert.ok(!read(name).markdown.includes('## Profiles'), name);
+});
+
+test('a profile with an address is the address alone, with or without a username', () => {
+  const got = readReactiveResume({
+    basics: { name: 'Ann', headline: 'Engineer', email: 'ann@example.com' },
+    summary: { content: '<p>Summary text of some length</p>' },
+    sections: { profiles: { items: [{ network: 'GitHub', username: 'ann', website: { url: 'https://github.com/ann' } }, { website: { url: 'https://ann.example/x' } }] } },
+  });
+  assert.ok(got.ok);
+  assert.equal(contactOf(got.markdown), 'ann@example.com · https://github.com/ann · https://ann.example/x');
+});
+
+test('a profile with a username and no address is Network: username; a bare network adds nothing', () => {
+  const got = readReactiveResume({
+    basics: { name: 'Ann', headline: 'Engineer', email: 'ann@example.com' },
+    summary: { content: '<p>Summary text of some length</p>' },
+    sections: { profiles: { items: [{ network: 'Mastodon', username: '@ann' }, { username: 'ann-bare' }, { network: 'Orphan' }, {}] } },
+  });
+  assert.ok(got.ok);
+  assert.equal(contactOf(got.markdown), 'ann@example.com · Mastodon: @ann · ann-bare');
+});
+
+test('a hidden profile, a hidden profiles section and a not-visible one write nothing', () => {
+  const item = { network: 'Ghostnet', username: 'ghost', website: { url: 'https://ghost.example/h' } };
+  const base = { basics: { name: 'Ann', headline: 'Engineer', email: 'ann@example.com' }, summary: { content: '<p>Summary text of some length</p>' } };
+  for (const sections of [
+    { profiles: { items: [{ ...item, hidden: true }] } },
+    { profiles: { items: [{ ...item, visible: false }] } },
+    { profiles: { hidden: true, items: [item] } },
+    { profiles: { visible: false, items: [item] } },
+  ]) {
+    const got = readReactiveResume({ ...base, sections });
+    assert.ok(got.ok);
+    assert.equal(contactOf(got.markdown), 'ann@example.com');
+    assert.ok(!got.markdown.includes('ghost'));
+  }
+  assert.ok(!read('v6').markdown.includes('ghost'));
+  assert.ok(!read('v4').markdown.includes('ghostmina'));
+});
+
+test('an address the website already gave is shown once', () => {
+  const line = contactOf(read('v6').markdown);
+  assert.equal(line.split('https://alex.example.com').length - 1, 1);
+});
+
+test('a resume with no profiles keeps the header it always had', () => {
+  const data = fixture('v5') as { sections: Record<string, unknown> };
+  delete data.sections.profiles;
+  const got = readReactiveResume(data);
+  assert.ok(got.ok);
+  assert.equal(contactOf(got.markdown), 'jonas@example.com · +49 30 5550100 · Berlin, Germany · https://jonas.example.com');
+});
+
+test('an export holding only a profile is empty, as one holding only an email already is', () => {
+  const only = { basics: { name: 'Ann' }, sections: { profiles: { items: [{ network: 'GitHub', website: { url: 'https://github.com/ann' } }] } } };
+  assert.deepEqual(readReactiveResume(only), { ok: false, code: 'empty' });
+  assert.deepEqual(readReactiveResume({ basics: { name: 'Ann', headline: 'Engineer', email: 'ann@example.com' }, sections: {} }), { ok: false, code: 'empty' });
 });
 
 test('hidden sections and hidden items never appear', () => {
@@ -71,7 +152,7 @@ test('picture, template and design settings are not read', () => {
 
 test('v5: period strings are kept as written', () => {
   const { markdown } = read('v5');
-  assert.ok(markdown.includes('### Platform Engineer — Adatum (Berlin) · 2021 - Present'));
+  assert.ok(markdown.includes('Adatum · Berlin\nPlatform Engineer · 2021 - Present'));
   assert.ok(markdown.includes('- Cut build time from 25 to 8 minutes'));
   assert.ok(markdown.includes('Tooling: Bazel, GitHub Actions, Rust'));
 });
@@ -80,9 +161,9 @@ test('v4: summary lives in its section, visible flags and date strings are honou
   const { markdown, name } = read('v4');
   assert.equal(name, 'Mina Okafor');
   assert.ok(markdown.includes('## Summary\nAnalyst who turns messy data into decisions.'));
-  assert.ok(markdown.includes('### Data Analyst — Fabrikam (Lagos) · Jan 2020 - Present'));
+  assert.ok(markdown.includes('Fabrikam · Lagos\nData Analyst · Jan 2020 - Present'));
   assert.ok(markdown.includes('Analytics: SQL, Looker, Python'));
-  assert.ok(markdown.includes('### BSc in Statistics — University of Lagos · 2015 - 2019'));
+  assert.ok(markdown.includes('University of Lagos · BSc in Statistics · 2015 - 2019'));
   assert.ok(markdown.includes('https://mina.example.com'));
 });
 
@@ -96,13 +177,83 @@ test('v4: an item marked not visible is dropped', () => {
 
 test('formatted text keeps paragraphs and lists and loses its markup and entities', () => {
   const { markdown } = read('hidden-and-html');
-  assert.ok(markdown.includes('Line one & bold <3 a link\n\nLine two\n\n- First\n- Second'));
+  assert.ok(markdown.includes('Line one & bold <3 a link (https://example.com)\n\nLine two\n\n- First\n- Second'));
   assert.ok(!/<\/?[a-z]/i.test(markdown));
   assert.ok(!markdown.includes('&amp;'));
 });
 
+/** A summary of formatted text, read back as the text it was written out to. */
+function summaryText(html: string): string {
+  const got = readReactiveResume({ basics: { name: 'Ann' }, summary: { content: html }, sections: {} });
+  assert.ok(got.ok);
+  return got.markdown.split('## Summary\n')[1] ?? '';
+}
+
+test('a link keeps its address next to its words', () => {
+  assert.equal(summaryText('<p>Read <a href="https://x.example/p">the post</a> now</p>'), 'Read the post (https://x.example/p) now');
+  assert.equal(summaryText('<p><a href="mailto:a@b.example">write</a></p>'), 'write (mailto:a@b.example)');
+  assert.equal(summaryText('<p><a href="HTTPS://X.example/Q">go</a></p>'), 'go (HTTPS://X.example/Q)');
+});
+
+test('a link whose words are empty or are the address says the address once', () => {
+  assert.equal(summaryText('<p><a href="https://x.example/p">https://x.example/p</a></p>'), 'https://x.example/p');
+  assert.equal(summaryText('<p>See <a href="https://x.example/p"></a></p>'), 'See https://x.example/p');
+  assert.equal(summaryText('<p><a href="https://x.example/?a=1&amp;b=2">https://x.example/?a=1&amp;b=2</a></p>'), 'https://x.example/?a=1&b=2');
+});
+
+test('a target that is not a web or mail address is dropped and the words stay', () => {
+  for (const href of ['javascript:alert(1)', ' JavaScript:alert(1)', 'data:text/html;base64,AAAA', '/relative/path', '//evil.example/x', '#top', '']) {
+    assert.equal(summaryText(`<p>Go <a href="${href}">there</a></p>`), 'Go there', JSON.stringify(href));
+  }
+  assert.equal(summaryText('<p><a>no target</a> and <a name="x">an anchor</a></p>'), 'no target and an anchor');
+});
+
+test('single-quoted and unquoted targets are read; tags inside the words are not kept', () => {
+  assert.equal(summaryText("<p><a href='https://x.example/s'>single</a></p>"), 'single (https://x.example/s)');
+  assert.equal(summaryText('<p><a href=https://x.example/u>bare</a></p>'), 'bare (https://x.example/u)');
+  assert.equal(summaryText('<p><a target="_blank" href="https://x.example/t" rel="noopener"><strong>bold</strong> link</a></p>'), 'bold link (https://x.example/t)');
+});
+
+test('entities in a target are decoded once, never twice', () => {
+  assert.equal(summaryText('<p><a href="https://x.example/?a=1&amp;b=2">q</a></p>'), 'q (https://x.example/?a=1&b=2)');
+  assert.equal(summaryText('<p><a href="https://x.example/?a=&amp;lt;">q</a></p>'), 'q (https://x.example/?a=&lt;)');
+});
+
+test('a link spread wider than the look-ahead window is left as its words', () => {
+  const words = 'w'.repeat(2_100);
+  assert.equal(summaryText(`<p><a href="https://x.example/w">${words}</a></p>`), words);
+});
+
+test('a link inside a list item or a custom section keeps its address', () => {
+  assert.equal(summaryText('<ul><li><p>See <a href="https://x.example/d">docs</a></p></li></ul>'), '- See docs (https://x.example/d)');
+  const got = readReactiveResume({
+    basics: { name: 'Ann' },
+    summary: { content: '<p>Summary text of some length</p>' },
+    sections: {},
+    customSections: [{ title: 'Extras', content: '<p><a href="https://x.example/c">site</a></p>' }],
+  });
+  assert.ok(got.ok);
+  assert.ok(got.markdown.includes('## Extras\nsite (https://x.example/c)'));
+});
+
+test('markup that never closes is read in linear time and leaves the real text alone', () => {
+  const real = '<p>Real text here</p>';
+  for (const junk of [
+    '<a '.repeat(100_000),
+    '<a href="'.repeat(100_000),
+    '<a href="https://x.example/p">'.repeat(20_000) + '</a>',
+  ]) {
+    const started = performance.now();
+    const got = readReactiveResume({ basics: { name: 'Ann' }, summary: { content: real + junk }, sections: {} });
+    const ms = performance.now() - started;
+    assert.ok(got.ok);
+    assert.ok(got.markdown.includes('Real text here'));
+    assert.ok(ms < 1_000, `${junk.slice(0, 12)} took ${Math.round(ms)} ms`);
+  }
+});
+
 test('a date Reactive Resume kept only as written stays as written', () => {
-  assert.ok(read('hidden-and-html').markdown.includes('### Engineer — Tailspin · Summer 2019'));
+  assert.ok(read('hidden-and-html').markdown.includes('Tailspin\nEngineer · Summer 2019'));
 });
 
 test('a custom section is kept as plain text', () => {
@@ -143,7 +294,8 @@ test('an item that names nothing leaves no bare heading behind', () => {
   });
   assert.ok(got.ok);
   assert.ok(!/^#+\s*$/m.test(got.markdown), 'a bare heading');
-  assert.ok(!/^#{3,4} (·|\d)/m.test(got.markdown), 'a heading of dates alone');
+  assert.ok(!/^(·\s*)?\d{4}/m.test(got.markdown), 'a line of dates alone');
+  assert.ok(got.markdown.includes('Did a thing'));
   assert.ok(!got.markdown.includes('## Projects'), 'a section with nothing in it');
 });
 
@@ -170,4 +322,179 @@ test('v4 custom sections are read from sections.custom', () => {
   assert.ok(got.ok);
   assert.ok(got.markdown.includes('## Achievements\nWon the hackathon\nFirst place'));
   assert.ok(!got.markdown.includes('Hidden'));
+});
+
+test('a contact field is its link when it has one, its words when it has not', () => {
+  const line = contactOf(read('v6-live-shape').markdown);
+  assert.equal(
+    line,
+    'dana@example.com · (555) 010-4477 · Springfield, NC · https://www.linkedin.com/in/dana-whitfield · https://github.com/dana-whitfield · Authorized to work in the US',
+  );
+  assert.ok(!/LinkedIn|Github/.test(line), 'the words a link was labelled with');
+  assert.ok(!line.includes('Portfolio'), 'a website label with no address says nothing');
+});
+
+test('no line begins with # except a ## section heading', () => {
+  for (const name of ['v4', 'v5', 'v6', 'v6-live-shape', 'hidden-and-html']) {
+    for (const line of read(name).markdown.split('\n')) {
+      assert.ok(!/^\s*#/.test(line) || /^## \S/.test(line), `${name}: ${line}`);
+    }
+  }
+});
+
+test('a job is a company line, then a position line with its dates, then its text', () => {
+  const { markdown } = read('v6-live-shape');
+  assert.ok(
+    markdown.includes(
+      'Brightwave Labs\nStaff Platform Engineer – Applied Automation · Dec 2025 – Sep 2026\nProduct Engineering\n\n- Owned the discovery component',
+    ),
+  );
+  assert.ok(markdown.includes('Quillmark, Inc\nSoftware Engineer · Feb 2015 – May 2015\n- Built web applications'));
+  assert.ok(markdown.includes('## Professional Experience\nBrightwave Labs\n'));
+});
+
+test('a position with no company and no dates, or dates and no position, is still read', () => {
+  const got = readReactiveResume({
+    basics: { name: 'Ann', headline: 'Engineer' },
+    summary: { content: '<p>Summary text of some length</p>' },
+    sections: {
+      experience: {
+        items: [
+          { company: 'Acme', position: '', dates: { start: '2020', end: '2022', present: false }, description: '<ul><li>Built a thing</li></ul>' },
+          { company: '', position: 'Consultant', description: '<ul><li>Advised teams</li></ul>' },
+        ],
+      },
+    },
+  });
+  assert.ok(got.ok);
+  assert.ok(got.markdown.includes('Acme\n2020 – 2022\n- Built a thing'));
+  assert.ok(got.markdown.includes('Consultant\n- Advised teams'));
+});
+
+test('education, certificates and the rest are plain lines; a language carries its fluency in brackets', () => {
+  const { markdown } = read('v6-live-shape');
+  assert.ok(markdown.includes('## Education\nRidgemont State University · B.S. in Computer Science · Raleigh, NC · 2006\n'));
+  assert.ok(markdown.includes('Ridgemont State University · B.S. in Electrical Engineering · Raleigh, NC · 2007'));
+  assert.ok(read('v6').markdown.includes('English (Native)'));
+});
+
+test('the plain reader finds the name, every contact, the jobs, the degrees and the skills groups', () => {
+  const text = read('v6-live-shape').markdown;
+  const r = structureFromText(text);
+  assert.equal(r.basics.name, 'Dana Whitfield');
+  assert.equal(r.basics.label, 'Platform Engineering Leader');
+  assert.equal(r.basics.email, 'dana@example.com');
+  assert.equal(r.basics.phone, '(555) 010-4477');
+  assert.equal(r.basics.location, 'Springfield, NC');
+  assert.equal(r.basics.url, 'https://www.linkedin.com/in/dana-whitfield');
+  assert.deepEqual(r.basics.profiles, ['https://github.com/dana-whitfield']);
+  assert.deepEqual(r.basics.lines, ['Authorized to work in the US']);
+  assert.ok(r.basics.summary?.startsWith('Platform engineering leader with 20 years'));
+  // Six employers; the two that write their positions as bold paragraphs read as two roles each, as in a .docx.
+  assert.deepEqual(
+    r.work.filter((w) => w.name).map((w) => w.name),
+    ['Brightwave Labs', 'Harborline', 'Northgate', 'Quillmark, Inc', 'Tessera Systems, LLC', 'Ridgeline Inc. (RLI)'],
+  );
+  assert.equal(r.work.length, 8);
+  const first = r.work[0]!;
+  assert.deepEqual(
+    [first.position, first.startDate, first.endDate, first.summary, first.highlights.length],
+    ['Staff Platform Engineer – Applied Automation', 'Dec 2025', 'Sep 2026', 'Product Engineering', 3],
+  );
+  assert.equal(r.education.length, 3);
+  assert.deepEqual([...new Set(r.education.map((e) => e.institution))], ['Ridgemont State University']);
+  assert.equal(r.skills.length, 10);
+  assert.deepEqual(r.skills[0], { name: 'Applied AI & Agentic Engineering', keywords: ['Claude Code', 'Cursor', 'On-device AI'] });
+  // Nothing of the resume became a section heading of its own.
+  assert.deepEqual(r.extras, []);
+});
+
+test('the page panel that says what a parser reads finds every contact', () => {
+  for (const name of ['v4', 'v5', 'v6', 'v6-live-shape']) {
+    const view = parsedView(read(name).markdown);
+    assert.ok(view.name, `${name}: name`);
+    assert.ok(view.headline, `${name}: headline`);
+    // A section in the file's own words ("Certifications") is the reader's business; a name or a job line is not a section.
+    assert.ok(!view.sections.some((s) => s === view.name || s.includes(' · ')), `${name}: a role or a name read as a section: ${view.sections.join(' | ')}`);
+    const found = view.contacts.filter((c) => c.value).map((c) => c.kind);
+    assert.ok(found.includes('email') && found.includes('link') && found.includes('location'), `${name}: ${found.join()}`);
+  }
+  const live = parsedView(read('v6-live-shape').markdown);
+  assert.deepEqual(live.contacts.map((c) => c.kind + ':' + (c.value ? 'yes' : 'no')), ['email:yes', 'phone:yes', 'link:yes', 'location:yes']);
+  assert.equal(live.ownHeadings, 0);
+  assert.deepEqual(live.sections, ['Summary', 'Skills (10 groups)', 'Experience (8 roles)', 'Education']);
+});
+
+/** A one-section export, read back with the plain reader. */
+function sectionOf(key: string, title: string, items: unknown[]) {
+  const got = readReactiveResume({
+    basics: { name: 'Ann', headline: 'Engineer', email: 'ann@example.com' },
+    summary: { content: '<p>Summary text of some length</p>' },
+    sections: { [key]: { title, items } },
+  });
+  assert.ok(got.ok);
+  return { markdown: got.markdown, read: structureFromText(got.markdown) };
+}
+
+test('a section title the reader would not take for a heading is made one, never left as content', () => {
+  const { markdown, read: r } = sectionOf('publications', 'Publications, Talks, and Patents', [{ title: 'A paper', publisher: 'Journal' }]);
+  assert.ok(markdown.includes('## Publications; Talks; and Patents\n'));
+  assert.deepEqual(r.extras.map((e) => e.heading), ['Publications; Talks; and Patents']);
+  const long = sectionOf('publications', 'P'.repeat(90), [{ title: 'A paper', publisher: 'Journal' }]).markdown;
+  assert.ok(long.split('\n').every((l) => !l.startsWith('## ') || l.length <= 83), 'a heading past the reader\'s limit');
+  assert.equal(sectionOf('publications', 'Publications and Talks', [{ title: 'A paper' }]).markdown.includes('## Publications and Talks\n'), true);
+});
+
+test('a job described in plain paragraphs is bulleted, so the next job starts where it should', () => {
+  const { markdown, read: r } = sectionOf('experience', 'Experience', [
+    { company: 'Acme', position: 'Engineer', dates: { start: '2020-01', end: '2021-01', present: false }, description: '<p>Built things.</p>' },
+    { company: 'Globex', position: 'Lead', dates: { start: '2021-02', end: '2022-02', present: false }, description: '<p>Led things.</p>' },
+  ]);
+  assert.ok(markdown.includes('Acme\nEngineer · Jan 2020 – Jan 2021\n- Built things.\nGlobex\nLead · Feb 2021 – Feb 2022\n- Led things.'));
+  assert.deepEqual(r.work.map((w) => [w.name, w.position, w.highlights]), [['Acme', 'Engineer', ['Built things.']], ['Globex', 'Lead', ['Led things.']]]);
+});
+
+test('a description that already has a list keeps its paragraphs as written', () => {
+  const { markdown } = sectionOf('experience', 'Experience', [
+    { company: 'Acme', position: 'Engineer', description: '<p>Platform team</p><ul><li><p>Built things.</p></li></ul>' },
+  ]);
+  assert.ok(markdown.includes('Acme\nEngineer\nPlatform team\n\n- Built things.'));
+});
+
+test('volunteering is written like a job, so it reads the same under either section name', () => {
+  const { markdown, read: r } = sectionOf('volunteer', 'Volunteer Experience', [
+    { organization: 'Red Cross', location: 'Rome', position: 'Helper', dates: { start: '2019', end: '2020', present: false }, description: '<p>Helped.</p>' },
+  ]);
+  assert.ok(markdown.includes('Red Cross · Rome\nHelper · 2019 – 2020\n- Helped.'));
+  assert.deepEqual(r.work.map((w) => [w.name, w.location, w.position, w.startDate, w.endDate]), [['Red Cross', 'Rome', 'Helper', '2019', '2020']]);
+});
+
+test('a v4 contact field keeps its value, with its name when it has one', () => {
+  const got = readReactiveResume({
+    basics: { name: 'Ann', headline: 'Engineer', email: 'ann@example.com', customFields: [{ name: 'Visa', value: 'H1B' }, { value: 'Remote only' }, { name: 'Empty', value: '' }] },
+    summary: { content: '<p>Summary text of some length</p>' },
+    sections: {},
+  });
+  assert.ok(got.ok);
+  assert.equal(contactOf(got.markdown), 'ann@example.com · Visa: H1B · Remote only');
+});
+
+test('a mail link whose words are the address says the address once, without the scheme', () => {
+  assert.equal(summaryText('<p><a href="mailto:a@b.example">a@b.example</a></p>'), 'a@b.example');
+});
+
+test('a position in capitals with year-only dates is read as a job by the plain reader', () => {
+  const { read: r } = sectionOf('experience', 'Experience', [
+    { company: 'Acme', position: 'CTO', dates: { start: '2020', end: '2021', present: false }, description: '<ul><li>Built.</li></ul>' },
+    { company: 'Globex', position: 'VP', dates: { start: '2018', end: '2019', present: false }, description: '<ul><li>Ran.</li></ul>' },
+  ]);
+  assert.deepEqual(r.extras, []);
+  assert.deepEqual(r.work.map((w) => [w.name, w.position, w.startDate, w.endDate]), [['Acme', 'CTO', '2020', '2021'], ['Globex', 'VP', '2018', '2019']]);
+});
+
+test('an education line with a date range in the middle of it reads as school, degree and dates', () => {
+  const { read: r } = sectionOf('education', 'Education', [
+    { school: 'MIT', degree: 'BSc', area: 'CS', location: 'Boston, MA', dates: { start: '2010', end: '2014', present: false } },
+  ]);
+  assert.deepEqual(r.education.map((e) => [e.institution, e.area, e.startDate, e.endDate]), [['MIT', 'BSc in CS · Boston, MA', '2010', '2014']]);
 });
