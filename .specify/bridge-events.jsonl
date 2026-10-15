@@ -150,3 +150,9 @@
 
 {"event":"artifact_drift_detected","timestamp":"2026-10-15T14:49:54.4085208Z","actor":"claude","feature_directory":"specs/044-reactive-resume-links","drifted_artifacts":[{"path":"spec.md","old_sha256":"316d8d4a9acd45e47148b1c0ab81d1f26bec7ec1e9623cc246ed7d6e1c2ff393","new_sha256":"7136585bb2adbba9f317c4b1f52544f5c3fb1619a929f4e25ef2bcbf78a2717b"},{"path":"tasks.md","old_sha256":"6fea4aaf8bf4a2811a6c02fddf3f1cfa12cfa233313fa30d0142a1741f206558","new_sha256":"f08cb88bfc09f7cb15b18eeed4ccc1783094ed33c0ede1fd8b3fd29f4c94edb1"}]}
 
+{"timestamp":"2026-10-15T20:56:06Z","action":"guard","status":"allow","feature_directory":"specs/044-reactive-resume-links","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.plan"}
+{"timestamp":"2026-10-15T20:57:38Z","action":"guard","status":"allow","feature_directory":"specs/044-reactive-resume-links","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.tasks"}
+{"timestamp":"2026-10-15T20:59:04.4243272Z","action":"handoff","status":"ready","feature_directory":"specs/044-reactive-resume-links","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T2059043417355Z-ready"}
+
+{"timestamp":"2026-10-15T20:59:13.8457271Z","action":"handoff","status":"ready","feature_directory":"specs/046-edit-reclassify-jobs","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261015T2059138144225Z-ready"}
+
