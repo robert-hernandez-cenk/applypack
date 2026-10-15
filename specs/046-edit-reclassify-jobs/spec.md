@@ -61,7 +61,8 @@ Postings from boards and aggregators are held by everyone they reach. One person
 - Title or description left empty on save: refused with a message; nothing is stored.
 - Description shorter or longer than the limits already used for pasted/refreshed descriptions: refused with the same wording rules.
 - Nothing actually changed on save: no re-score is spent; the page says nothing changed.
-- Company cleared: the posting reads "Company not named", never the source's own name.
+- Company cleared: the posting reads as any posting of its source with no named employer does — "Company not named" for a mail, import or folder row, never a source's name borrowed in its place; a pasted posting, whose source is its employer, shows that name again.
+- Description length limits apply only when the description itself was changed; fixing a location on a short description is not blocked by it.
 - Another person is given a row for the posting between opening the form and saving: the save is refused by the same rule as above.
 - A posting in a folder of saved files or an import: editable like a Gmail one if only this person holds it.
 - Salary, URL, source and status are not part of the form.
