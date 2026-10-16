@@ -175,3 +175,7 @@
 
 {"timestamp":"2026-10-16T15:07:15.1739454Z","action":"guard","status":"allow","feature_directory":"specs/055-one-tailoring-front-door","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
 
+{"timestamp":"2026-10-16T16:44:24.5700758Z","action":"handoff","status":"complete","feature_directory":"specs/055-one-tailoring-front-door","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261016T1644245229219Z-complete"}
+
+{"event":"artifact_drift_detected","timestamp":"2026-10-16T16:44:24.5763564Z","actor":"claude","feature_directory":"specs/055-one-tailoring-front-door","drifted_artifacts":[{"path":"tasks.md","old_sha256":"d4ffd76a26166c1e69c96c1aa9488f525393739187cb8578a3a749eca4b243ac","new_sha256":"ed7f8752beb29ac05d20b9dca78e2b20aa37879ee1a5bdf4aa472c37709e0eaf"}]}
+
