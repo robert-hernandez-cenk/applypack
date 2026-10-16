@@ -71,8 +71,6 @@ export interface RecordableResume {
   id: number;
   version: number;
   text: string;
-  /** The /target scratch row: replaced in place on every compare, never an application. */
-  hidden: boolean;
 }
 
 export interface AppliedResumeColumns {
@@ -83,12 +81,12 @@ export interface AppliedResumeColumns {
 
 /**
  * The columns to write for a resolved resume. A resume that was deleted in
- * another tab, or the hidden scratch row, records nothing rather than
+ * another tab records nothing rather than
  * blocking the status change — "I don't know" is a true answer, a wrong id
  * is not.
  */
 export function appliedResumeColumns(resume: RecordableResume | null): AppliedResumeColumns {
-  if (!resume || resume.hidden) {
+  if (!resume) {
     return { appliedResumeId: null, appliedResumeVersion: null, appliedResumeText: null };
   }
   return {

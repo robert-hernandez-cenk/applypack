@@ -51,8 +51,8 @@ import { JobDetailPage } from '../pages/job-detail';
 import { JobNewPage } from '../pages/job-new';
 import { TargetPage } from '../pages/target';
 import { describeStructure, docxStructure } from '../../resume/docx-structure';
-import { oneOffDraft, previousFor } from '../../resume/match-name';
-import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
+import { previousFor } from '../../resume/match-name';
+import { readResumeUpload, resumeUploadLimit } from '../upload';
 import { scanInBackground } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { claimRun, findLiveRun, LETTER_FAILED, startRun, updateRun } from '../target-runs';
@@ -897,22 +897,18 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
   if (!Number.isFinite(resumeId)) return c.text(t('http.badResumeId'), 400);
 
   const baseId = idParam(form.matchId);
-  const [job, row, base] = await Promise.all([
+  // `base` is the comparison a re-run starts from (the editor's form and Rebuild keywords send it).
+  const [job, resume, base] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     getResume(currentUser().id, resumeId),
     Number.isFinite(baseId) ? getMatch(currentUser().id, baseId) : null,
   ]);
-  if (!job || !row) return c.text(t('http.notFound'), 404);
-  // The comparison a re-run starts from (the editor's form and Rebuild keywords
-  // send it). On the scratch row it IS the resume: the row may hold another
-  // upload by now, so its file name and text are the ones to judge again.
-  const oneOff = row.hidden && base && base.jobId === id && base.resumeId === row.id ? base : null;
-  const resume = oneOff ? { ...row, name: oneOff.resumeName || row.name, text: oneOff.resumeText } : row;
+  if (!job || !resume) return c.text(t('http.notFound'), 404);
 
   // The targeted view posts its edited text; a non-empty draft is judged instead of the stored version.
   const draftText = typeof form.draftText === 'string' ? form.draftText.replace(/\r\n/g, '\n').trim() : '';
   const text = draftText.length > 0 ? draftText : resume.text;
-  const draft = oneOff ? oneOffDraft(oneOff, text) : text !== resume.text;
+  const draft = text !== resume.text;
   const toTarget = form.next === 'target' || form.next === 'editor';
   return startComparison(c, {
     jobId: id,
@@ -1055,7 +1051,7 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
     const outcome = await generateCoverLetter(
-      { id: resume.id, userId: resume.userId, text: resume.text, version: resume.version, hidden: resume.hidden },
+      { id: resume.id, userId: resume.userId, text: resume.text, version: resume.version },
       // The letter goes to an employer: never addressed to a folder's or a feed's own name (#401).
       { id: job.id, title: job.title, companyName: companyForPrompt(job.employer, job.company), location: job.location, description: job.description },
       { tone, angles, addressee },
@@ -1191,7 +1187,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   return c.html(
     <TargetPage
       job={{ id: job.id, title: job.title, companyName: companyForPage(job.employer, job.company), location: job.location, description: job.description }}
-      resume={{ id: resume.id, name: match.resume.name, version: resume.version, ephemeral: resume.hidden }}
+      resume={{ id: resume.id, name: match.resume.name, version: resume.version }}
       match={match}
       keywords={await orderedKeywords(match, job.description)}
       matches={matches}
@@ -1238,9 +1234,7 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   return startComparison(c, {
     jobId: id,
     job: postingForPrompt(job),
-    // A one-off comparison is named after its file, and the file as uploaded is not a draft (match-name.ts).
-    resume: resume.hidden ? { ...resume, name: nameFromFilename(upload.sourceFilename) } : resume,
-    ...(resume.hidden ? { draft: false } : {}),
+    resume,
     text: upload.text,
     // The editor's own action always writes the suggestions: a second button
     // for "the same check without the advice" only ever raised the question of
@@ -1268,13 +1262,7 @@ function addresseeFromVerification(evidence: unknown, companyName: string): { su
  * cannot write the whole file — a PDF, plain text, or a layout the patcher
  * only partly reaches; such a save keeps the clean version (ADR 0059).
  */
-async function describeResumeFile(resume: { id: number; sourceFilename: string; hidden: boolean }): Promise<{ verdict: string; clean: boolean }> {
-  // A one-off check keeps nothing — the comparison holds the text, and Resumes
-  // is where a file the user wants to keep is uploaded — and has no Save, so it
-  // is not told what one would keep.
-  if (resume.hidden) {
-    return { verdict: t('jobRoute.file.oneOff'), clean: false };
-  }
+async function describeResumeFile(resume: { id: number; sourceFilename: string }): Promise<{ verdict: string; clean: boolean }> {
   if (/\.docx$/i.test(resume.sourceFilename)) {
     const row = await getResumeOriginal(currentUser().id, resume.id);
     if (row) {

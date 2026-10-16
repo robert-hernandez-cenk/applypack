@@ -58,7 +58,7 @@ describe('the application pack as the file that went out', () => {
 });
 
 describe('appliedResumeColumns', () => {
-  const resume = { id: 4, version: 3, text: 'Senior backend engineer…', hidden: false };
+  const resume = { id: 4, version: 3, text: 'Senior backend engineer…' };
 
   it('records the id, the version AND the text — the bytes move under the version', () => {
     assert.deepEqual(appliedResumeColumns(resume), {
@@ -74,10 +74,6 @@ describe('appliedResumeColumns', () => {
       appliedResumeVersion: null,
       appliedResumeText: null,
     });
-  });
-
-  it('the /target scratch row is never an application', () => {
-    assert.equal(appliedResumeColumns({ ...resume, hidden: true }).appliedResumeId, null);
   });
 });
 

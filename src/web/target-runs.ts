@@ -107,8 +107,8 @@ function createRun(
     startedAt: Date.now(),
     stageAt: Date.now(),
     stepMs: {},
-    backUrl: '/target',
-    backLabel: t('target.run.backToTarget'),
+    backUrl: '/jobs',
+    backLabel: t('nav.jobs'),
     ...fields,
   };
   runs.set(run.id, run);

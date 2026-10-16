@@ -94,7 +94,7 @@ async function ensureSettingsRow(): Promise<void> {
  * Run a write that has to be the only one of its kind in flight (issue #70).
  *
  * Some invariants are about a SET of rows, not one of them: at most eight
- * searches running, exactly one default resume, exactly one scratch resume,
+ * searches running, exactly one default resume,
  * the primary search not deleted from under the tab that is switching it.
  * Counting and then writing is check-then-act — two tabs both read the old
  * count and both pass — and a transaction alone does not fix it, because at

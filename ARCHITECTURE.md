@@ -524,8 +524,7 @@ src/
     job-edit-store.ts           ← the write behind Edit: holders asked again, one update, re-score with keepStatus
     posting-limits.ts           ← pure: the shortest and longest description (manual-job.ts re-exports them)
     manual-job.ts               ← pasted posting → MANUAL company + Job, classified unless the caller passes classify: false
-                                  (used by /jobs/new, /target, /letter and /screen/new; the last three pass it,
-                                  and /target classifies a new job in the background instead)
+                                  (used by /jobs/new and /screen/new; the latter passes it)
     import-job.ts               ← runImportJob: imported rows through processNormalizedJobs under the fetch lock (ADR 0062)
     gmail-job.ts                ← runGmailJob(userId, deps): refresh, find the label, read the unread mails, one fenced call per mail, the listings through processNormalizedJobs as that person's own (ADR 0071)
     gmail-live.ts               ← the real Google, store, model and pipeline behind runGmailJob
@@ -635,9 +634,9 @@ src/
     inbox-folder.ts             ← createInbox: the empty ~/ApplyPack/inbox a local install offers
     watchlist-runs.ts           ← in-memory registry of a watchlist resolve run
     target-runs.ts              ← in-memory registry of the progress-page runs (scan, match, verify, letter, …)
-    comparison-run.ts           ← startComparison / runComparison: one text × one stored job as a progress-page run
+    comparison-run.ts           ← startComparison: one text × one stored job as a progress-page run
     suggestions-run.ts          ← startSuggestionsRun: the lazy suggestions call as a run
-    resume-source.ts            ← the launchers' "which resume": one of yours / file / paste → scratch row
+    resume-source.ts            ← /letter's "which resume": the saved resumes as select options
     resume-label.ts             ← a resume as a <select> option: name · kind version · why preselected (pure)
     lane.ts                     ← pure: which engine and model family a resume call runs on, and its time band
     parsed-view.ts              ← pure: "What the ATS sees" — name, contacts, sections and dated roles off structure-from-text.ts (TASKS R12)
@@ -666,9 +665,7 @@ src/
       cover-letter.mjs          ← autosave + fact-check status for the letter card (import-smoke-tested)
       target-run.mjs            ← progress pages: polls the run's state route every 2 s, then reloads
       fetch-run.mjs             ← activity lines for the fetch-now progress page (pure; target-run.mjs polls)
-      launcher.mjs              ← the launchers' mode boxes and job filter (/target, /letter, /screen/new)
-      target-start.mjs          ← /target: a pasted posting trimmed in place by posting-clean.mjs
-      posting-clean.mjs         ← pure: strips page chrome from a pasted posting
+      launcher.mjs              ← the launchers' mode boxes and job filter (/letter, /screen/new)
       board.mjs                 ← /applications drag-and-drop over POST /jobs/:id/stage (planMove tested)
       chips.mjs                 ← the chip editor over a newline-joined textarea
       countries.mjs             ← country picker: search over /countries.json + the suggestion list (tested via import())
@@ -715,9 +712,9 @@ src/
       format-compare.tsx        ← the two files read side by side, the verdict and the lines only one carries
       resume-review-card.tsx    ← "Resume strength" on /resumes/:id (ADR 0030)
       resume-render.tsx         ← /resumes/:id/render, "Clean version in your typeface" (ADR 0039)
-      target-start.tsx          ← /target (one of your jobs or a pasted posting + pick/upload/paste resume → one run)
-      job-picker.tsx            ← "One of your jobs" filter + listbox, shared by /target, /letter, /screen/new
-      letter-start.tsx          ← /letter (job by pick/URL/paste + resume + optional match/verify → letter)
+      mode-card.tsx             ← radio-headed option card (/screen/new)
+      job-picker.tsx            ← "One of your jobs" filter + listbox, shared by /letter, /screen/new
+      letter-start.tsx          ← /letter (stored job + saved resume + optional match/verify → letter)
       target-run.tsx            ← /target/runs/:id (progress steps, polled by target-run.mjs)
       target.tsx                ← /jobs/:id/target (side-by-side editor, live score)
       screen-list.tsx           ← /screen
@@ -734,8 +731,8 @@ src/
       gmail.ts                  ← /gmail/connect, /gmail/callback, /gmail/label, /gmail/check, /gmail/disconnect (ADR 0071)
       keywords.ts               ← a keyword re-levelled, ignored or added: instant re-score, no AI call
       facts.ts                  ← ask_user answers → CandidateFact rows, instant re-score
-      target.tsx                ← /target launcher: resume resolve + (stored job | manual job) + match in one POST
-      letter.tsx                ← /letter launcher: job + resume resolve → [extract→classify→match→verify]→letter run
+      target.tsx                ← /target/runs/:id and its state route (the launcher is gone, ADR 0076)
+      letter.tsx                ← /letter launcher: stored job + saved resume → [match→verify]→letter run
       resumes.tsx               ← upload (5 MB limit) + scan + default + delete + download + draft save + review + profile
       resume-render.tsx         ← /resumes/:id/render: the clean re-render, its preview, the downloads, the shape run
       resume-document.ts        ← POST /resumes/:id/document: the Tailor page's draft as a .docx (JSON for the pane), a .docx or a .pdf, nothing stored
@@ -792,7 +789,6 @@ user's schedule, read in the schedule's own time zone.
 | `POST /jobs/new`                 | web     | MANUAL company upsert + Job + `classifyExistingJob` |
 | `POST /jobs/import`              | web     | read the uploaded rows (`datasets/rows.ts`), detect the mapping, keep them in memory → the preview; `POST /jobs/import/:token` upserts the IMPORT source and starts an async run: `runImportJob` → `processNormalizedJobs` under the fetch lock, recorded as an `import` run; redirects to `/target/runs/:id` |
 | `POST /companies/folder/check`   | web     | resolve the typed path (`folder-path.ts`), list it, sample the newest files, detect or keep the mapping, count what the next look would hand over → the Check page; `POST /companies/folder` re-checks and upserts the FOLDER row (new = off). The tick then reads it: `fetchers/folder.ts` → `planScan` → `judgeFile`, the look staged in `fetchers/folder-ledger.ts` and kept by `runFetchJob` once the jobs are stored |
-| `POST /target`                   | web     | resolve resume inline (upload/paste → hidden scratch row); `jobMode=existing` → `startComparison` on the stored job (same run as `POST /jobs/:id/match`); a pasted posting → async: extract? → `createManualJob` → `runComparison` (memo → suggestions? → brief → `matchResumeToJob`); redirects to `/target/runs/:id` |
 | `GET /target/runs/:id`           | web     | progress page; `public/target-run.mjs` polls `GET /target/runs/:id/state` every 2 s; done → flash + redirect into the result |
 | `POST /resumes/:id/replace`      | web     | new file → `version`+1 → async run: `scanResume` |
 | `POST /resumes/:id/render/shape` | web     | async run: `structureResume` → `Resume.structure` (the render page's "Read the shape with AI") |
@@ -1102,7 +1098,6 @@ erDiagram
     String text
     Int version
     Boolean isDefault
-    Boolean hidden "the launchers' scratch row"
     DateTime scannedAt
     String title
     String seniority

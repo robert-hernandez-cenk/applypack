@@ -67,7 +67,7 @@ const REUSE_CANDIDATES = 4;
  * lets the model read the terms out of the description again (issue #79).
  */
 export async function matchResumeToJob(
-  /** `name` is stored with the row: the name of the text judged (match-name.ts). */
+  /** `name` is stored with the row: the resume's name when the comparison was made. */
   resume: { id: number; userId: number; name: string; text: string; version: number },
   job: MatchJobInput & { id: number },
   opts: {
@@ -78,8 +78,8 @@ export async function matchResumeToJob(
     brief?: BriefResult | null;
     /**
      * R1: the owner's confirmed facts and other resumes join the judgment
-     * (`own`, the default), or the text is judged alone (`text`) — a file on
-     * the Tailor resume page may be a friend's or an old one.
+     * (`own`, the default). `text` is the older marker a stored row may carry
+     * (a one-off file judged alone, before ADR 0076); nothing writes it now.
      */
     evidence?: MatchEvidence;
     /** ADR 0074: the pages the candidate wants the resume to fit; the full analysis aims its cuts at it. */

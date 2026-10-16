@@ -786,6 +786,22 @@ async function main(): Promise<void> {
       init: form({ title: ' ', company: '', location: '', description: POSTING }),
       expect: (res) => res.status === 400,
     },
+    {
+      // #55, the one front door: a saved resume against a stored job, with a page target no stored comparison has.
+      name: 'POST /jobs/:id/match (a saved resume, one page: a run starts)',
+      init: form({ resumeId: String(f.resumeId), mode: 'full', pages: '1' }),
+      expect: (res) => res.status === 303 && (res.headers.get('location') ?? '').startsWith('/target/runs/'),
+    },
+    {
+      name: 'POST /letter (a stored job and a saved resume: a run starts)',
+      init: form({ jobId: String(f.jobId), resumeId: String(f.resumeId), tone: 'warm' }),
+      expect: (res) => res.status === 303 && (res.headers.get('location') ?? '').startsWith('/target/runs/'),
+    },
+    {
+      name: 'POST /letter without a resume (back to the form)',
+      init: form({ jobId: String(f.jobId) }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/letter',
+    },
   ];
   const postPaths = [
     '/jobs/new',
@@ -848,6 +864,9 @@ async function main(): Promise<void> {
     '/resumes',
     `/jobs/${f.jobId}/edit`,
     `/jobs/${f.jobId}/edit`,
+    `/jobs/${f.jobId}/match`,
+    '/letter',
+    '/letter',
   ];
   for (const [i, p] of posts.entries()) {
     const res = await app.request(postPaths[i]!, p.init);

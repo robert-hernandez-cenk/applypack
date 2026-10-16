@@ -14,7 +14,7 @@ export interface NextThingsFacts {
   top: { id: number; title: string; company: string; fitScore: number } | null;
   /** Comparisons stored, of any resume with any posting. */
   comparisons: number;
-  /** Resumes the user uploaded (the hidden scratch row not counted). */
+  /** Resumes the user uploaded . */
   resumes: number;
   /** What a comparison costs, in one sentence (web/cost-hint.ts). */
   compareCost: string;

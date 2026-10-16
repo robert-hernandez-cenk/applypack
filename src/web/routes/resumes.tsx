@@ -271,10 +271,9 @@ resumesRoute.get('/resumes/:id', async (c) => {
   ]);
   if (!resume) return c.text(t('http.notFound'), 404);
   // What the compared postings keep asking for (N10): no AI, the stored
-  // tables read against the text as it is now. The scratch row's tables
-  // belong to one-off files, not to a resume.
+  // tables read against the text as it is now.
   const missing =
-    resume.hidden || tables.length < MIN_POSTINGS ? null : coverage(tables, resume.text, facts, await loadKeywordMatcher());
+    tables.length < MIN_POSTINGS ? null : coverage(tables, resume.text, facts, await loadKeywordMatcher());
   // The template check is recomputed from the bytes on every view (ADR 0038) —
   // 40 KB of XML, sub-millisecond. Only a .docx is read; a 5 MB PDF is not
   // pulled out of the database to learn its extension.
@@ -300,7 +299,7 @@ resumesRoute.get('/resumes/:id', async (c) => {
       // stored (ADR 0015). Only a scanned resume has anything to say.
       search={{
         linkedProfiles,
-        draft: resume.scannedAt && !resume.hidden ? newProfileDraft(resume) : null,
+        draft: resume.scannedAt ? newProfileDraft(resume) : null,
       }}
       reactiveConnected={reactive !== null}
       flash={parseFlashCookie(c.req.header('cookie'))}
@@ -336,13 +335,6 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   }
   if (text.length > MAX_DRAFT_CHARS) {
     return flashRedirect(`/resumes/${id}`, 'err', t('resume.flash.draftTooLong', { max: MAX_DRAFT_CHARS }));
-  }
-  // A one-off check from the Tailor resume page is not a resume: its text belongs to
-  // the comparison, which keeps its own snapshot of it. Saving one used to mint
-  // a row on /resumes named after the company — the surest way to end up with
-  // six resumes and no idea which is the real one.
-  if (current.hidden) {
-    return flashRedirect(`/resumes`, 'err', t('resume.flash.oneOffNotSaved'));
   }
   // What the edits are relative to — the text the editor started from. Without
   // it a .docx cannot be patched (the diff would be against nothing) and the
@@ -504,7 +496,7 @@ resumesRoute.post('/resumes/:id/profile', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const resume = await getResume(currentUser().id, id);
-  if (!resume || resume.hidden) return c.text(t('http.notFound'), 404);
+  if (!resume) return c.text(t('http.notFound'), 404);
   if (!resume.scannedAt) {
     return flashRedirect(`/resumes/${id}`, 'err', t('resume.flash.scanFirst'));
   }

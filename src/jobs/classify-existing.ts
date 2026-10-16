@@ -111,14 +111,3 @@ export function storedPlace(job: Pick<Job, 'workplace' | 'countries' | 'regions'
     source: job.locationSource as StoredPlace['source'],
   };
 }
-
-/**
- * The same call with nobody waiting on it — for a pasted posting whose
- * reader wants the comparison, not the fit score. The score lands on the job
- * page whenever the classifier answers; a failure is logged, never surfaced.
- */
-export function classifyInBackground(job: ClassifiableJob, userId: number): void {
-  void classifyExistingJob(job, { keepStatus: true, userId }).catch((err) => {
-    logger.error({ err, jobId: job.id }, 'classify-existing: background run failed');
-  });
-}

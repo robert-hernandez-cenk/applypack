@@ -165,11 +165,6 @@ async function load(c: Context): Promise<RenderContext | { response: Response }>
   if (!Number.isFinite(id)) return { response: c.text(t('http.badId'), 400) };
   const resume = await getResume(currentUser().id, id);
   if (!resume) return { response: c.text(t('http.notFound'), 404) };
-  if (resume.hidden) {
-    return {
-      response: flashRedirect('/resumes', 'err', t('render.flash.hidden')),
-    };
-  }
 
   // The stored structure is checked against the CURRENT text before it is
   // drawn, not only when it was written: a scan that finished after a version

@@ -5,7 +5,7 @@ import { Hint, Input, Select } from '../ui';
 import { t } from '../../i18n/t';
 
 /*
- * "One of your jobs" on every launcher (/target, /letter, /screen/new): a
+ * "One of your jobs" on every launcher (/letter, /screen/new): a
  * filter box over a listbox of stored jobs. launcher.mjs filters the options
  * in place, keeps the count in step, and requires a pick while this box is
  * the chosen one; without JS the listbox still submits `jobId`. The children

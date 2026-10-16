@@ -221,7 +221,7 @@
   (`jobs/for-each-user.ts`); the tick drops a posting before the AI only when
   every person it could reach turns it away (`employerGates`).
   A resume is its owner's (ADR 0068): `Resume.userId`, and `resume/store.ts`
-  takes the `userId` first on every list, getter, default flag, scratch row
+  takes the `userId` first on every list, getter, default flag
   and fact — never `currentUser()` inside a store, so the worker passes the
   pack's owner; AI modules take it from the `ResumeSummary` they were given.
   Comparisons, reviews and letters are owned THROUGH the resume (read them

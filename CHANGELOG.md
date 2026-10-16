@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.59.10] — 2026-10-16
+
+### Changed
+- **One way to tailor a resume.** The Tailor resume page (`/target`) and its
+  menu entry are gone. Start from a job's **Resume match** tab: pick a saved
+  resume, choose its **Length** (keep, 1, 2 or 3 pages) and press Compare. The
+  editor always offers **Save as vN**. To compare a file or pasted text, add it
+  on the Resumes page first (#55, ADR 0076).
+- **The cover letter page takes a stored job and a saved resume.** The upload,
+  paste, new-posting and posting-URL inputs are gone; add a resume on Resumes
+  and a posting at **Add a job** first.
+- **Every comparison and letter is judged with your confirmed facts and your
+  other resumes.** The "this is my own resume" box is gone. A comparison made
+  before this change on a file's text alone still opens and still says so.
+
+### Removed
+- The hidden scratch resume that held one-off files. The upgrade deletes it
+  and the comparisons made on it; your resumes are untouched.
+
 ## [2.59.8] — 2026-10-15
 
 ### Fixed

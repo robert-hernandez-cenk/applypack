@@ -59,3 +59,9 @@ text in the editor was.
 ## Non-goals
 
 Automatic trimming; exact page layout; changing fonts or margins to fit; a target on the pack.
+
+## Addendum (2026-10-16, issue #55)
+
+The `/target` launcher this decision put the control on is gone ([0076](./0076-one-tailoring-front-door.md)).
+The same select (*Keep as is* / 1 / 2 / 3, posted as `pages`) now sits on the job's Resume match form and
+goes to `POST /jobs/:id/match`; the stored marker, the memo key and the editor's re-check are unchanged.

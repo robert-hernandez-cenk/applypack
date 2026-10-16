@@ -6,7 +6,7 @@ import { t } from '../i18n/t';
 import { companyForPage } from '../employer';
 
 /*
- * The jobs a candidate-side launcher (/target, /letter) offers in its picker:
+ * The jobs a candidate-side launcher (/letter) offers in its picker:
  * newest first among the ones that clear the primary search's threshold — a
  * resume is compared and a letter written for something you would actually
  * apply to. The picker is searchable, so a long list costs nothing.
@@ -44,7 +44,7 @@ export function toPickOption(job: PickRow, note: string | null, now = Date.now()
 }
 
 /**
- * `include` is a job the page was opened for (`/target?job=70`): it is listed
+ * `include` is a job the page was opened for: it is listed
  * first when the threshold or the limit left it out, because a link that
  * lands on a picker without its job reads as "that job is gone".
  */

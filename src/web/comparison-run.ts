@@ -8,15 +8,15 @@ import { reuseNotice } from '../resume/match-reuse';
 import type { MatchJobInput } from '../resume/prompts';
 import { flashRedirect } from './flash';
 import { formatRelative } from './format';
-import { finishSuggestions, startSuggestionsRun, suggestionsKey } from './suggestions-run';
-import { alsoClaims, claimRun, matchStep, startRun, updateRun, type RunStep } from './target-runs';
+import { startSuggestionsRun } from './suggestions-run';
+import { claimRun, matchStep, startRun, updateRun } from './target-runs';
 import { runFailure } from './run-failure';
 import { t } from '../i18n/t';
 
 /**
  * One comparison of one text against one stored posting, run on the progress
- * page. Every comparison goes through here — the job page's Compare, the
- * editor's Re-check and re-upload, and both halves of the Tailor resume page (`/target`) — so
+ * page. Every comparison goes through here — the job page's Compare and the
+ * editor's Re-check and re-upload — so
  * all of them behave the same: the memo answers a repeat for free, a second
  * submit of the same thing joins the run in flight, and the finished run lands
  * the user on the analysis it just wrote.
@@ -24,7 +24,7 @@ import { t } from '../i18n/t';
 export interface ComparisonRequest {
   jobId: number;
   job: MatchJobInput & { id: number };
-  /** `name` is stored with the row (match-name.ts); `text` is the stored text a draft is measured against. */
+  /** `name` is stored with the row; `text` is the stored text a draft is measured against. */
   resume: { id: number; userId: number; name: string; version: number; text: string };
   /** The text to judge: the stored version, the editor's draft, or a fresh upload. */
   text: string;
@@ -37,7 +37,7 @@ export interface ComparisonRequest {
   resultUrl: (matchId: number) => string;
   /** What the done-flash calls the text — a filename, "Draft", the resume's name. */
   label: string;
-  /** Set when the caller knows better than `text !== resume.text` — a one-off's re-run or a fresh file (match-name.ts). */
+  /** Set when the caller knows better than `text !== resume.text` — a fresh file. */
   draft?: boolean;
   /** A sentence the done-flash ends with ("the fit score is still being scored"). */
   doneNote?: string;
@@ -80,44 +80,6 @@ export async function startComparison(c: Context, req: ComparisonRequest): Promi
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, () => compare(run.id, req));
   return c.redirect(`/target/runs/${run.id}`, 303);
-}
-
-/**
- * The comparison inside a run the caller already claimed, for a caller with
- * work to do before the job exists — a pasted posting is detected and stored
- * first. The memo answers here too, on the progress page instead of by a
- * redirect: a stored analysis finishes the run, and a stored quick check runs
- * the suggestions call as this run's own last step. It answers to that
- * comparison's suggestions key as well, so "Get suggestions" pressed on it
- * meanwhile joins this run instead of calling the model twice (issue #76).
- * `lead` is the steps the run already showed before this one.
- */
-export async function runComparison(runId: string, req: ComparisonRequest, lead: RunStep[] = []): Promise<void> {
-  if (!req.force && !req.rebuild) {
-    const reused = await findReusableMatch(req.resume.userId, req.jobId, req.resume.id, req.text, req.mode, 'own', req.pages);
-    if (reused?.decision === 'reuse') {
-      updateRun(runId, {
-        stage: 'done',
-        resultUrl: req.resultUrl(reused.row.id),
-        flash: reuseNotice(formatRelative(reused.row.createdAt)),
-        reused: true,
-      });
-      return;
-    }
-    if (reused) {
-      alsoClaims(runId, suggestionsKey(reused.row.id));
-      updateRun(runId, { steps: [...lead, 'suggestions'], stage: 'suggestions' });
-      await finishSuggestions(runId, {
-        userId: req.resume.userId,
-        match: reused.row,
-        job: req.job,
-        resultUrl: req.resultUrl(reused.row.id),
-        when: formatRelative(reused.row.createdAt),
-      });
-      return;
-    }
-  }
-  await compare(runId, req);
 }
 
 /** The posting's reading, then one resume-model call, then the run's result. */

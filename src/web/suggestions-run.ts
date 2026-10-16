@@ -6,7 +6,7 @@ import { claimRun, startRun, updateRun } from './target-runs';
 import { t } from '../i18n/t';
 
 /** The name the suggestions work for one comparison is claimed under (issue #76). */
-export function suggestionsKey(matchId: number): string {
+function suggestionsKey(matchId: number): string {
   return `suggestions:${matchId}`;
 }
 
@@ -44,7 +44,7 @@ export function startSuggestionsRun(input: {
  * above, or a comparison whose memo found a stored quick check. `when` is the
  * stored row's age, for the flash.
  */
-export async function finishSuggestions(
+async function finishSuggestions(
   runId: string,
   input: { userId: number; match: ResumeMatch; job: MatchJobInput & { id: number }; resultUrl: string; when?: string },
 ): Promise<void> {

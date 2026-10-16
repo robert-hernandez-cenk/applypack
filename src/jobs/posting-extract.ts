@@ -6,13 +6,10 @@ import { fence, untrustedDirective } from '../prompt-fence';
 import { MAX_FIELD_CHARS } from './manual-job';
 
 /*
- * Quick fact extraction for pasted postings (/target). One cheap
+ * Quick fact extraction for a saved posting page. One cheap
  * classifier-model call over the posting head; never invents — a fact the
- * text does not state comes back null. The input is the CLEANED paste:
- * posting-clean.mjs keeps the job-header block (title, company, location,
- * salary) while dropping the nav chrome that would otherwise eat the
- * HEAD_CHARS window. The prompt builder and parser are pure (tested);
- * only extractPostingFacts talks to the provider.
+ * text does not state comes back null. The prompt builder and parser are
+ * pure (tested); only extractPostingFacts talks to the provider.
  */
 
 /** Postings put their identity at the top; the head keeps the call fast and cheap. */

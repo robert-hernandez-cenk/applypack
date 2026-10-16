@@ -11,8 +11,6 @@ export const DEFAULT_BODY_BYTES = 2 * 1024 * 1024;
 const OWN_LIMIT = [
   /^\/resumes$/,
   /^\/resumes\/\d+\/(replace|compare-format)$/,
-  /^\/target$/,
-  /^\/letter$/,
   /^\/jobs\/\d+\/target\/reupload$/,
   /^\/jobs\/import$/,
   /^\/settings\/profiles\/\d+\/fill-from-resume$/,

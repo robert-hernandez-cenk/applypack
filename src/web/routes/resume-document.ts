@@ -53,7 +53,6 @@ resumeDocumentRoute.post('/resumes/:id/document', async (c) => {
     knobs: knobsFrom(style),
     layout: style.layout,
   };
-  // A one-off check carries the name of the file it was (match-name.ts); the page sends it.
   const name = typeof form.name === 'string' && form.name.trim() ? form.name : resume.name;
 
   const started = Date.now();
