@@ -48,9 +48,9 @@
 
 **Independent Test**: unit tests for `readMatchEvidence` on legacy `{evidence:'text'}`; new comparisons store `own`.
 
-- [ ] T010 [US4] In `src/web/routes/jobs.tsx` replace every `evidence: row.hidden ? … : 'own'` / `resume.hidden ? … 'text'` with `evidence: 'own'` (`POST /jobs/:id/match`, `POST /jobs/:id/target/reupload`); in `src/resume/cover-letter.ts:67` make `evidence = opts.evidence ?? 'own'`. Keep `readMatchEvidence` and its tests in `src/resume/match-mode.ts` / `match-mode.test.ts` (legacy `text` rows).
-- [ ] T011 [P] [US4] Confirm `src/resume/match-reuse.ts` still keys the memo on the evidence marker and its tests (`src/resume/*.test.ts`) still cover `text` vs `own`; add a case if missing.
-- [ ] T012 [US4] Commit: `Judge every comparison with the owner's own resume (#55, US4)`.
+- [x] T010 [US4] In `src/web/routes/jobs.tsx` replace every `evidence: row.hidden ? … : 'own'` / `resume.hidden ? … 'text'` with `evidence: 'own'` (`POST /jobs/:id/match`, `POST /jobs/:id/target/reupload`); in `src/resume/cover-letter.ts:67` make `evidence = opts.evidence ?? 'own'`. Keep `readMatchEvidence` and its tests in `src/resume/match-mode.ts` / `match-mode.test.ts` (legacy `text` rows).
+- [x] T011 [P] [US4] Confirm `src/resume/match-reuse.ts` still keys the memo on the evidence marker and its tests (`src/resume/*.test.ts`) still cover `text` vs `own`; add a case if missing.
+- [x] T012 [US4] Commit: `Judge every comparison with the owner's own resume (#55, US4)`.
 
 ## Phase 6: User Story 2 — No second launcher, no hidden one-off resume (P1)
 
