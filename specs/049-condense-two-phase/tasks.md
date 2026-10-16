@@ -62,7 +62,7 @@ description: "Task list for the two-phase condense stage (#49)"
 ## Phase 6: Polish & cross-cutting
 
 - [x] T022 Update `src/prompt-fence-registry.test.ts`: add `resume/condense.ts` to `PROMPT_MODULES`, `resume/condense-call.ts` to `KNOWN_CALL_SITES`, and a CASE for each new builder
-- [ ] T023 [P] Write `docs/adr/0078-condense-two-phase.md` via the adr-writer template (decisions in research.md; supersedes the removals parts of ADR 0029/0074 where they conflict); update `docs/where-to-look.md`, `CLAUDE.md` (resume module list + the new file rule), `SPEC.md`, `ARCHITECTURE.md`, `CHANGELOG.md` and bump the patch version in `package.json` per the repo's release rules
+- [x] T023 [P] Write `docs/adr/0078-condense-two-phase.md` via the adr-writer template (decisions in research.md; supersedes the removals parts of ADR 0029/0074 where they conflict); update `docs/where-to-look.md`, `CLAUDE.md` (resume module list + the new file rule), `SPEC.md`, `ARCHITECTURE.md`, `CHANGELOG.md` and bump the patch version in `package.json` per the repo's release rules
 - [ ] T024 Run `npm run lint:types && npm test && npm run exports:audit`; fix dead exports
 - [ ] T025 Verify per `quickstart.md`: migration diff, route smoke on a throwaway database, dashboard screenshots (panel open and collapsed, desktop and phone width); a real-key run if a key exists, else list it as unverified for the PR
 - [ ] T026 Mark tasks complete and commit; review `git diff main...HEAD` with the `code-review` skill (Stage 9)

@@ -1,6 +1,6 @@
 # 0074 — A page target steers the cuts in resume tailoring
 
-**Status:** Accepted (2026-10-14). Issue #38. Builds on [0029](./0029-quick-check-and-lazy-suggestions.md)
+**Status:** Accepted (2026-10-14). Issue #38. Amended by [0078](./0078-condense-two-phase.md): the target now steers the Condense stage, not the comparison's own request. Builds on [0029](./0029-quick-check-and-lazy-suggestions.md)
 (the stored comparison's mode marker), [0037](./0037-suggestions-carry-replacement-text-gated-in-code.md) (what may be applied is decided
 in code) and [0022](./0022-prompt-fences-for-untrusted-text.md) (our own instructions sit outside the fence).
 

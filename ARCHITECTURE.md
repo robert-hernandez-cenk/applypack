@@ -417,7 +417,8 @@ src/
     brief.ts                   ← one AI call over the POSTING alone → PostingBrief row, cached by posting text (ADR 0044)
     match.ts                   ← one AI call (fast | full) → brief + facts context in, statuses out, score.ts computes → ResumeMatch row
                                  (a second, cheaper call when suggestion-floor.ts finds a gap)
-    suggestions.ts             ← the lazy second call: stored verdicts in, actions/removals out → same row (ADR 0029)
+    suggestions.ts             ← the lazy second call: stored verdicts in, actions out (no cuts — ADR 0078) → same row (ADR 0029); takes the editor text after Condense
+    condense.ts / condense-call.ts ← Condense (ADR 0078): cuts → removals column, shorter wording → condense column; pure prompts and gates / the two AI calls
     rewrite.ts                 ← one suggestion written again: target kept, wording re-gated → actions column only
     review.ts                  ← one AI call → a ResumeReview row (the strength review, ADR 0030)
     cover-letter.ts            ← one gated AI call → CoverLetter row; gate block → regen once → refuse (ADR 0021)
@@ -784,7 +785,8 @@ user's schedule, read in the schedule's own time zone.
 | `POST /companies/starter-pack`   | web     | resolve a pack live (`probeAts`, ≥1 job wins) → preview; `POST /companies/starter-pack/import` inserts inactive, `POST /companies/starter-pack/enable` activates |
 | `POST /resumes`                  | web     | extract text → async run: `scanResume` on the progress page (about half a minute) |
 | `POST /jobs/:id/match`           | web     | async run (`comparison-run.ts:startComparison`): brief → `matchResumeToJob` (`mode` = fast \| full; every Compare button posts full); a stored quick check + `mode=full` starts the suggestions run instead; `matchId` names the comparison a re-check aims at; redirects to `/target/runs/:id` |
-| `POST /jobs/:id/matches/:matchId/suggestions` | web | async run: `suggestForMatch` — actions/removals/strengths/cautions onto the stored row, score untouched |
+| `POST /jobs/:id/matches/:matchId/suggestions` | web | async run: `suggestForMatch` — actions/strengths/cautions onto the stored row, score and cuts untouched |
+| `POST /jobs/:id/matches/:matchId/condense/:step` | web | `cuts` (`findCuts` → `removals`), `words` (`tightenWording` over the posted editor text → `condense`; refused before `cuts`), `refresh` (`suggestForMatch` over the posted text); each an async run back to the editor (ADR 0078) |
 | `POST /jobs/:id/verify`          | web     | async run on the progress page: `checkLiveness` (free rungs, seconds) → stop on a verdict; else, or with `deep=1`, `verifyJob` with web tools (2-4 min) → `JobVerification` |
 | `POST /jobs/new`                 | web     | MANUAL company upsert + Job + `classifyExistingJob` |
 | `POST /jobs/import`              | web     | read the uploaded rows (`datasets/rows.ts`), detect the mapping, keep them in memory → the preview; `POST /jobs/import/:token` upserts the IMPORT source and starts an async run: `runImportJob` → `processNormalizedJobs` under the fetch lock, recorded as an `import` run; redirects to `/target/runs/:id` |
@@ -1142,8 +1144,9 @@ erDiagram
     String[] cautions
     Json keywords
     Json actions
-    Json removals
-    Json breakdown "score.ts, plus the mode and frame markers"
+    Json removals "Condense step one: the gated cuts"
+    Json condense "Condense step two: shorter wording + the text it was written against"
+    Json breakdown "score.ts, plus the mode, frame and condense markers"
     Json hardRequirements
   }
 
