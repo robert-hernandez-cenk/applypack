@@ -23,6 +23,8 @@ export type RunStep =
   | 'keywords'
   | 'match'
   | 'suggestions'
+  | 'cuts'
+  | 'wording'
   | 'verify'
   | 'letter'
   | 'review'

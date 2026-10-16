@@ -59,6 +59,8 @@ import { claimRun, findLiveRun, LETTER_FAILED, startRun, updateRun } from '../ta
 import { runFailure } from '../run-failure';
 import { startComparison } from '../comparison-run';
 import { startSuggestionsRun } from '../suggestions-run';
+import { startCondenseRun } from '../condense-run';
+import { readCondenseStage } from '../../resume/condense';
 import {
   getCoverLetter,
   getLatestCompanySnapshot,
@@ -957,6 +959,49 @@ jobsRoute.post('/jobs/:id/matches/:matchId/suggestions', async (c) => {
     return flashRedirect(resultUrl, 'warn', t('jobRoute.suggestions.already'));
   }
   return c.redirect(startSuggestionsRun({ userId: currentUser().id, match, job: postingForPrompt(job), resumeName: resume.name, resultUrl }), 303);
+});
+
+/**
+ * Condense (ADR 0078): the cuts, the shorter wording of what is left, and the
+ * other suggestions written again over the condensed text. Each is a run on
+ * the progress page that comes back to the editor.
+ */
+async function condenseTarget(id: number, matchId: number) {
+  const [job, match] = await Promise.all([
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
+    getMatch(currentUser().id, matchId),
+  ]);
+  if (!job || !match || match.jobId !== id) return null;
+  const resume = await getResume(currentUser().id, match.resumeId);
+  return resume ? { job, match, resume, editor: `/jobs/${id}/target?match=${matchId}` } : null;
+}
+
+/** The editor's text as the condense forms post it. */
+function editorText(value: unknown): string {
+  return typeof value === 'string' ? value.replace(/\r\n/g, '\n').trim() : '';
+}
+
+jobsRoute.post('/jobs/:id/matches/:matchId/condense/:step', async (c) => {
+  const id = idParam(c.req.param('id'));
+  const matchId = idParam(c.req.param('matchId'));
+  const step = c.req.param('step');
+  if (!Number.isFinite(id) || !Number.isFinite(matchId)) return c.text(t('http.badId'), 400);
+  if (step !== 'cuts' && step !== 'words' && step !== 'refresh') return c.text(t('http.notFound'), 404);
+  const target = await condenseTarget(id, matchId);
+  if (!target) return c.text(t('http.notFound'), 404);
+  const { job, match, resume, editor } = target;
+  const form = await c.req.parseBody();
+  const text = editorText(form.text);
+  const input = { userId: currentUser().id, match, job: postingForPrompt(job), resumeName: resume.name, resultUrl: editor };
+  if (step === 'cuts') return c.redirect(startCondenseRun('cuts', input), 303);
+  if (step === 'words') {
+    // The order is the person's: the cuts first, then the wording of what is left.
+    if (readCondenseStage(match.breakdown) === 'none') return flashRedirect(editor, 'warn', t('condense.needsCuts'));
+    if (text === '') return flashRedirect(editor, 'warn', t('condense.needsText'));
+    return c.redirect(startCondenseRun('wording', { ...input, text }), 303);
+  }
+  if (readMatchMode(match.breakdown) !== 'full') return flashRedirect(editor, 'warn', t('condense.needsSuggestions'));
+  return c.redirect(startSuggestionsRun({ ...input, text: text === '' ? undefined : text }), 303);
 });
 
 /**

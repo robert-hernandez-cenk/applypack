@@ -236,6 +236,8 @@ const FEATURE_LABEL = {
   'resume-match': 'spend.feature.resumeMatch',
   'resume-match-fast': 'spend.feature.resumeMatchFast',
   'resume-suggestions': 'spend.feature.resumeSuggestions',
+  'resume-condense-cuts': 'spend.feature.resumeCondenseCuts',
+  'resume-condense-words': 'spend.feature.resumeCondenseWords',
   'resume-rewrite': 'spend.feature.resumeRewrite',
   'resume-review': 'spend.feature.resumeReview',
   'cover-letter': 'spend.feature.coverLetter',

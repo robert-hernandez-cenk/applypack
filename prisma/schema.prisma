@@ -868,6 +868,9 @@ model ResumeMatch {
   keywords         Json
   actions          Json
   removals         Json            @default("[]")
+  // Condense, step two (ADR 0078): { rewrites, from } - the shorter wordings and
+  // the editor text they were written against. {} before that step has run.
+  condense         Json            @default("{}")
   // Deterministic score breakdown (ScoreBreakdown in score.ts); {} on pre-9 rows.
   breakdown        Json            @default("{}")
   // [{ requirement, status pass|unknown|fail, note }] — gates shown outside the score.

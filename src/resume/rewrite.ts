@@ -1,4 +1,5 @@
 import type { ResumeMatch } from '@prisma/client';
+import { actionsText } from './condense';
 import { readMatchEvidence } from './match-mode';
 import { logger } from '../logger';
 import { getAiRuntime } from '../ai-runtime';
@@ -51,7 +52,7 @@ export async function rewriteAction(
   const answer = await askForJson(
     await getAiRuntime(),
     {
-      ...buildRewritePrompt(match.resumeText, job, {
+      ...buildRewritePrompt(actionsText(match), job, {
         action: { ...action, why },
         refusal,
         keywords,
@@ -75,7 +76,7 @@ export async function rewriteAction(
   // fields are taken, so a reply that wandered to another line cannot move it.
   const rewritten = { ...action, what: answer.data.what, why: answer.data.why, replacement: answer.data.replacement };
   const gate = gateActions([rewritten], {
-    resumeText: match.resumeText,
+    resumeText: actionsText(match),
     posting: `${job.title}\n${job.description}`,
     facts,
     keywords,

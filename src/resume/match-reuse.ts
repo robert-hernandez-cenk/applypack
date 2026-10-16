@@ -105,7 +105,7 @@ export function suggestionsFailed(reason?: string): string {
  * asked for a full analysis and needs to know why the score did not move.
  * Pressing "Get suggestions" on a comparison already knows that.
  */
-export function suggestionsFlash(counts: { actions: number; removals: number }, reusedFrom?: string): string {
+export function suggestionsFlash(counts: { actions: number }, reusedFrom?: string): string {
   return reusedFrom
     ? t('match.suggestions.addedReused', { ...counts, when: reusedFrom })
     : t('match.suggestions.added', counts);

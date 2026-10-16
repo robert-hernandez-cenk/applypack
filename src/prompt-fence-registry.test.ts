@@ -9,10 +9,12 @@ import * as prefilterMod from './classifier-prefilter';
 import * as extractMod from './jobs/posting-extract';
 import * as gmailMod from './gmail/prompt';
 import * as resumeMod from './resume/prompts';
+import * as condenseMod from './resume/condense';
 import * as verifyMod from './verification/prompts';
 import * as screenMod from './screening/prompts';
 import * as rubricMod from './screening/rubric';
 import { fenceClose, fenceOpen } from './prompt-fence';
+import { lengthPlan } from './resume/length';
 
 /*
  * The F12 guard (ADR 0022). Two rosters are DERIVED — from the modules' own
@@ -33,6 +35,7 @@ const PROMPT_MODULES: Record<string, Record<string, unknown>> = {
   'jobs/posting-extract.ts': extractMod,
   'gmail/prompt.ts': gmailMod,
   'resume/prompts.ts': resumeMod,
+  'resume/condense.ts': condenseMod,
   'verification/prompts.ts': verifyMod,
   'screening/prompts.ts': screenMod,
 };
@@ -53,6 +56,7 @@ const KNOWN_CALL_SITES: Record<string, string> = {
   'jobs/gmail-job.ts': 'buildGmailExtractPrompt',
   'jobs/gmail-live.ts': 'the model call behind gmail-job.ts, which builds its prompt with buildGmailExtractPrompt',
   'resume/brief.ts': 'buildBriefPrompt',
+  'resume/condense-call.ts': 'buildRemovalsPrompt and buildCondensePrompt',
   'resume/match.ts': 'buildMatchPrompt',
   'resume/rewrite.ts': 'buildRewritePrompt',
   'resume/suggestions.ts': 'buildSuggestionsPrompt',
@@ -224,6 +228,32 @@ const CASES: Record<string, Case> = {
       ['KEYWORD VERDICTS', 'WHERE-NEEDLE'],
       ['KEYWORD VERDICTS', 'GATE-NEEDLE'],
       ['COMPANY CONTEXT', 'SNAPSHOT-NEEDLE'],
+    ],
+  },
+  buildRemovalsPrompt: {
+    build: () =>
+      condenseMod.buildRemovalsPrompt(RESUME, JOB, {
+        keywords: [{ term: 'VERDICT-NEEDLE', requirement: 'must', primary: true, status: 'present' }],
+        length: lengthPlan(RESUME, 'keep'),
+      }),
+    fenced: [
+      ['RESUME', RESUME],
+      ['JOB POSTING', DESC],
+      ['JOB POSTING', 'TITLE-NEEDLE'],
+      // Tier 2: the stored verdicts are model output over the untrusted texts.
+      ['KEYWORD VERDICTS', 'VERDICT-NEEDLE'],
+    ],
+  },
+  buildCondensePrompt: {
+    build: () =>
+      condenseMod.buildCondensePrompt(RESUME, JOB, {
+        keywords: [{ term: 'VERDICT-NEEDLE', requirement: 'must', primary: true, status: 'present' }],
+        length: lengthPlan(RESUME, 'keep'),
+      }),
+    fenced: [
+      ['RESUME', RESUME],
+      ['JOB POSTING', DESC],
+      ['KEYWORD VERDICTS', 'VERDICT-NEEDLE'],
     ],
   },
   buildRewritePrompt: {

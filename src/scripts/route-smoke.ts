@@ -540,6 +540,22 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 303 && res.headers.get('location') === '/resumes',
     },
     {
+      // Condense (ADR 0078): the wording step reads the text the cuts leave, so it waits for them.
+      name: 'POST /jobs/:id/matches/:matchId/condense/words before any cuts (refused, back to the editor)',
+      init: form({ text: 'Smoke resume text' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}/target?match=1` && /Find the cuts first/.test(flashOf(res)),
+    },
+    {
+      name: 'POST /jobs/:id/matches/:matchId/condense/nonsense (not a step)',
+      init: form({}),
+      expect: (res) => res.status === 404,
+    },
+    {
+      name: 'POST /jobs/:id/matches/:matchId/condense/cuts (a run starts)',
+      init: form({}),
+      expect: (res) => res.status === 303 && (res.headers.get('location') ?? '').startsWith('/target/runs/'),
+    },
+    {
       name: 'POST /settings/ai/budget',
       init: form({ budget: '12.50' }),
       expect: (res) => res.status === 303 && (res.headers.get('location') ?? '').startsWith('/settings?tab=ai'),
@@ -865,6 +881,9 @@ async function main(): Promise<void> {
     `/jobs/${f.jobId}/status`,
     `/jobs/${f.jobId}/status`,
     '/facts',
+    `/jobs/${f.jobId}/matches/1/condense/words`,
+    `/jobs/${f.jobId}/matches/1/condense/nonsense`,
+    `/jobs/${f.jobId}/matches/1/condense/cuts`,
     '/settings/ai/budget',
     `/companies/${f.browserPageId}/paste`,
     '/companies/mutes',

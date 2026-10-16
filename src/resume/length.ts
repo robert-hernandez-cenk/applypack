@@ -86,19 +86,3 @@ export function lengthExtraTokens(plan: LengthPlan): number {
   if (plan.target === 'keep' || plan.met) return 0;
   return (cutBudget(plan.overshootChars) - CUTS_DEFAULT) * TOKENS_PER_EXTRA_CUT;
 }
-
-/**
- * The block the full comparison and the suggestions call read when a target is
- * set and not yet met. Our own instruction, so it sits outside every fence
- * (ADR 0022); what may actually be cut is still decided in code
- * (`replacement-gate.ts:gateRemovals`), never here.
- */
-export function lengthLines(plan: LengthPlan): string[] {
-  if (plan.target === 'keep' || plan.met) return [];
-  const cuts = cutBudget(plan.overshootChars);
-  return [
-    `LENGTH TARGET: the candidate wants this resume to fit ${plan.target} ${plan.target === 1 ? 'page' : 'pages'}. It runs about ${plan.pages.toFixed(1)} pages, roughly ${plan.overshootChars} characters over.`,
-    `Cut toward the target through "removals" (and short rewrites in "actions" that condense a bullet): drop what is least relevant to THIS posting first, condense older roles to a line or two, and keep the strongest evidence for the posting's must-have terms. Propose up to ${cuts} removals — this overrides the "~8 removals" pace stated above — each quoting its exact text. Do not touch the contact line.`,
-    '',
-  ];
-}
