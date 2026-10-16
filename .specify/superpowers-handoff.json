@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-15T21:20:27.9083174Z",
-  "feature_directory": "specs/046-edit-reclassify-jobs",
+  "updated_at": "2026-10-16T15:07:00.6820259Z",
+  "feature_directory": "specs/055-one-tailoring-front-door",
   "source_of_truth": {
     "constitution": ".specify/memory/constitution.md",
-    "spec": "specs/046-edit-reclassify-jobs/spec.md",
-    "plan": "specs/046-edit-reclassify-jobs/plan.md",
-    "tasks": "specs/046-edit-reclassify-jobs/tasks.md"
+    "spec": "specs/055-one-tailoring-front-door/spec.md",
+    "plan": "specs/055-one-tailoring-front-door/plan.md",
+    "tasks": "specs/055-one-tailoring-front-door/tasks.md"
   },
   "supersedes": [
     "speckit.implement"
   ],
-  "executor": "superpowers",
+  "executor": "speckit",
   "capabilities": [
     "executing-plans",
     "test-driven-development",
@@ -19,16 +19,11 @@
     "requesting-code-review",
     "finishing-a-development-branch"
   ],
-  "status": "complete",
+  "status": "ready",
   "blocked_reason": null,
   "artifact_owner": "claude",
   "review_only_agents": [],
   "notes": null,
-  "last_snapshot_id": "20261015T2120278870280Z-complete",
-  "instructions": "Use /speckit-superpowers-bridge (Claude Code) or $speckit-superpowers-bridge (Codex). The bridge orchestrates native Superpowers skills against tasks.md; do not run speckit.implement and do not invoke superpowers:writing-plans / :brainstorming for an active Spec Kit feature.",
-  "artifacts_sha256": {
-    "spec.md": "885b7cb2d2ca19c5ab2b3f37b423d89e23e1c7f8fdec1fcec2d3854748af8048",
-    "plan.md": "21d05d3ddf81a4ddb311eb988a71282620aaa22aa2c027cb19ab98fcee6331f8",
-    "tasks.md": "f1c5333fdbac3c392bfa8a38ad55fa19d1d9dda719cad090f53910566e8b4935"
-  }
+  "last_snapshot_id": "20261016T1507006708317Z-ready",
+  "instructions": "Use /speckit-superpowers-bridge (Claude Code) or $speckit-superpowers-bridge (Codex). The bridge orchestrates native Superpowers skills against tasks.md; do not run speckit.implement and do not invoke superpowers:writing-plans / :brainstorming for an active Spec Kit feature."
 }
