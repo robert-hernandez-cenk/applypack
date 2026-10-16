@@ -100,4 +100,4 @@ and keeps its skills in a 1 × 2 table, which set two of the rules below.
   v1.70.0 with no ADR, because every comparison could mint one more resume
   row named after the company. The one save left is "Save as v{n+1}" on a
   resume the user already has; a one-off check from the Compare page saves
-  nothing (`src/web/routes/resumes.tsx:saveEdited`).
+  nothing (`src/web/routes/resumes.tsx:saveTailored` since ADR 0077, which writes the same bytes into a copy for the posting).

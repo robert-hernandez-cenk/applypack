@@ -797,7 +797,8 @@ user's schedule, read in the schedule's own time zone.
 | `POST /jobs/:id/cover/:letterId` | web     | save a manual edit; re-runs the gate warn-only, updates `gateVerdict`/`gateNotes` |
 | `GET /jobs/:id/cover/:letterId/file/:fmt` | web | letter (edited text wins) → .docx or .pdf attachment, built in-process |
 | `POST /letter`                   | web     | stored job + saved resume → async run [match? → verify?] → gated letter. Everything slow is a run step; the POST only shape-checks (§6.2) |
-| `POST /resumes/:id/draft`        | web     | async run: `saveEdited` writes the edits into the user's .docx when the template check allows it (else a `.md` text version) → `scanResume`; with a `jobId` (Save as vN on the targeted view), `matchResumeToJob` instead while the scan runs in the background. It passes no `mode`, so the saved text is re-scored as a quick check (`fast`) |
+| `POST /resumes/:id/draft`        | web     | async run (requires a `jobId`): `saveTailored` writes the edits into the user's .docx — or into the posting's own copy when the editor started from it (`src/resume/tailored.ts:patchSource`) — when the template check allows it (else the clean .docx, else a `.md`), as the `TailoredResume` for (resume, posting); then `matchResumeToJob` judges the copy with `tailoredId` set. The resume is never written and not scanned (ADR 0077). It passes no `mode`, so the saved text is re-scored as a quick check (`fast`) |
+| `GET /tailored/:id/download`, `POST /tailored/:id/delete`, `POST /tailored/:id/promote` | web | a copy's file; remove it (its comparisons go with it); make it the resume's next version (`replaceResumeFile`, then a scan) |
 | a request under `/static/`       | web     | `src/web/public`, served as-is (`serveStatic` in `src/web/app.ts`) |
 | `POST /discovery/:id/promote`    | web     | transactional Company upsert             |
 | `POST /discovery/probe-now`      | web     | spawns `runDiscoveryJob` async (lock)    |

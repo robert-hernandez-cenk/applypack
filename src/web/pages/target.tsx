@@ -3,7 +3,7 @@ import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
 import { Badge, Button, Card, FitBadge, Flash, Hint, HistoryChip, inEnglish, More, SUBMIT_ONCE, TONE_TEXT, When } from '../ui';
 import type { FlashMessage } from '../flash';
-import { FIT_OK_FLOOR, fitTone } from '../format';
+import { FIT_OK_FLOOR, fitTone, formatDate } from '../format';
 import type { MatchWithResume } from '../../resume/store';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
 import type { VerificationForHint } from '../../resume/verification-hint';
@@ -81,6 +81,8 @@ export interface TargetPageProps {
   fileVerdict: string;
   /** Where the clean re-render lives, when this file is one a Save cannot fully write (ADR 0039). */
   cleanHref?: string | null;
+  /** The tailored copy saved for this posting, when there is one (ADR 0077). */
+  copy?: { id: number; updatedAt: Date } | null;
 }
 
 /* Side by side is first and default (user pref); Suggestions keeps its
@@ -140,6 +142,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   verification,
   fileVerdict,
   cleanHref,
+  copy = null,
   flash,
 }) => {
   // The panes, the chips and the live score work from the effective list: the
@@ -437,7 +440,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                     {t('target.reupload.compare')}
                   </Button>
                   <Hint>
-                    {t('target.reupload.hintSaved', { version: resume.version + 1 })}
+                    {t('target.reupload.hintSaved')}
                   </Hint>
                 </form>
               </div>
@@ -470,7 +473,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                     {t('target.analyse.button')}
                   </Button>
                 </form>
-                {/* One save: the next version of the user's own resume. This page
+                {/* One save: a tailored copy for this posting (ADR 0077). This page
                     compares — it does not manage resumes, and every extra
                     "save as…" here ended up as another row on /resumes that
                     nobody asked for. */}
@@ -489,11 +492,19 @@ export const TargetPage: FC<TargetPageProps> = ({
                     class="w-full"
                     data-save-button
                     disabled
-                    title={t('target.save.title', { version: resume.version + 1 })}
+                    title={t('target.save.title')}
                   >
-                    {t('target.save.button', { version: resume.version + 1 })}
+                    {t('target.save.button')}
                   </Button>
                 </form>
+                {copy && (
+                  <Hint>
+                    {t('target.copy.saved', { date: formatDate(copy.updatedAt) })} ·{' '}
+                    <a href={`/tailored/${copy.id}/download`} class="text-accent-strong underline underline-offset-2 hover:no-underline">
+                      {t('resume.tailored.download')}
+                    </a>
+                  </Hint>
+                )}
               </div>
             </details>
             </div>
@@ -838,9 +849,9 @@ export const TargetPage: FC<TargetPageProps> = ({
               variant="primary"
               size="sm"
               form="save-form"
-              title={t('target.save.barTitle', { version: resume.version + 1 })}
+              title={t('target.save.barTitle')}
             >
-              {t('target.save.button', { version: resume.version + 1 })}
+              {t('target.save.button')}
             </Button>
           </div>
         </div>

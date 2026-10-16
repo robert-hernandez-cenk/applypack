@@ -382,12 +382,18 @@
   `structure-complete.ts`,
   `style-infer.ts`, `render/` (ADR 0039), `posting-orientation.ts`,
   `coverage.ts`, `duplicate.ts`, `review-gate.ts`, `usage.ts`,
-  `draft-document.ts`, `pdf-geometry.ts`, `pdf-layout.ts` (ADR 0059), `summary-guide.ts` are pure (tested);
+  `draft-document.ts`, `pdf-geometry.ts`, `pdf-layout.ts` (ADR 0059), `summary-guide.ts`,
+  `tailored.ts` (ADR 0077) are pure (tested);
   `scan.ts` / `match.ts` / `suggestions.ts` / `review.ts` / `cover-letter.ts`
   call the AI provider (the letter is gated by `fact-check.ts` and generates from stored
   inputs only — ADR 0021); `store.ts` is the only file that touches Prisma.
   Called by the dashboard and, since ADR 0063, by the worker's pack runner
   (`src/pack/prepare.ts`); no other worker job imports it (ADR 0008).
+  A tailoring save never writes the `Resume` (ADR 0077): it upserts the
+  `TailoredResume` for (resume, posting), a table no resume reader touches, and
+  the copy's comparison carries `ResumeMatch.tailoredId` — a query that counts
+  or folds a resume's own comparisons filters `tailoredId: null`. Only the
+  confirmed "Promote to master" (`promoteTailored`) overwrites the resume.
 - `src/resume/reactive-resume.ts` is a Reactive Resume export read to Markdown
   (ADR 0073) and is pure: v4 / v5 / v6 are told apart by shape, hidden
   sections and items never reach the text, `stripHtml` runs once per field.

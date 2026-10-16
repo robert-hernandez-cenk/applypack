@@ -25,6 +25,7 @@ import {
   listFacts,
   listLatestKeywordTables,
   listMatchesForResume,
+  listTailoredForResume,
   listResumes,
   matchStatsByResume,
   renameResume,
@@ -34,7 +35,12 @@ import {
   saveResumeTextVersion,
   setDefaultResume,
   replaceResumeBytes,
-  versionFileName,
+  deleteTailored,
+  getTailoredForJob,
+  getTailoredWithFile,
+  promoteTailored,
+  type TailoredSummary,
+  upsertTailored,
 } from '../../resume/store';
 import { readAnswers, unansweredAsks } from '../../resume/answers';
 import { describeStructure, docxStructure, type DocxStructure } from '../../resume/docx-structure';
@@ -42,6 +48,7 @@ import { patchDocx } from '../../resume/docx-patch';
 import { readProps, withProps, type DocxProps } from '../../resume/docx-props';
 import { DOCX_MIME } from '../../resume/docx-write';
 import { cleanDocx } from '../../resume/draft-document';
+import { patchSource, tailoredFileName } from '../../resume/tailored';
 import { knobsFrom } from '../../resume/render/knobs';
 import { resumeStyle } from '../resume-style';
 import { deltaSentence, reviewDelta, type ReviewDelta, type ReviewSnapshot } from '../../resume/review-delta';
@@ -259,9 +266,10 @@ resumesRoute.post('/resumes/:id/compare-format', resumeUploadLimit('/resumes'), 
 resumesRoute.get('/resumes/:id', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
-  const [resume, matches, review, linkedProfiles, impact, tables, facts, reactive] = await Promise.all([
+  const [resume, matches, tailored, review, linkedProfiles, impact, tables, facts, reactive] = await Promise.all([
     getResume(currentUser().id, id),
     listMatchesForResume(currentUser().id, id),
+    listTailoredForResume(currentUser().id, id),
     getLatestReviewForResume(currentUser().id, id),
     listProfilesForResume(currentUser().id, id),
     deleteImpact(currentUser().id, id),
@@ -287,6 +295,7 @@ resumesRoute.get('/resumes/:id', async (c) => {
     <ResumeDetailPage
       resume={resume}
       matches={matches}
+      tailored={tailored}
       coverage={missing}
       review={review}
       answers={readAnswers(resume.answers)}
@@ -323,6 +332,39 @@ resumesRoute.get('/resumes/:id/download', async (c) => {
   });
 });
 
+/* ---------- tailored copies (ADR 0077) ---------- */
+
+resumesRoute.get('/tailored/:id/download', async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  const copy = await getTailoredWithFile(currentUser().id, id);
+  if (!copy) return c.text(t('http.notFound'), 404);
+  return new Response(Buffer.from(copy.original), {
+    headers: {
+      'Content-Type': copy.mimeType,
+      'Content-Disposition': `attachment; filename="${copy.sourceFilename.replace(/["\r\n]/g, '')}"`,
+    },
+  });
+});
+
+resumesRoute.post('/tailored/:id/delete', async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  const gone = await deleteTailored(currentUser().id, id);
+  if (!gone) return flashRedirect('/resumes', 'err', t('resume.tailored.gone'));
+  return flashRedirect(`/resumes/${gone.resumeId}#tailored`, 'ok', t('resume.tailored.deleted', { job: gone.jobTitle }));
+});
+
+/** The old overwrite, on purpose: the copy becomes the resume's next version, and the new text is scanned. */
+resumesRoute.post('/tailored/:id/promote', async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  const resume = await promoteTailored(currentUser().id, id);
+  if (!resume) return flashRedirect('/resumes', 'err', t('resume.tailored.gone'));
+  scanInBackground(resume);
+  return flashRedirect(`/resumes/${resume.id}`, 'ok', t('resume.tailored.promoted', { name: resume.name, version: resume.version }));
+});
+
 resumesRoute.post('/resumes/:id/draft', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
@@ -341,19 +383,22 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   // save is the clean version (ADR 0059).
   const baseText = typeof form.baseText === 'string' ? form.baseText.replace(/\r\n/g, '\n').trim() : '';
   const jobId = idParam(form.jobId);
+  // A tailored copy is written for one posting (ADR 0077); the target page is
+  // the only caller and always names it.
   const job = Number.isFinite(jobId)
     ? await prisma.job.findFirst({ where: { id: jobId, userJobs: { some: { userId: currentUser().id } } }, include: { company: { select: { name: true, atsType: true } } } })
     : null;
+  if (!job) return flashRedirect(`/resumes/${id}`, 'err', t('resume.flash.draftNeedsJob'));
 
-  // Claimed BEFORE the save, not after: this route's side effect is a new
-  // resume version, so a second submit that got as far as saving would leave
-  // a duplicate version behind whatever the run registry then did. Keyed on
-  // the text, because that is what the user submitted (issue #76).
-  const { run, joined } = claimRun(`draft:${id}:${hashShortId(text)}:${job?.id ?? ''}`, {
-    steps: job ? ['keywords'] : ['scan'],
-    jobTitle: job?.title ?? '',
+  // Claimed BEFORE the save, not after: this route's side effect is a saved
+  // copy, so a second submit that got as far as saving would write it twice
+  // whatever the run registry then did. Keyed on the text, because that is
+  // what the user submitted (issue #76).
+  const { run, joined } = claimRun(`draft:${id}:${hashShortId(text)}:${job.id}`, {
+    steps: ['keywords'],
+    jobTitle: job.title,
     resumeName: '',
-    jobId: job?.id,
+    jobId: job.id,
     heading: { running: t('resume.run.draftRunning'), failed: t('resume.run.draftFailed') },
     subtitle: t('resume.run.saving'),
     backUrl: `/resumes/${id}`,
@@ -363,34 +408,20 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
 
   // The save happens inside the run, so a failure lands on the progress page
   // as an error instead of stranding a claimed run nothing will ever finish.
-  // Scan and match are the slow part after it: two AI calls back to back is
-  // the worst wait on the site, which is why this gets a run at all.
+  // The comparison is the slow part after it, which is why this gets a run.
   startRun(run.id, async () => {
-    const { resume, note, document } = await saveEdited(id, text, baseText);
-    // Every sentence below opens the same way: the version it was saved as, and how.
-    const saved = { version: resume.version, note };
+    const { copy, note, document } = await saveTailored(current, job.id, job.title, text, baseText);
+    const saved = { note };
     // TASKS R25: the saved file — the user's own .docx written into, or the clean one — handed back.
-    const downloadUrl = document ? `/resumes/${resume.id}/download` : undefined;
-    updateRun(run.id, {
-      resumeName: resume.name,
-      subtitle: t(job ? 'resume.save.scoring' : 'resume.save.done', saved),
-    });
+    const downloadUrl = document ? `/tailored/${copy.id}/download` : undefined;
+    updateRun(run.id, { resumeName: current.name, subtitle: t('resume.save.scoring', saved) });
     let reason = '';
     const noteReason = (r: string) => {
       reason = r;
     };
-    if (!job) {
-      const scan = await scanResume(resume, noteReason);
-      updateRun(run.id, scan
-        ? { stage: 'done', resultUrl: `/resumes/${resume.id}`, flash: t('resume.save.done', saved), downloadUrl }
-        : { stage: 'error', error: runFailure(t('resume.save.scanFailed', saved), reason, t('resume.save.scanFailedNext')) });
-      return;
-    }
-    // The match reads the text, never the scan (target-plan §3.1 item 2), so
-    // the scan runs behind it as the re-upload route's does — it was 63 % of
-    // a six-minute wait on a CLI engine (#168).
-    scanInBackground(resume);
-    const match = await matchResumeToJob(resume, postingForPrompt(job), { onError: noteReason });
+    // The resume is not scanned: the copy is not the resume (ADR 0077). The
+    // comparison judges the copy's words under the resume's identity.
+    const match = await matchResumeToJob({ ...current, text: copy.text }, postingForPrompt(job), { tailoredId: copy.id, onError: noteReason });
     updateRun(run.id, match
       ? {
           stage: 'done',
@@ -411,26 +442,29 @@ function isDocx(filename: string): boolean {
 }
 
 /**
- * Save the editor's text as the next version of the resume — as a document,
- * never as a Markdown file. When the file is a .docx the template check
- * allows, the user's own file is patched with the edits (ADR 0038); otherwise
- * the version is the clean .docx the Tailor page's document pane drew, in the
- * typeface read off the file it replaces (ADR 0039), and `note` says why. A
- * text version is left only for a clean file that would drop a line.
+ * Save the editor's text as the tailored copy for one posting — as a document,
+ * never as a Markdown file — and leave the resume alone (ADR 0077). When the
+ * file is a .docx the template check allows, the user's own file is patched
+ * with the edits (ADR 0038); otherwise the copy is the clean .docx the Tailor
+ * page's document pane drew, in the typeface read off the resume's file
+ * (ADR 0039), and `note` says why. A text copy is left only for a clean file
+ * that would drop a line.
  *
- * There is no "save as a tailored copy" any more: one comparison per posting
- * used to mint one more row on /resumes, named after the company, and a user
- * with four applications had eight resumes and no idea which was theirs.
+ * The edits are patched into the file the editor's text came from: the
+ * copy's own when it started from the copy (`patchSource`), else the resume's.
  */
-async function saveEdited(
-  id: number,
+async function saveTailored(
+  current: ResumeSummary,
+  jobId: number,
+  jobTitle: string,
   text: string,
   baseText: string,
-): Promise<{ resume: ResumeSummary; note: string; document: boolean }> {
-  const [current, row] = await Promise.all([getResume(currentUser().id, id), getResumeOriginal(currentUser().id, id)]);
-  if (!current) throw new Error(`resume ${id} is gone`);
-  const nextVersion = current.version + 1;
-  const name = current.name;
+): Promise<{ copy: TailoredSummary; note: string; document: boolean }> {
+  const id = current.id;
+  const userId = currentUser().id;
+  const [masterRow, existing] = await Promise.all([getResumeOriginal(userId, id), getTailoredForJob(userId, id, jobId)]);
+  const fromCopy = existing !== null && patchSource({ baseText, copyText: existing.text }) === 'copy';
+  const row = fromCopy ? await getTailoredWithFile(userId, existing.id) : masterRow;
   let file: { sourceFilename: string; mimeType: string; original: Buffer; text: string } | null = null;
   let why = row && /\.pdf$/i.test(row.sourceFilename) ? t('resume.save.why.pdf') : t('resume.save.why.text');
   if (row && isDocx(row.sourceFilename)) {
@@ -441,7 +475,7 @@ async function saveEdited(
       const patched = await patchDocx(original, baseText, text);
       if (patched.ok) {
         const r = patched.report;
-        file = { sourceFilename: versionFileName(name, nextVersion, 'docx'), mimeType: DOCX_MIME, original: patched.docx, text: patched.text };
+        file = { sourceFilename: tailoredFileName(current.name, jobTitle, 'docx'), mimeType: DOCX_MIME, original: patched.docx, text: patched.text };
         why = t('resume.save.why.patched', { changed: r.changed, added: r.added, removed: r.removed });
         logger.info({ id, ...r, bytes: patched.docx.length }, 'resume: docx patched');
       } else {
@@ -452,10 +486,11 @@ async function saveEdited(
   }
   let note = why;
   if (!file) {
-    const style = row ? await resumeStyle(current, row) : undefined;
+    // The typeface is the resume's own, whichever file the edits came from.
+    const style = masterRow ? await resumeStyle(current, masterRow) : undefined;
     const clean = await cleanDocx(text, knobsFrom(style), style?.layout ?? null);
     if (clean.missing.length === 0) {
-      file = { sourceFilename: versionFileName(name, nextVersion, 'docx'), mimeType: DOCX_MIME, original: clean.docx, text: clean.text };
+      file = { sourceFilename: tailoredFileName(current.name, jobTitle, 'docx'), mimeType: DOCX_MIME, original: clean.docx, text: clean.text };
       note = t('resume.save.note.clean', { why });
     } else {
       note = t('resume.save.note.text', { why, n: clean.missing.length });
@@ -463,12 +498,12 @@ async function saveEdited(
     }
   }
   const payload = file ?? {
-    sourceFilename: versionFileName(name, nextVersion, 'md'),
+    sourceFilename: tailoredFileName(current.name, jobTitle, 'md'),
     mimeType: 'text/markdown',
     original: Buffer.from(text, 'utf8'),
     text,
   };
-  return { resume: await replaceResumeFile(currentUser().id, id, payload), note, document: file !== null };
+  return { copy: await upsertTailored(userId, id, jobId, payload), note, document: file !== null };
 }
 
 /**

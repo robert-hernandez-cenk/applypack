@@ -135,6 +135,7 @@ of truth when the two disagree.
 - 0074 A page target steers the cuts in resume tailoring *(builds on 0022, 0029, 0037: `breakdown.pages`, a LENGTH TARGET block in the full match and suggestions user messages, cuts still gated in code, an editor meter)*
 - 0075 The Reactive Resume connection is a saved setting *(supersedes the in-memory key of 0073; builds on 0070, 0071: one row per person, one accessor, checked on save, a stash with no key, a new-version source)*
 - 0076 One tailoring front door *(amends 0074, 0029: the Resume match tab is the only way to compare, `/target` and the hidden scratch resume are removed, `/letter` takes a stored job and a saved resume, evidence is always `own` and legacy `text` rows still read)*
+- 0077 Tailored resume copies *(amends 0038, 0076: the editor's save writes a copy for the posting, never the resume; the copy's comparisons stay out of the resume's count and coverage; promote to master is the deliberate overwrite)*
 
 Check a proposal against these before touching process layout, sources,
 scheduling, profiles, how the AI is called, the resume score or employer

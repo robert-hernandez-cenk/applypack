@@ -93,7 +93,7 @@ When a tailored copy is really the better resume, I can promote it to the master
 - **FR-003**: The copy MUST be written as a document by the same rules as today's save (the user's `.docx` patched with the edits when possible, else the clean `.docx`, else text), with the note saying which.
 - **FR-004**: When the editor's starting text equals the existing copy's text, the copy's own file MUST be the base for patching; otherwise the resume's file is.
 - **FR-005**: After saving, the system MUST compare the copy's text with the posting and show the score. The comparison MUST be stored against the resume but marked as belonging to the copy.
-- **FR-006**: Comparisons marked as a copy's MUST be excluded from the resume's comparison count, best score, coverage and keyword tables.
+- **FR-006**: Comparisons marked as a copy's MUST be excluded from the resume's comparison count, best score, comparison history, coverage and keyword tables.
 - **FR-007**: A copy MUST be excluded from the resume list, other-resume skill hints, duplicate-text checks and any scan field.
 - **FR-008**: Saving a copy MUST NOT queue a re-scan of the resume.
 - **FR-009**: The tailoring page MUST show the copy for its posting with a download link; the resume page MUST list all its copies with posting, date, download, delete and promote.

@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.59.11] — 2026-10-16
+
+### Changed
+- **Saving from the Resume match editor no longer overwrites your resume.** The
+  button is now **Save tailored copy**: it writes your edits, as a `.docx` where
+  it can, to a copy made for that posting, and checks the copy against it. Your
+  resume keeps its text, version and scan; its skill hints, keyword gaps and
+  comparison count never read the copy. Saving again for the same posting
+  replaces the copy (#48, ADR 0077).
+
+### Added
+- **Tailored copies** are listed on the resume's page and on the posting's
+  Resume match tab, can be downloaded and deleted, and a copy can be made the
+  resume's next version on purpose with **Make master** (after a confirmation).
+
+### Removed
+- "Save as vN" on the Resume match editor, and the re-scan it queued.
+  Versions saved before this stay as they are.
+
 ## [2.59.10] — 2026-10-16
 
 ### Changed

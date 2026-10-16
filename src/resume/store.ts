@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { sameTextAs } from './duplicate';
-import type { CandidateFact, CoverLetter, Resume, ResumeMatch, ResumeReview } from '@prisma/client';
+import type { CandidateFact, CoverLetter, Resume, ResumeMatch, ResumeReview, TailoredResume } from '@prisma/client';
 import { prisma } from '../db';
 import { withGlobalWriteLock } from '../settings';
 import { logger } from '../logger';
@@ -123,6 +123,80 @@ export async function deleteResume(userId: number, id: number): Promise<boolean>
   return count > 0;
 }
 
+/* ---------- tailored copies (ADR 0077) ---------- */
+
+/** A copy without its file; `listTailoredForResume` adds the posting it was made for. */
+export type TailoredSummary = Omit<TailoredResume, 'original'>;
+export type TailoredListed = Omit<TailoredSummary, 'text'> & {
+  job: { id: number; title: string; employer: string | null; company: { name: string; atsType: string } };
+};
+
+export type TailoredFile = { sourceFilename: string; mimeType: string; original: Buffer; text: string };
+
+const TAILORED_WITHOUT_ORIGINAL = { original: true } as const;
+
+/**
+ * Writes the copy for (resume, posting): the first save creates it, later ones
+ * replace it in place so its earlier comparisons stay attached. The resume
+ * row is read, never written — a tailoring save must not move its text,
+ * version or scan. The caller has checked the posting is the person's.
+ */
+export async function upsertTailored(userId: number, resumeId: number, jobId: number, file: TailoredFile): Promise<TailoredSummary> {
+  const owner = await prisma.resume.findFirst({ where: { id: resumeId, userId }, select: { id: true } });
+  if (!owner) throw new Error(`resume ${resumeId} is gone`);
+  const data = { ...file, original: new Uint8Array(file.original) };
+  const row = await prisma.tailoredResume.upsert({
+    where: { resumeId_jobId: { resumeId, jobId } },
+    create: { ...data, resumeId, jobId },
+    update: data,
+    omit: TAILORED_WITHOUT_ORIGINAL,
+  });
+  logger.info({ id: row.id, resumeId, jobId, chars: file.text.length }, 'resume: tailored copy saved');
+  return row;
+}
+
+export async function getTailoredForJob(userId: number, resumeId: number, jobId: number): Promise<TailoredSummary | null> {
+  return prisma.tailoredResume.findFirst({ where: { resumeId, jobId, resume: { userId } }, omit: TAILORED_WITHOUT_ORIGINAL });
+}
+
+/** The copy with its file, for the patch base, the download and the promotion. */
+export async function getTailoredWithFile(userId: number, id: number): Promise<TailoredResume | null> {
+  return prisma.tailoredResume.findFirst({ where: { id, resume: { userId } } });
+}
+
+/** Newest first; the file and the text stay in the database. */
+export async function listTailoredForResume(userId: number, resumeId: number): Promise<TailoredListed[]> {
+  return prisma.tailoredResume.findMany({
+    where: { resumeId, resume: { userId } },
+    omit: { original: true, text: true },
+    include: { job: { select: { id: true, title: true, employer: true, company: { select: { name: true, atsType: true } } } } },
+    orderBy: { updatedAt: 'desc' },
+  });
+}
+
+/** What was deleted, for the page to say; null when there was no such copy. Its comparisons go with it (ON DELETE CASCADE). */
+export async function deleteTailored(userId: number, id: number): Promise<{ resumeId: number; jobTitle: string } | null> {
+  const row = await prisma.tailoredResume.findFirst({
+    where: { id, resume: { userId } },
+    select: { resumeId: true, job: { select: { title: true } } },
+  });
+  if (!row) return null;
+  await prisma.tailoredResume.deleteMany({ where: { id } });
+  return { resumeId: row.resumeId, jobTitle: row.job.title };
+}
+
+/** "Promote to master": the old overwrite, on purpose — the resume becomes its next version with the copy's file. Null when the copy is gone. */
+export async function promoteTailored(userId: number, id: number): Promise<ResumeSummary | null> {
+  const copy = await getTailoredWithFile(userId, id);
+  if (!copy) return null;
+  return replaceResumeFile(userId, copy.resumeId, {
+    sourceFilename: copy.sourceFilename,
+    mimeType: copy.mimeType,
+    original: Buffer.from(copy.original),
+    text: copy.text,
+  });
+}
+
 export async function setDefaultResume(userId: number, id: number): Promise<void> {
   await prisma.$transaction([
     prisma.resume.updateMany({ where: { userId, isDefault: true }, data: { isDefault: false } }),
@@ -191,7 +265,8 @@ export type MatchRunSummary = Pick<ResumeMatch, 'id' | 'jobId' | 'resumeId' | 'r
 
 export async function listMatchesForResume(userId: number, resumeId: number): Promise<MatchRunSummary[]> {
   return prisma.resumeMatch.findMany({
-    where: { resumeId, resume: { userId } },
+    // A copy's comparisons are not the resume's own (ADR 0077).
+    where: { resumeId, resume: { userId }, tailoredId: null },
     select: {
       id: true,
       jobId: true,
@@ -222,7 +297,7 @@ export async function listLatestKeywordTables(userId: number, resumeId: number):
     SELECT t."keywords" FROM (
       SELECT DISTINCT ON ("jobId") "keywords", "createdAt"
       FROM "resume_match"
-      WHERE "resumeId" = ${resumeId} AND NOT "draft"
+      WHERE "resumeId" = ${resumeId} AND NOT "draft" AND "tailoredId" IS NULL
         AND EXISTS (SELECT 1 FROM "resume" r WHERE r."id" = "resumeId" AND r."userId" = ${userId})
       ORDER BY "jobId", "createdAt" DESC
     ) t
@@ -270,7 +345,8 @@ export interface ResumeMatchStats {
 export async function matchStatsByResume(userId: number): Promise<Map<number, ResumeMatchStats>> {
   const rows = await prisma.resumeMatch.groupBy({
     by: ['resumeId'],
-    where: { resume: { userId } },
+    // A tailored copy's comparison is not the resume's (ADR 0077).
+    where: { resume: { userId }, tailoredId: null },
     _count: { _all: true },
     _max: { matchScore: true },
   });
@@ -364,7 +440,7 @@ export async function latestReviewByResume(userId: number): Promise<Map<number, 
   return new Map(rows.map((r) => [r.resumeId, r]));
 }
 
-/** A resume version made from edited text (the targeted view's "Save as vN") — a .md file, no docx. */
+/** A resume version made from edited text — a .md file, no docx. */
 /** "Senior Backend PHP" + 5 + ".docx" → "senior-backend-php-v5.docx". */
 export function versionFileName(name: string, version: number, ext: string): string {
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'resume';
@@ -399,6 +475,8 @@ export async function createMatch(input: {
   /** The resume's name when the comparison was made. */
   resumeName: string;
   draft: boolean;
+  /** The tailored copy this comparison judged; null for the resume itself (ADR 0077). */
+  tailoredId: number | null;
   model: string;
   result: ResumeMatchResult;
   /** Computed by score.ts — the model never sets the number (ADR 0012). */
@@ -422,6 +500,7 @@ export async function createMatch(input: {
       resumeText: input.resumeText,
       resumeName: input.resumeName,
       draft: input.draft,
+      tailoredId: input.tailoredId,
       model: input.model,
       matchScore: input.breakdown.score,
       summary: r.summary,
