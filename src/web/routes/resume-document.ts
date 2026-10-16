@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { idParam } from '../params';
 import { logger } from '../../logger';
-import { getResume, getResumeOriginal } from '../../resume/store';
+import { getResume, getResumeOriginal, getTailoredBasedOn } from '../../resume/store';
 import { resumeStyle } from '../resume-style';
 import { knobsFrom } from '../../resume/render/knobs';
 import { DOCX_MIME } from '../../resume/docx-write';
@@ -43,10 +43,13 @@ resumeDocumentRoute.post('/resumes/:id/document', async (c) => {
   const [resume, row] = await Promise.all([getResume(currentUser().id, id), getResumeOriginal(currentUser().id, id)]);
   if (!resume || !row) return c.json({ error: t('http.notFound') }, 404);
 
-  const original = Buffer.from(row.original);
+  // An editor opened on a tailored copy's text patches the copy's file, not the resume's (ADR 0077).
+  const copy = baseText ? await getTailoredBasedOn(currentUser().id, id, baseText) : null;
+  const source = copy ?? row;
+  const original = Buffer.from(source.original);
   const style = await resumeStyle(resume, row);
   const input: DraftInput = {
-    sourceFilename: row.sourceFilename,
+    sourceFilename: source.sourceFilename,
     original,
     baseText: baseText || text,
     text,

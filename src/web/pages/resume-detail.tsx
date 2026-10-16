@@ -32,7 +32,7 @@ import { MAX_UPLOAD_MB } from '../upload';
 import type { FlashMessage } from '../flash';
 import { formatDate } from '../format';
 import type { ResumeReview } from '@prisma/client';
-import type { MatchRunSummary, ResumeSummary } from '../../resume/store';
+import type { MatchRunSummary, ResumeSummary, TailoredListed } from '../../resume/store';
 import { ResumeReviewCard } from './resume-review-card';
 import type { ReviewAnswer } from '../../resume/answers';
 import type { ReviewDelta } from '../../resume/review-delta';
@@ -56,6 +56,8 @@ export interface ResumeDetailProps {
   /** Its document properties; null for anything but a .docx. */
   props: DocxProps | null;
   matches: MatchRunSummary[];
+  /** The copies written for single postings, newest first (ADR 0077). */
+  tailored: TailoredListed[];
   /** What the compared postings keep asking for and the text lacks; null under `coverage.ts:MIN_POSTINGS`. */
   coverage: Coverage | null;
   /** The latest strength review, or null when the user has never asked for one. */
@@ -83,6 +85,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
   structure,
   props,
   matches,
+  tailored,
   coverage,
   review,
   answers,
@@ -343,6 +346,8 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
           </Table>
         )}
       </Card>
+
+      {tailored.length > 0 && <TailoredCard resumeName={resume.name} tailored={tailored} />}
 
       {coverage && <CoverageCard coverage={coverage} />}
 
@@ -640,6 +645,68 @@ const CoverageMove: FC<{ kind: CoverageKind }> = ({ kind }) =>
  * "Missing across postings" (N10): the terms the latest comparison of each
  * posting asked for and this resume does not say, as the text reads now.
  */
+/**
+ * The copies written for single postings (ADR 0077). They are listed, never
+ * read: the scan, the hints and the coverage below this card do not see them.
+ */
+const TailoredCard: FC<{ resumeName: string; tailored: TailoredListed[] }> = ({ resumeName, tailored }) => (
+  <Card class="mt-4" flush id="tailored">
+    <div class="border-b border-line px-5 py-3">
+      <div class="text-entity text-ink">{t('resume.tailored.heading')}</div>
+      <Hint class="mt-0.5">{t('resume.tailored.hint')}</Hint>
+    </div>
+    <Table
+      columns={[
+        t('resume.col.job'),
+        t('common.company'),
+        <span class="block text-right">{t('resume.col.when')}</span>,
+        <span class="block text-right">{t('resume.tailored.col.actions')}</span>,
+      ]}
+    >
+      {tailored.map((copy) => (
+        <Tr>
+          <Td class="max-w-[24rem]">
+            <a
+              href={`/jobs/${copy.job.id}/target`}
+              class="block truncate font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
+              title={copy.job.title}
+              translate="no"
+            >
+              {copy.job.title}
+            </a>
+          </Td>
+          <Td class="max-w-[14rem] text-ink-muted">
+            <div class="truncate">
+              <CompanyName name={companyOnPage(copy.job.employer, copy.job.company).name} />
+            </div>
+          </Td>
+          <Td class="whitespace-nowrap text-right text-note text-ink-faint">{formatDate(copy.updatedAt)}</Td>
+          <Td>
+            <div class="flex flex-wrap items-center justify-end gap-1.5">
+              <Button variant="secondary" size="sm" href={`/tailored/${copy.id}/download`}>
+                {t('resume.tailored.download')}
+              </Button>
+              <ConfirmAction
+                action={`/tailored/${copy.id}/promote`}
+                label={t('resume.tailored.promote')}
+                confirm={t('resume.tailored.promoteConfirm', { name: resumeName })}
+                yes={t('resume.tailored.promoteYes')}
+                variant="secondary"
+              />
+              <ConfirmAction
+                action={`/tailored/${copy.id}/delete`}
+                label={t('common.delete')}
+                confirm={t('resume.tailored.deleteConfirm', { job: copy.job.title })}
+                ariaLabel={t('resume.tailored.deleteAria', { job: copy.job.title })}
+              />
+            </div>
+          </Td>
+        </Tr>
+      ))}
+    </Table>
+  </Card>
+);
+
 const CoverageCard: FC<{ coverage: Coverage }> = ({ coverage }) => (
   <Card class="mt-4" flush>
     <div class="border-b border-line px-5 py-3">

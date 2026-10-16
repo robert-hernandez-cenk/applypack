@@ -64,6 +64,7 @@ import {
   getLatestCompanySnapshot,
   getMatch,
   getResume,
+  getTailoredForJob,
   listCoverLettersForJob,
   listFacts,
   listMatchesForJob,
@@ -1184,6 +1185,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   const depth = postingDepth(storedBrief);
   const domain = domainNoticeMessage(domainMismatch(resume.industries, storedBrief));
   const file = await describeResumeFile(resume);
+  const copy = await getTailoredForJob(currentUser().id, resume.id, job.id);
   return c.html(
     <TargetPage
       job={{ id: job.id, title: job.title, companyName: companyForPage(job.employer, job.company), location: job.location, description: job.description }}
@@ -1200,6 +1202,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       verification={verifications[0] ?? null}
       fileVerdict={file.verdict}
       cleanHref={file.clean ? `/resumes/${resume.id}/render` : null}
+      copy={copy}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,

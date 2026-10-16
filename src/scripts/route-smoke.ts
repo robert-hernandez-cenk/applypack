@@ -37,7 +37,7 @@ import { loadUser } from '../users/store';
 import { DEFAULT_BODY_BYTES } from '../web/body-limits';
 import { prisma } from '../db';
 import { createManualJob } from '../jobs/manual-job';
-import { createMatch, createResume, getResume, listFacts, upsertFact } from '../resume/store';
+import { createMatch, createResume, getResume, listFacts, listLatestKeywordTables, matchStatsByResume, upsertFact, upsertTailored } from '../resume/store';
 import { parseMatchResponse, PROMPT_VERSION } from '../resume/prompts';
 import { scoreMatch } from '../resume/score';
 import {
@@ -204,6 +204,8 @@ interface Fixtures {
   jobId: number;
   companyId: number;
   resumeId: number;
+  /** ADR 0077: a tailored copy of that resume for that job, with its own stored comparison. */
+  tailoredId: number;
   screeningId: number;
   applicantId: number;
   /** TASKS N8: a watched careers page drawn in the browser, for the paste box. */
@@ -288,9 +290,49 @@ async function fixtures(): Promise<Fixtures> {
     resumeText: RESUME,
     resumeName: 'Smoke resume',
     draft: false,
+    tailoredId: null,
     model: 'smoke',
     result: reply.data,
     breakdown: scoreMatch(reply.data.keywords, reply.data.alignment, 0),
+    promptVersion: PROMPT_VERSION,
+    mode: 'full',
+    frame: 'first-run',
+    verificationId: null,
+    evidence: 'own',
+    pages: 'keep',
+  });
+  // A tailored copy of that resume for that posting, and the comparison that
+  // judged it — which the resume's own count and best score must not see.
+  const copyText = `${RESUME}\nTailored for this posting: Kubernetes.`;
+  const copy = await upsertTailored(DEFAULT_USER_ID, resume.id, job.job.id, {
+    sourceFilename: 'smoke-copy.md',
+    mimeType: 'text/markdown',
+    original: Buffer.from(copyText),
+    text: copyText,
+  });
+  // A term only the copy's comparison carries, so a leak into the resume's
+  // keyword tables shows up as that term.
+  const copyReply = parseMatchResponse(
+    JSON.stringify({
+      summary: 'Primary stack 3/3 on the copy.',
+      alignment: { title: 'strong', summary: 'strong', recent_role: 'strong' },
+      keywords: [
+        { term: 'Kubernetes', priority: 1, requirement: 'must', primary: true, status: 'present', aliases: ['k8s'], where: 'skills', note: null },
+      ],
+    }),
+  );
+  if (!copyReply.ok) throw new Error(`smoke fixture: ${copyReply.error}`);
+  await createMatch({
+    jobId: job.job.id,
+    resumeId: resume.id,
+    resumeVersion: resume.version,
+    resumeText: copyText,
+    resumeName: 'Smoke resume',
+    draft: false,
+    tailoredId: copy.id,
+    model: 'smoke',
+    result: copyReply.data,
+    breakdown: scoreMatch(copyReply.data.keywords, copyReply.data.alignment, 0),
     promptVersion: PROMPT_VERSION,
     mode: 'full',
     frame: 'first-run',
@@ -305,6 +347,7 @@ async function fixtures(): Promise<Fixtures> {
     jobId: job.job.id,
     companyId: job.job.companyId,
     resumeId: resume.id,
+    tailoredId: copy.id,
     screeningId: screening.id,
     applicantId: applicant.id,
     browserPageId: browserPage.id,
@@ -316,6 +359,7 @@ function fill(path: string, f: Fixtures): string {
   const id =
     path.startsWith('/jobs/') ? f.jobId
     : path.startsWith('/resumes/') ? f.resumeId
+    : path.startsWith('/tailored/') ? f.tailoredId
     : path.startsWith('/screen/') ? f.screeningId
     : path.startsWith('/companies/watchlist/') ? 'gone'
     : path.startsWith('/companies/') ? f.companyId
@@ -979,6 +1023,96 @@ async function main(): Promise<void> {
     });
   } finally {
     instance.close();
+  }
+
+  // ADR 0077: a tailoring save writes a copy for the posting and leaves the
+  // resume alone; the copy's comparison stays out of the resume's own numbers.
+  {
+    const keep = { text: true, version: true, scannedAt: true, skills: true, sourceFilename: true } as const;
+    const before = await prisma.resume.findUniqueOrThrow({ where: { id: f.resumeId }, select: keep });
+    const saved = await app.request(
+      `/resumes/${f.resumeId}/draft`,
+      form({ text: `${before.text}\nSmoke-only edit for this posting.`, baseText: before.text, jobId: String(f.jobId) }),
+    );
+    let copy = await prisma.tailoredResume.findFirst({ where: { resumeId: f.resumeId, jobId: f.jobId } });
+    // The save runs behind the progress page; wait for the copy to carry the edit.
+    for (let i = 0; i < 100 && !copy?.text.includes('Smoke-only edit'); i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      copy = await prisma.tailoredResume.findFirst({ where: { resumeId: f.resumeId, jobId: f.jobId } });
+    }
+    const after = await prisma.resume.findUniqueOrThrow({ where: { id: f.resumeId }, select: keep });
+    rows.push({
+      route: 'POST /resumes/:id/draft (a tailored copy for the posting; the resume keeps its text, version and scan)',
+      url: `/resumes/${f.resumeId}/draft`,
+      status: saved.status,
+      ok:
+        saved.status === 303 &&
+        (saved.headers.get('location') ?? '').startsWith('/target/runs/') &&
+        copy?.id === f.tailoredId &&
+        copy.text.includes('Smoke-only edit') &&
+        after.text === before.text &&
+        after.version === before.version &&
+        after.sourceFilename === before.sourceFilename &&
+        after.scannedAt?.getTime() === before.scannedAt?.getTime() &&
+        after.skills.join() === before.skills.join() &&
+        (await prisma.tailoredResume.count({ where: { resumeId: f.resumeId, jobId: f.jobId } })) === 1,
+    });
+    const noJob = await app.request(`/resumes/${f.resumeId}/draft`, form({ text: `${before.text}\nNo posting named.`, baseText: before.text }));
+    rows.push({
+      route: 'POST /resumes/:id/draft without a posting (refused, nothing saved)',
+      url: `/resumes/${f.resumeId}/draft`,
+      status: noJob.status,
+      ok: noJob.status === 303 && noJob.headers.get('location') === `/resumes/${f.resumeId}` && flashOf(noJob).length > 0,
+    });
+    const stats = (await matchStatsByResume(DEFAULT_USER_ID)).get(f.resumeId);
+    const own = await prisma.resumeMatch.count({ where: { resumeId: f.resumeId, tailoredId: null } });
+    const all = await prisma.resumeMatch.count({ where: { resumeId: f.resumeId } });
+    const tables = await listLatestKeywordTables(DEFAULT_USER_ID, f.resumeId);
+    rows.push({
+      route: "(store) a copy's comparison is not counted in the resume's matches or keyword tables",
+      url: '(store)',
+      status: 200,
+      ok: all > own && stats?.count === own && tables.length === 1 && tables[0]?.every((k) => k.term !== 'Kubernetes') === true,
+    });
+
+    // Download, promote and delete, on copies of their own so the fixture's survives for the member sweep.
+    const dl = await app.request(`/tailored/${f.tailoredId}/download`, { headers: ORIGIN });
+    const stored = await prisma.tailoredResume.findUniqueOrThrow({ where: { id: f.tailoredId } });
+    rows.push({
+      route: 'GET /tailored/:id/download (the saved file)',
+      url: `/tailored/${f.tailoredId}/download`,
+      status: dl.status,
+      ok: dl.status === 200 && /attachment; filename=/.test(dl.headers.get('content-disposition') ?? '') && Buffer.from(await dl.arrayBuffer()).equals(Buffer.from(stored.original)),
+    });
+    const second = await createManualJob(
+      { companyName: 'Smoke Co', title: 'Copy Engineer', url: '', location: 'Remote', description: POSTING },
+      DEFAULT_USER_ID,
+      { classify: false },
+    );
+    const base = await prisma.resume.findUniqueOrThrow({ where: { id: f.resumeId }, select: { version: true } });
+    const spare = await upsertTailored(DEFAULT_USER_ID, f.resumeId, second.job.id, {
+      sourceFilename: 'spare.md',
+      mimeType: 'text/markdown',
+      original: Buffer.from('Promoted words'),
+      text: 'Promoted words',
+    });
+    const promoted = await app.request(`/tailored/${spare.id}/promote`, form({}));
+    const master = await prisma.resume.findUniqueOrThrow({ where: { id: f.resumeId }, select: { version: true, text: true, scannedAt: true } });
+    rows.push({
+      route: "POST /tailored/:id/promote (the resume becomes its next version with the copy's text)",
+      url: `/tailored/${spare.id}/promote`,
+      status: promoted.status,
+      ok: promoted.status === 303 && master.version === base.version + 1 && master.text === 'Promoted words' && (await prisma.tailoredResume.count({ where: { id: spare.id } })) === 1,
+    });
+    const removed = await app.request(`/tailored/${spare.id}/delete`, form({}));
+    rows.push({
+      route: 'POST /tailored/:id/delete (the copy goes; the resume stays)',
+      url: `/tailored/${spare.id}/delete`,
+      status: removed.status,
+      ok: removed.status === 303 && (await prisma.tailoredResume.count({ where: { id: spare.id } })) === 0 && (await prisma.resume.count({ where: { id: f.resumeId } })) === 1,
+    });
+    // A promotion leaves the next beat's expectations as they were: put the fixture resume's words back.
+    await prisma.resume.update({ where: { id: f.resumeId }, data: { text: before.text, scannedAt: before.scannedAt } });
   }
 
   // What a request gets WRONG. Every one of these used to be a 500 or worse,
@@ -2058,8 +2192,9 @@ async function installFingerprint(): Promise<string> {
 /** What the owner holds: a member's requests with the owner's ids must leave all of it as it was. */
 async function ownerFingerprint(): Promise<string> {
   const own = { userId: DEFAULT_USER_ID };
-  const [resumes, jobs, profiles, targets, mutes, facts, packs, settings] = await Promise.all([
+  const [resumes, copies, jobs, profiles, targets, mutes, facts, packs, settings] = await Promise.all([
     prisma.resume.findMany({ where: own, select: { id: true, name: true, isDefault: true, version: true }, orderBy: { id: 'asc' } }),
+    prisma.tailoredResume.findMany({ where: { resume: own }, select: { id: true, text: true, updatedAt: true }, orderBy: { id: 'asc' } }),
     prisma.userJob.findMany({ where: own, select: { id: true, status: true, pipelineStage: true, applicationNotes: true }, orderBy: { id: 'asc' } }),
     prisma.profile.findMany({ where: own, select: { id: true, name: true, active: true, resumeId: true }, orderBy: { id: 'asc' } }),
     prisma.notificationTarget.findMany({ where: own, select: { id: true, active: true }, orderBy: { id: 'asc' } }),
@@ -2069,7 +2204,7 @@ async function ownerFingerprint(): Promise<string> {
     prisma.userSettings.findUnique({ where: { userId: DEFAULT_USER_ID } }),
   ]);
   const { updatedAt: _stamp, ...kept } = settings ?? { updatedAt: null };
-  return JSON.stringify({ resumes, jobs, profiles, targets, mutes, facts, packs, settings: kept });
+  return JSON.stringify({ resumes, copies, jobs, profiles, targets, mutes, facts, packs, settings: kept });
 }
 
 /** Words that only the owner's rows carry. */
@@ -2179,7 +2314,7 @@ async function roleSweep(f: Fixtures): Promise<Check[]> {
   const personalWithId = registered.filter(
     (r) =>
       classesOf(r.method, r.path)[0] === 'personal' &&
-      /^\/(jobs|resumes|target\/runs|settings\/targets|settings\/profiles)\/:id/.test(r.path),
+      /^\/(jobs|resumes|tailored|target\/runs|settings\/targets|settings\/profiles)\/:id/.test(r.path),
   );
   for (const r of personalWithId) {
     const url = concrete(r.path, f, ids);

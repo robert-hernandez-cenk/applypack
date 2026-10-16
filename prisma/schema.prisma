@@ -289,15 +289,16 @@ model Job {
   crossListedOf      Job?    @relation("CrossListing", fields: [crossListedOfJobId], references: [id], onDelete: SetNull)
   crossListings      Job[]   @relation("CrossListing")
 
-  resumeMatches ResumeMatch[]
-  verifications JobVerification[]
-  briefs        PostingBrief[]
-  coverLetters  CoverLetter[]
-  stageEvents   JobStageEvent[]
-  userJobs      UserJob[]
-  scores        JobScore[]
-  screenings    Screening[]
-  packs         ApplicationPack[]
+  resumeMatches   ResumeMatch[]
+  tailoredResumes TailoredResume[]
+  verifications   JobVerification[]
+  briefs          PostingBrief[]
+  coverLetters    CoverLetter[]
+  stageEvents     JobStageEvent[]
+  userJobs        UserJob[]
+  scores          JobScore[]
+  screenings      Screening[]
+  packs           ApplicationPack[]
 
   @@unique([companyId, externalId])
   // Postgres does not index the referencing side of a foreign key: without
@@ -746,35 +747,35 @@ model Profile {
 // for download. The scan fields are filled by scanResume() and stay null
 // until the first successful scan.
 model Resume {
-  id              Int            @id @default(autoincrement())
+  id              Int              @id @default(autoincrement())
   // ADR 0068: a resume is its owner's document; matches, reviews and letters
   // belong to the person through it.
-  userId          Int            @default(1)
-  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          Int              @default(1)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   name            String
   sourceFilename  String
   mimeType        String
   original        Bytes
-  text            String         @db.Text
+  text            String           @db.Text
   // Bumped on "Upload new version"; matches record the version they scored.
-  version         Int            @default(1)
-  isDefault       Boolean        @default(false)
+  version         Int              @default(1)
+  isDefault       Boolean          @default(false)
   scannedAt       DateTime?
   title           String?
   seniority       String?
   yearsExperience Int?
-  skills          String[]       @default([])
+  skills          String[]         @default([])
   // Subset of skills: the 2-5 core languages/frameworks of the candidate's
   // day-to-day work. Feeds Profile.stackRequired via "Fill from resume".
-  primarySkills   String[]       @default([])
-  roleTypes       String[]       @default([])
+  primarySkills   String[]         @default([])
+  roleTypes       String[]         @default([])
   // The sectors the roles were in ("fintech", "e-commerce", "healthtech"),
   // read by the scan and compared with the posting brief's industry
   // (resume/domain.ts, ADR 0046). Empty until the resume is scanned again.
-  industries      String[]       @default([])
-  summary         String?        @db.Text
+  industries      String[]         @default([])
+  summary         String?          @db.Text
   // [{ section, issue, fix }] — job-agnostic ATS / recruiter problems.
-  issues          Json           @default("[]")
+  issues          Json             @default("[]")
   // The resume as a JSON Resume subset (ADR 0039), read by its own call
   // (resume/structure.ts, since v1.66.0) when the render page's button asks,
   // and guarded verbatim against `text` before it is stored. NULL means it was
@@ -785,9 +786,9 @@ model Resume {
   // for and the candidate supplied. On the RESUME, not the review row: an
   // answer is a fact about this document and has to outlive the run that
   // asked (ADR 0030 phase 3).
-  answers         Json           @default("[]")
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  answers         Json             @default("[]")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   matches         ResumeMatch[]
   reviews         ResumeReview[]
   coverLetters    CoverLetter[]
@@ -795,6 +796,8 @@ model Resume {
   profiles        Profile[]
   // Applications sent with this resume (UserJob.appliedResumeId).
   appliedTo       UserJob[]
+  // Copies written for one posting each (ADR 0077); never a version of this resume.
+  tailored        TailoredResume[]
 
   @@index([userId])
   @@map("resume")
@@ -835,41 +838,67 @@ model ResumeReview {
 }
 
 model ResumeMatch {
-  id               Int      @id @default(autoincrement())
+  id               Int             @id @default(autoincrement())
   jobId            Int
-  job              Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job              Job             @relation(fields: [jobId], references: [id], onDelete: Cascade)
   resumeId         Int
-  resume           Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
-  resumeVersion    Int      @default(1)
+  resume           Resume          @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  // Set when the comparison judged a tailored copy rather than the resume
+  // itself (ADR 0077); the resume's count, best score and coverage skip those.
+  tailoredId       Int?
+  tailored         TailoredResume? @relation(fields: [tailoredId], references: [id], onDelete: Cascade)
+  resumeVersion    Int             @default(1)
   // Snapshot of the text that was judged, so highlights stay true after the
   // resume moves on. `draft` = text came from the in-browser editor, not a
   // stored version.
-  resumeText       String   @default("") @db.Text
+  resumeText       String          @default("") @db.Text
   // The name of the file that was judged. The launchers' scratch row is
   // renamed by every upload, so without it every one-off comparison would
   // show the latest file's name. Real resumes show their live name instead.
-  resumeName       String   @default("")
-  draft            Boolean  @default(false)
+  resumeName       String          @default("")
+  draft            Boolean         @default(false)
   model            String
   matchScore       Int
-  summary          String   @db.Text
-  strengths        String[] @default([])
-  redFlags         String[] @default([])
+  summary          String          @db.Text
+  strengths        String[]        @default([])
+  redFlags         String[]        @default([])
   // Soft concerns — displayed, never scored (scoring v3). Red flags cost points;
   // cautions exist so the model has somewhere to put style/domain observations.
-  cautions         String[] @default([])
+  cautions         String[]        @default([])
   keywords         Json
   actions          Json
-  removals         Json     @default("[]")
+  removals         Json            @default("[]")
   // Deterministic score breakdown (ScoreBreakdown in score.ts); {} on pre-9 rows.
-  breakdown        Json     @default("{}")
+  breakdown        Json            @default("{}")
   // [{ requirement, status pass|unknown|fail, note }] — gates shown outside the score.
-  hardRequirements Json     @default("[]")
-  createdAt        DateTime @default(now())
+  hardRequirements Json            @default("[]")
+  createdAt        DateTime        @default(now())
 
   @@index([jobId, createdAt])
   @@index([resumeId, createdAt])
+  @@index([tailoredId])
   @@map("resume_match")
+}
+
+// ADR 0077: the resume as edited for ONE posting. The master Resume is never
+// touched by a tailoring save; its scan, hints and coverage cannot see this.
+model TailoredResume {
+  id             Int           @id @default(autoincrement())
+  resumeId       Int
+  resume         Resume        @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  jobId          Int
+  job            Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  text           String        @db.Text
+  sourceFilename String
+  mimeType       String
+  original       Bytes
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  matches        ResumeMatch[]
+
+  @@unique([resumeId, jobId])
+  @@index([jobId])
+  @@map("tailored_resume")
 }
 
 // Phase 9: candidate facts confirmed or denied by the user in response to
@@ -1226,18 +1255,18 @@ enum UserRole {
 // migration creates: the owner of everything that existed before, and the one
 // person an install without sign-in has. The first OIDC sign-in claims it.
 model User {
-  id                  Int                  @id @default(autoincrement())
+  id                  Int                       @id @default(autoincrement())
   // The identity provider's stable id for the person; NULL until someone
   // signs in as this user (and always for an install without sign-in).
-  oidcSub             String?              @unique
+  oidcSub             String?                   @unique
   name                String
-  role                UserRole             @default(MEMBER)
-  createdAt           DateTime             @default(now())
+  role                UserRole                  @default(MEMBER)
+  createdAt           DateTime                  @default(now())
   // The person's primary search (ADR 0066): the defaults and preselects for
   // their pages, always running. Was AppSettings.activeProfileId.
-  primaryProfileId    Int?                 @unique
-  primaryProfile      Profile?             @relation("UserPrimary", fields: [primaryProfileId], references: [id], onDelete: SetNull)
-  profiles            Profile[]            @relation("UserProfiles")
+  primaryProfileId    Int?                      @unique
+  primaryProfile      Profile?                  @relation("UserPrimary", fields: [primaryProfileId], references: [id], onDelete: SetNull)
+  profiles            Profile[]                 @relation("UserProfiles")
   jobs                UserJob[]
   stageEvents         JobStageEvent[]
   resumes             Resume[]

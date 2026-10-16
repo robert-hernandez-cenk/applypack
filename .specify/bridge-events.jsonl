@@ -179,3 +179,17 @@
 
 {"event":"artifact_drift_detected","timestamp":"2026-10-16T16:44:24.5763564Z","actor":"claude","feature_directory":"specs/055-one-tailoring-front-door","drifted_artifacts":[{"path":"tasks.md","old_sha256":"d4ffd76a26166c1e69c96c1aa9488f525393739187cb8578a3a749eca4b243ac","new_sha256":"ed7f8752beb29ac05d20b9dca78e2b20aa37879ee1a5bdf4aa472c37709e0eaf"}]}
 
+{"timestamp":"2026-10-16T17:17:44.4683629Z","action":"guard","status":"allow","feature_directory":"specs/055-one-tailoring-front-door","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.plan"}
+
+{"timestamp":"2026-10-16T17:19:19.8104473Z","action":"guard","status":"allow","feature_directory":"specs/055-one-tailoring-front-door","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.tasks"}
+
+{"timestamp":"2026-10-16T17:19:54.6389804Z","action":"handoff","status":"ready","feature_directory":"specs/055-one-tailoring-front-door","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261016T1719545951844Z-ready"}
+
+{"timestamp":"2026-10-16T17:20:08.0256979Z","action":"handoff","status":"executing","feature_directory":"specs/048-tailored-resume-copies","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261016T1720079941613Z-executing"}
+
+{"timestamp":"2026-10-16T17:20:08.6586597Z","action":"guard","status":"allow","feature_directory":"specs/048-tailored-resume-copies","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
+
+{"timestamp":"2026-10-16T19:04:22.5751519Z","action":"handoff","status":"complete","feature_directory":"specs/048-tailored-resume-copies","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261016T1904225299947Z-complete"}
+
+{"event":"artifact_drift_detected","timestamp":"2026-10-16T19:04:22.5815092Z","actor":"claude","feature_directory":"specs/048-tailored-resume-copies","drifted_artifacts":[{"path":"spec.md","old_sha256":"0674a609f3202cdf80482de1f60f8c87547041c56b9fbeccebdfcc6ad98f19bd","new_sha256":"f5ca2c38a1d71340ae1f7678d4a78bc512b273f8a8609b26d6948cde065720dc"},{"path":"tasks.md","old_sha256":"2caeff6f98fa7a65ebd2fb1789556a5d75f8243a555445ddd18c51cb0863eba3","new_sha256":"f07a434e857a1777a788c64d11e8fe9fce3a3d0afa3012fe1e89409e223de6b5"}]}
+

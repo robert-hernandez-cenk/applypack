@@ -72,6 +72,8 @@ export async function matchResumeToJob(
   job: MatchJobInput & { id: number },
   opts: {
     draft?: boolean;
+    /** ADR 0077: the tailored copy whose text `resume` carries; the row is kept out of the resume's own numbers. */
+    tailoredId?: number;
     mode?: MatchMode;
     rebuild?: boolean;
     /** Already read by the caller, so it can show the reading as its own step. */
@@ -212,6 +214,7 @@ export async function matchResumeToJob(
     resumeText: resume.text,
     resumeName: resume.name,
     draft: opts.draft ?? false,
+    tailoredId: opts.tailoredId ?? null,
     // The marker surfaces on the match card's meta line — the user can see
     // that a fallback engine (not chain #1) produced this analysis.
     model: answer.model,
