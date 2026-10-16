@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Card,
+  Field,
   FitBadge,
   Hint,
   HistoryChip,
@@ -34,7 +35,7 @@ import {
 } from '../../resume/prompts';
 import { freshFrame, freshFrameNotice } from '../../resume/keyword-frame';
 import { proposalOf, suggestionKey, suggestionSheet, type Proposal } from '../../resume/change-sheet';
-import { readPageTarget } from '../../resume/length';
+import { PAGE_TARGETS, readPageTarget } from '../../resume/length';
 import { readMatchEvidence, readMatchMode, type MatchMode } from '../../resume/match-mode';
 import { verificationCautionMessages, verificationHintMessage, type VerificationForHint, type VerificationHint } from '../../resume/verification-hint';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
@@ -45,7 +46,7 @@ import { readBreakdown, type ScoreBreakdown } from '../../resume/score';
 import { noEditsLine, type Reach } from '../no-edits';
 import { readyToApply, scoreLines, type Advice, type ScoreLine } from '../score-lines';
 import { diffMatches } from '../../resume/diff';
-import { earlierParams, previousFor } from '../../resume/match-name';
+import { previousFor } from '../../resume/match-name';
 import { jobHref } from '../job-tabs';
 import type { SummaryGuide } from '../../resume/summary-guide';
 import { SummaryGuideBlock } from './summary-guide';
@@ -179,11 +180,6 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
                 {words}
               </a>
             ),
-            once: (words) => (
-              <a href={`/target?job=${jobId}`} class="font-medium text-accent-strong hover:text-accent-deep">
-                {words}
-              </a>
-            ),
           })}
         </Hint>
       ) : (
@@ -203,18 +199,20 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
               ))}
             </Select>
           </label>
+          {/* ADR 0074: the pages the resume should fit. The default asks for nothing. */}
+          <Field label={t('target.pages.label')} hint={t('target.pages.hint')} class="min-w-0 max-w-full sm:max-w-sm">
+            <Select name="pages" class="!w-auto max-w-full">
+              <option value="keep" selected>
+                {t('target.pages.keep')}
+              </option>
+              {PAGE_TARGETS.map((n) => (
+                <option value={String(n)}>{t('target.pages.n', { n })}</option>
+              ))}
+            </Select>
+          </Field>
           <Button variant="violet" title={t('match.compareTitle')}>
             {t('match.compare')}
           </Button>
-          {/* Only the Resumes rows are listed here; a file that is not one of
-              them, or pasted text, is compared from the Tailor resume page with this
-              job already picked. */}
-          <a
-            href={`/target?job=${jobId}`}
-            class="py-2 text-sm font-medium text-accent-strong hover:text-accent-deep"
-          >
-            {t('match.compareFile')}
-          </a>
           {!selected && (
             <Hint class="basis-full">
               {t('match.compareHint')}
@@ -246,7 +244,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
                   <FitBadge score={m.matchScore} label={t('match.scoreLabel')} />
                   <span translate="no">{m.resume.name}</span>
                   <span class="font-mono font-normal text-ink-faint">
-                    {m.resume.hidden ? '' : `v${m.resumeVersion}`}
+                    v{m.resumeVersion}
                     {m.draft ? ` ${t('match.draft')}` : ''}
                   </span>
                   <span class="font-normal text-ink-faint"><When at={m.createdAt} /></span>
@@ -496,20 +494,16 @@ const MatchReport: FC<{
             {t('match.delta.badge', {
               arrow: scoreDelta > 0 ? '▲' : scoreDelta < 0 ? '▼' : '=',
               delta: fmtDelta(scoreDelta),
-              ...earlierParams(previous),
+              version: previous.resumeVersion,
             })}
           </Badge>
         )}
         <span class="text-sm text-ink">
-          {match.resume.hidden ? (
+          {/* TASKS R20: how strong the resume is on its own is one click away from how it fits. */}
+          <a href={`/resumes/${match.resume.id}#resume-strength`} class="hover:underline" title={t('match.strengthTitle')}>
             <span translate="no">{match.resume.name}</span>
-          ) : (
-            // TASKS R20: how strong the resume is on its own is one click away from how it fits.
-            <a href={`/resumes/${match.resume.id}#resume-strength`} class="hover:underline" title={t('match.strengthTitle')}>
-              <span translate="no">{match.resume.name}</span>
-            </a>
-          )}{' '}
-          {!match.resume.hidden && <span class="font-mono text-meta text-ink-faint">v{match.resumeVersion}</span>}
+          </a>{' '}
+          <span class="font-mono text-meta text-ink-faint">v{match.resumeVersion}</span>
         </span>
         <span class="text-meta text-ink-faint">
           <When at={match.createdAt} /> ·{' '}
@@ -610,7 +604,7 @@ export const DeltaBox: FC<{ match: MatchWithResume; previous: MatchWithResume | 
   if (fresh) {
     return (
       <div class="rounded-md border border-line bg-surface-overlay/50 px-3 py-2 text-meta leading-5 text-ink-muted">
-        <span class="font-medium text-ink">{t('match.delta.notComparable', earlierParams(previous))} </span>
+        <span class="font-medium text-ink">{t('match.delta.notComparable', { version: previous.resumeVersion })} </span>
         {freshFrameNotice(fresh)}
       </div>
     );
@@ -622,7 +616,7 @@ export const DeltaBox: FC<{ match: MatchWithResume; previous: MatchWithResume | 
   if (delta.gained.length === 0 && delta.lost.length === 0 && !delta.components) return null;
   return (
     <div class="rounded-md border border-line bg-surface-overlay/50 px-3 py-2 text-meta leading-5 text-ink-muted">
-      <span class="font-medium text-ink">{t('match.delta.heading', earlierParams(previous))} </span>
+      <span class="font-medium text-ink">{t('match.delta.heading', { version: previous.resumeVersion })} </span>
       {delta.gained.length > 0 && (
         <span>
           {tRich('match.delta.gained', { terms: delta.gained.join(', ') }, {

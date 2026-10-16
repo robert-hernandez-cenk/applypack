@@ -255,7 +255,7 @@ export async function preparePosting(posting: PackPosting, resume: PackResume, o
   out.resume = { plan, outcome, text, score: checks.length === 0 ? score : { before: score.before, after: score.before }, checks, tailored, document };
 
   if (opts.coverLetter && !cut()) {
-    const letter = await timed('letter', () => generateCoverLetter({ ...me, text }, posting, { tone: 'warm', angles: opts.angles, evidence: 'own' })).catch(
+    const letter = await timed('letter', () => generateCoverLetter({ ...me, text }, posting, { tone: 'warm', angles: opts.angles })).catch(
       (err: unknown) => {
         logger.warn({ err, jobId: posting.id }, 'pack: the cover letter failed; the pack goes on without one');
         return null;

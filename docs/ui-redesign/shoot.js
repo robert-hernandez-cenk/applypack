@@ -44,7 +44,6 @@ const PAGES = [
   ['applications', '/applications'],
   ['resumes', '/resumes'],
   ['resume-1', '/resumes/1'],
-  ['target', '/target'],
   ['letter', '/letter'],
   ['companies', '/companies'],
   ['discovery', '/discovery'],

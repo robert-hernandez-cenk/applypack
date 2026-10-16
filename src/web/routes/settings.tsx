@@ -1526,7 +1526,7 @@ settingsRoute.post(
     }
     resume = await getResume(currentUser().id, resumeId);
   }
-  if (!resume || resume.hidden) {
+  if (!resume) {
     return flashRedirect('/settings?tab=profile', 'err', t('settingsRoute.fill.resumeGone'));
   }
 

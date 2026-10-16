@@ -891,12 +891,9 @@ or emoji ever reach a stored letter. English only until a non-English
 posting or resume exists.
 
 The menu's **Cover letter** page (`/letter`) is the standalone entry point.
-Two job sources: a searchable picker over the newest jobs that clear the
-primary search's fit threshold, or one "new posting" box taking a URL
-and/or pasted text (pasted text wins; a bare URL is fetched — ADR 0005
-hosts and the private address space refused, bot checks fail honestly, and
-an unreadable page returns the user to the form with the URL kept). Resume
-by pick / upload / paste (scratch row, like /target).
+A searchable picker over the newest jobs that clear the primary search's
+fit threshold, and a select over the saved resumes. A posting is added at
+`/jobs/new` and a resume on the Resumes page first (#55, ADR 0076).
 
 **The default run is one model call.** The letter path never asks for a fit
 score (a letter does not read one; "Re-classify" fills it in later), and the
@@ -932,7 +929,7 @@ exclusive to verification, ADR 0009).
 
 Off by default. `/settings` → Screening turns it on; the menu then has
 "Screening". A `Screening` is one position (`jobId`, any Job — a pasted
-posting becomes a MANUAL job as on `/target`; `postingText` is the
+posting becomes a MANUAL job as on `/jobs/new`; `postingText` is the
 screening's own editable snapshot of the description, `postingUpdatedAt`
 marks an edit) with a `rubric` (JSON, `screening/rubric.ts`, v2): a list
 of criteria the person chooses (ADR 0050). Each has a kind (a skill, years,

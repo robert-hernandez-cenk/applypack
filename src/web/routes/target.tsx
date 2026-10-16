@@ -1,64 +1,19 @@
 /** @jsxImportSource hono/jsx */
-import { currentUser } from '../current-user';
 import { Hono } from 'hono';
 import { getAiRuntime } from '../../ai-runtime';
 import { laneOf, type Lane } from '../lane';
-import { z } from 'zod';
-import { prisma } from '../../db';
-import { postingForPrompt } from '../../employer';
-import { hashShortId } from '../../text-utils';
-import { classifyInBackground } from '../../jobs/classify-existing';
-import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MAX_POSTING_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
-import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
-import { parsePageTarget } from '../../resume/length';
-import { parseMatchMode } from '../../resume/match-mode';
-import { runComparison, startComparison } from '../comparison-run';
-import { listPickableJobs } from '../job-pick';
-import { idParam } from '../params';
-import { TargetStartPage } from '../pages/target-start';
 import { TargetRunPage, type RunLanes } from '../pages/target-run';
-import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { claimRun, getOwnRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
-import { listResumeOptions, resolveResumeSource, ResumeSourceFields } from '../resume-source';
-import { resumeUploadLimit } from '../upload';
+import { flashRedirect } from '../flash';
+import { getOwnRun } from '../target-runs';
 import { t } from '../../i18n/t';
 
-/* zod strips unknown keys, so the multipart `file` field is read from the raw form.
- * Two job sources: one of the stored jobs (`jobId`), or a pasted posting whose
- * company and title are optional here (unlike /jobs/new) — left empty, they
- * are detected from the description inside the run. A form without `jobMode`
- * is a pasted posting, which is all this page used to take. */
-const TargetFormSchema = ManualJobSchema.extend({
-  jobMode: z.enum(['existing', 'new']).default('new'),
-  jobId: z.coerce.number().int().optional(),
-  companyName: z.string().trim().max(MAX_FIELD_CHARS).default(''),
-  title: z.string().trim().max(MAX_FIELD_CHARS).default(''),
-  description: z.string().trim().default(''),
-  /** The quick check unless "Full analysis" was pressed (ADR 0029). */
-  mode: z.unknown().transform(parseMatchMode),
-  /** The pages the resume should fit; anything else keeps its length (ADR 0074). */
-  pages: z.unknown().transform(parsePageTarget),
-  ...ResumeSourceFields,
-});
+/*
+ * The progress page every comparison, letter and verification run lands on.
+ * The launcher that used to live at `/target` is gone (#55): a comparison
+ * starts from the job's Resume match tab.
+ */
 
 export const targetRoute = new Hono();
-
-targetRoute.get('/target', async (c) => {
-  // `?job=70` is the job page's "compare another file": the picker opens on it.
-  const wanted = idParam(c.req.query('job'));
-  const include = Number.isFinite(wanted) ? wanted : null;
-  const [jobs, resumes] = await Promise.all([listPickableJobs(include), listResumeOptions()]);
-  return c.html(
-    <TargetStartPage
-      jobs={jobs}
-      selectedJobId={jobs.some((j) => j.id === include) ? include : null}
-      resumes={resumes}
-      flash={parseFlashCookie(c.req.header('cookie'))}
-    />,
-    200,
-    { 'Set-Cookie': clearFlashCookie() },
-  );
-});
 
 /** Polled by the progress page; terminal states reload into the redirect below. */
 targetRoute.get('/target/runs/:id/state', (c) => {
@@ -82,7 +37,7 @@ targetRoute.get('/target/runs/:id/state', (c) => {
 targetRoute.get('/target/runs/:id', async (c) => {
   const run = getOwnRun(c.req.param('id'));
   if (!run) {
-    return flashRedirect('/target', 'err', t('target.flash.runGone'));
+    return flashRedirect('/jobs', 'err', t('target.flash.runGone'));
   }
   if (run.stage === 'done' && run.resultUrl) {
     return flashRedirect(run.resultUrl, run.flashKind ?? (run.reused ? 'warn' : 'ok'), run.flash ?? t('target.flash.done'), {
@@ -103,132 +58,3 @@ async function resumeLanes(): Promise<RunLanes> {
   };
   return { read: lane('resume-read'), analysis: lane('analysis') };
 }
-
-targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
-  const form = await c.req.parseBody();
-  const parsed = TargetFormSchema.safeParse(form);
-  if (!parsed.success) return flashRedirect('/target', 'err', t('target.flash.pickBoth'));
-  const f = parsed.data;
-
-  // One of the stored jobs: nothing to detect and nothing to create, so this is
-  // the job page's own Compare — the same memo, the same run, the same result
-  // page — with the resume chosen here, a file or a paste included.
-  if (f.jobMode === 'existing') {
-    if (!f.jobId) return flashRedirect('/target', 'err', t('target.flash.pickJob'));
-    const back = `/target?job=${f.jobId}`;
-    const job = await prisma.job.findFirst({ where: { id: f.jobId, userJobs: { some: { userId: currentUser().id } } }, include: { company: { select: { name: true, atsType: true } } } });
-    if (!job) return flashRedirect('/target', 'err', t('target.flash.jobGone'));
-    const resume = await resolveResumeSource(form, f);
-    if ('error' in resume) return flashRedirect(back, 'err', resume.error);
-    return startComparison(c, {
-      jobId: job.id,
-      job: postingForPrompt(job),
-      resume,
-      text: resume.text,
-      mode: f.mode,
-      evidence: resume.evidence,
-      pages: f.pages,
-      rebuild: false,
-      force: false,
-      resultUrl: (matchId) => `/jobs/${job.id}/target?match=${matchId}`,
-      label: `"${resume.name}"`,
-    });
-  }
-
-  if (f.description.length < MIN_DESCRIPTION_CHARS) {
-    return flashRedirect('/target', 'err', t('target.flash.descriptionShort', { n: MIN_DESCRIPTION_CHARS }));
-  }
-  if (f.description.length > MAX_POSTING_CHARS) {
-    return flashRedirect('/target', 'err', t('target.flash.postingLong', { n: MAX_POSTING_CHARS }));
-  }
-
-  // Empty company / title / location are detected from the description INSIDE
-  // the run — a visible "Detect posting facts" step. Detection never blocks:
-  // unfound facts fall back to defaults the user can see on the job.
-  let { companyName, title, location, salaryMin, salaryMax } = f;
-  const needExtract = !companyName || !title || !location;
-
-  // Resolve the resume inline (fast, and bad files fail before anything runs).
-  // Upload / paste land on the hidden scratch row — /target is a pure
-  // comparison and never adds rows to the user's Resumes.
-  const resume = await resolveResumeSource(form, f);
-  if ('error' in resume) return flashRedirect('/target', 'err', resume.error);
-
-  // The posting is read as its own visible step (ADR 0044) — it is what the
-  // comparison is judged against, and on a second run it finishes instantly.
-  const steps: RunStep[] = needExtract ? ['extract', 'brief', matchStep(f.mode)] : ['brief', matchStep(f.mode)];
-  // The posting text and the resolved resume are what was submitted; a second
-  // POST of the same pair joins the run instead of paying twice (issue #76).
-  const { run, joined } = claimRun(
-    `target:${resume.id}:${f.mode}:${f.pages}:${hashShortId(f.description)}`,
-    { steps, jobTitle: title || t('target.run.detectingRole'), resumeName: resume.name },
-  );
-  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
-
-  startRun(run.id, async () => {
-    // 0. Detect what the user left empty; fall back to visible defaults.
-    if (needExtract) {
-      const facts = await extractPostingFacts(f.description);
-      companyName = companyName || facts?.company || 'Unknown company';
-      title = title || facts?.title || fallbackTitle(f.description);
-      location = location || facts?.location || '';
-      salaryMin = salaryMin ?? facts?.salaryMin ?? undefined;
-      salaryMax = salaryMax ?? facts?.salaryMax ?? undefined;
-      const workplace = facts?.workplace ?? null;
-      // The arrangement goes into the string on purpose: the classifier prompt
-      // reads the location string (CLAUDE.md gotcha 8), and the parser fills
-      // Job.workplace from the same words — one text, two readers (ADR 0031).
-      if (workplace && !/(remote|hybrid|on-?site)/i.test(location)) {
-        const label = workplace === 'onsite' ? 'on-site' : workplace;
-        location = location ? `${location} (${label})` : label;
-      }
-      updateRun(run.id, { jobTitle: title });
-    }
-
-    // 1. The posting becomes a normal MANUAL job (deduped). A new one is
-    //    classified in the background: the comparison never reads the fit
-    //    score, and that leg alone was ~50 s on a CLI engine
-    //    (docs/target-plan.md §3.1).
-    const result = await createManualJob(
-      {
-        companyName,
-        title,
-        url: f.url,
-        location,
-        description: f.description,
-        salaryMin,
-        salaryMax,
-      },
-      currentUser().id,
-      { classify: false },
-    );
-    const job = result.job;
-    if (result.kind === 'created') classifyInBackground(result.job, currentUser().id);
-    updateRun(run.id, { jobId: job.id });
-
-    // 2. From here it is the comparison every other page runs: the memo (a
-    //    double submit or a re-paste shows the stored analysis), the posting's
-    //    reading, the resume-model call, the targeted workspace.
-    await runComparison(
-      run.id,
-      {
-        jobId: job.id,
-        job: { id: job.id, title: job.title, companyName, location: job.location, description: job.description },
-        resume,
-        text: resume.text,
-        mode: f.mode,
-        evidence: resume.evidence,
-        pages: f.pages,
-        rebuild: false,
-        force: false,
-        resultUrl: (matchId) => `/jobs/${job.id}/target?match=${matchId}`,
-        label: `"${resume.name}"`,
-        doneNote: result.kind === 'created' ? t('target.run.fitPending') : undefined,
-        failure: t('target.run.savedButFailed'),
-      },
-      needExtract ? ['extract'] : [],
-    );
-  });
-
-  return c.redirect(`/target/runs/${run.id}`, 303);
-});

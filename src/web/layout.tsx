@@ -21,7 +21,6 @@ export type NavKey =
   | 'jobs'
   | 'applications'
   | 'resumes'
-  | 'target'
   | 'letter'
   | 'companies'
   | 'discovery'
@@ -74,7 +73,6 @@ const NAV_GROUPS: { key: 'work' | 'tools' | 'research' | 'system'; items: NavIte
     key: 'tools',
     items: [
       { key: 'resumes', href: '/resumes' },
-      { key: 'target', href: '/target' },
       { key: 'letter', href: '/letter' },
     ],
   },
@@ -291,7 +289,6 @@ const NAV_ICON: Record<NavKey, IconName> = {
   jobs: 'briefcase',
   applications: 'kanban',
   resumes: 'file-text',
-  target: 'target',
   letter: 'mail',
   companies: 'building',
   discovery: 'radar',

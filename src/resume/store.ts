@@ -12,7 +12,6 @@ import { effectiveKeywords } from './keyword-overrides';
 import type { JsonResume } from './json-resume';
 import { readPageTarget, type PageTarget } from './length';
 import { readMatchEvidence, readMatchMode, storedBreakdown, type MatchEvidence, withSuggestionsMode, type MatchMode } from './match-mode';
-import { comparedResumeName } from './match-name';
 import { readPromptVersion, readVerificationId } from './match-reuse';
 import type { MatchAction, MatchKeyword, MatchSuggestions, ResumeMatchResult, ResumeReviewResult, ResumeScan } from './prompts';
 import { readKeywords } from './prompts';
@@ -36,7 +35,7 @@ const WITHOUT_ORIGINAL = { original: true } as const;
 
 export async function listResumes(userId: number): Promise<ResumeSummary[]> {
   return prisma.resume.findMany({
-    where: { userId, hidden: false },
+    where: { userId },
     omit: WITHOUT_ORIGINAL,
     orderBy: [{ isDefault: 'desc' }, { id: 'asc' }],
   });
@@ -56,9 +55,9 @@ export async function getResumeOriginal(
   });
 }
 
-/** One of the user's resumes whose text is this text (TASKS R16): a re-upload, or their own file on a launcher. */
+/** One of the user's resumes whose text is this text (TASKS R16): a re-upload. */
 export async function findResumeWithText(userId: number, text: string): Promise<{ id: number; name: string; version: number } | null> {
-  const rows = await prisma.resume.findMany({ where: { userId, hidden: false }, select: { id: true, name: true, version: true, text: true } });
+  const rows = await prisma.resume.findMany({ where: { userId }, select: { id: true, name: true, version: true, text: true } });
   const hit = sameTextAs(text, rows);
   return hit ? { id: hit.id, name: hit.name, version: hit.version } : null;
 }
@@ -83,60 +82,6 @@ export async function createResume(userId: number, input: {
     });
   });
   logger.info({ id: row.id, name: row.name, chars: input.text.length }, 'resume: created');
-  return row;
-}
-
-/**
- * The launchers' scratch resume (/target, /letter): one hidden row, replaced
- * in place by every uploaded or pasted resume — nothing accumulates in the
- * user's Resumes. Comparisons keep their own snapshot of the text, so they
- * survive the swap; letters do not, because a letter is fact-checked against
- * its resume's CURRENT text. A new text retires them; the same file again
- * keeps them.
- */
-export async function upsertScratchResume(userId: number, input: {
-  name: string;
-  sourceFilename: string;
-  mimeType: string;
-  original: Buffer;
-  text: string;
-}): Promise<ResumeSummary> {
-  // "Find it, else create it" is check-then-act: two first compares at once
-  // each found nothing and each created a scratch row, and the second one was
-  // invisible for good. Finding, replacing and creating all happen
-  // under the lock — the same one the default flag uses, because it is the
-  // same kind of invariant: one row in the whole table.
-  const data = { ...input, original: new Uint8Array(input.original) };
-  const { row, created, lettersCleared } = await withGlobalWriteLock(async (tx) => {
-    const existing = await tx.resume.findFirst({ where: { userId, hidden: true }, select: { id: true, text: true } });
-    if (!existing) {
-      return {
-        row: await tx.resume.create({ data: { ...data, userId, hidden: true, isDefault: false }, omit: WITHOUT_ORIGINAL }),
-        created: true,
-        lettersCleared: 0,
-      };
-    }
-    // A letter is fact-checked against its resume's CURRENT text, so a new
-    // text retires it — in the same transaction as the swap, or a letter
-    // outlives the text it was checked against.
-    const cleared =
-      existing.text === input.text
-        ? 0
-        : (await tx.coverLetter.deleteMany({ where: { resumeId: existing.id } })).count;
-    return {
-      row: await tx.resume.update({
-        where: { id: existing.id },
-        data: { ...data, version: { increment: 1 }, scannedAt: null },
-        omit: WITHOUT_ORIGINAL,
-      }),
-      created: false,
-      lettersCleared: cleared,
-    };
-  });
-  logger.info(
-    { id: row.id, chars: input.text.length, lettersCleared },
-    created ? 'resume: scratch created' : 'resume: scratch replaced',
-  );
   return row;
 }
 
@@ -222,8 +167,7 @@ export async function saveResumeStructure(userId: number, id: number, structure:
   });
 }
 
-/** `resume.name` is the name the comparison shows (`match-name.ts:comparedResumeName`), not always the row's live name. */
-export type MatchWithResume = ResumeMatch & { resume: { id: number; name: string; hidden: boolean } };
+export type MatchWithResume = ResumeMatch & { resume: { id: number; name: string } };
 export type MatchWithJob = ResumeMatch & {
   job: { id: number; title: string; company: { name: string } };
 };
@@ -232,13 +176,12 @@ export type MatchWithJob = ResumeMatch & {
 const MATCH_LIST_LIMIT = 50;
 
 export async function listMatchesForJob(userId: number, jobId: number): Promise<MatchWithResume[]> {
-  const rows = await prisma.resumeMatch.findMany({
+  return prisma.resumeMatch.findMany({
     where: { jobId, resume: { userId } },
-    include: { resume: { select: { id: true, name: true, hidden: true } } },
+    include: { resume: { select: { id: true, name: true } } },
     orderBy: { createdAt: 'desc' },
     take: MATCH_LIST_LIMIT,
   });
-  return rows.map((m) => ({ ...m, resume: { ...m.resume, name: comparedResumeName(m.resumeName, m.resume) } }));
 }
 
 /** One run of the resume's history: the scalars the list shows, never the snapshot or the five Json columns (DATA-5). */
@@ -453,7 +396,7 @@ export async function createMatch(input: {
   resumeId: number;
   resumeVersion: number;
   resumeText: string;
-  /** The name of the text judged — the file name on the scratch row (match-name.ts). */
+  /** The resume's name when the comparison was made. */
   resumeName: string;
   draft: boolean;
   model: string;
@@ -666,7 +609,7 @@ export async function getCoverLetter(userId: number, id: number): Promise<CoverL
 /**
  * Latest analysis of this posting of THIS TEXT — the letter's shortlist. The
  * text is in the key because one resume row carries many texts: an editor
- * draft, a new version, every file the scratch row has held.
+ * draft or a new version.
  */
 export async function getLatestMatchForResumeAndJob(
   userId: number,
@@ -814,7 +757,7 @@ export async function listOtherResumeSkills(
   excludeResumeId: number,
 ): Promise<{ skill: string; resumeName: string }[]> {
   const rows = await prisma.resume.findMany({
-    where: { userId, hidden: false, id: { not: excludeResumeId } },
+    where: { userId, id: { not: excludeResumeId } },
     select: { name: true, skills: true },
     orderBy: [{ isDefault: 'desc' }, { id: 'asc' }],
   });

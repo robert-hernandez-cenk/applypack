@@ -277,7 +277,7 @@ const JOB_FOR_PACK = {
 export async function loadPackInputs(userId: number, jobId: number, primaryResumeId: number | null): Promise<{ posting: PackPosting; resume: PackResume | null } | null> {
   const job = await prisma.job.findUnique({ where: { id: jobId }, include: { ...JOB_FOR_PACK, scores: { ...JOB_FOR_PACK.scores, where: { profile: { userId } } } } });
   if (!job) return null;
-  const stored = await prisma.resume.findMany({ where: { userId, hidden: false }, select: { id: true, skills: true, isDefault: true } });
+  const stored = await prisma.resume.findMany({ where: { userId }, select: { id: true, skills: true, isDefault: true } });
   const picked = preselectResume(stored, `${job.title} ${job.description}`, job.scores[0]?.profile.resumeId ?? primaryResumeId);
   const resume = picked && (await prisma.resume.findFirst({ where: { id: picked.id, userId }, select: { id: true, userId: true, name: true, text: true, version: true, updatedAt: true } }));
   // The same role at the same hiring company: a copy an agency lists under its own name is another company to check.

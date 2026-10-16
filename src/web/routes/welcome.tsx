@@ -262,7 +262,7 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), onceGuard(
     const id = idParam(form.resumeId);
     if (Number.isFinite(id)) resume = await getResume(currentUser().id, id);
   }
-  if (!resume || resume.hidden) return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.pickResume'));
+  if (!resume) return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.pickResume'));
   if (resume.scannedAt && resume.primarySkills.length > 0) {
     return c.redirect(`${back}&resume=${resume.id}`, 303);
   }
@@ -327,7 +327,7 @@ welcomeRoute.post('/welcome/profile/apply', async (c) => {
 welcomeRoute.post('/welcome/profile/create', async (c) => {
   const form = await c.req.parseBody();
   const resume = await getResume(currentUser().id, idParam(form.resumeId));
-  if (!resume || resume.hidden || !resume.scannedAt) {
+  if (!resume || !resume.scannedAt) {
     return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.notScanned'));
   }
   const profile = await createProfileFromResume(resume);
@@ -457,7 +457,7 @@ function draftCard(
   resume: ResumeSummary,
   asNew: boolean,
 ): ProfileDraftCard | null {
-  if (!resume.scannedAt || resume.hidden) return null;
+  if (!resume.scannedAt) return null;
   const draft = asNew ? newProfileDraft(resume) : buildProfileDraft(profile, scanFields(resume));
   const primary = draft.changes.stackRequired ?? resume.primarySkills;
   return {

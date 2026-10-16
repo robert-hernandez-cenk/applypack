@@ -5,21 +5,22 @@ import { Hint, Input, Select } from '../ui';
 import { t } from '../../i18n/t';
 
 /*
- * "One of your jobs" on every launcher (/target, /letter, /screen/new): a
+ * "One of your jobs" on every launcher (/letter, /screen/new): a
  * filter box over a listbox of stored jobs. launcher.mjs filters the options
  * in place, keeps the count in step, and requires a pick while this box is
  * the chosen one; without JS the listbox still submits `jobId`. The children
  * finish the count's sentence.
  */
 
-export const JobPicker: FC<PropsWithChildren<{ jobs: JobPickOption[]; selectedId?: number | null }>> = ({
+export const JobPicker: FC<PropsWithChildren<{ jobs: JobPickOption[]; selectedId?: number | null; required?: boolean }>> = ({
   jobs,
   selectedId = null,
+  required = false,
   children,
 }) => (
   <div class="space-y-2">
     <Input type="search" id="job-search" placeholder={t('job.picker.filterByTitleOrCompany')} aria-label={t('job.picker.filterJobs')} autocomplete="off" />
-    <Select name="jobId" id="job-select" size={8} aria-label={t('job.picker.job')} class="!h-auto" data-required>
+    <Select name="jobId" id="job-select" size={8} aria-label={t('job.picker.job')} class="!h-auto" data-required required={required}>
       {jobs.map((j) => (
         // The company and the title are the posting's own, the note and the age the catalog's. An option holds text
         // alone, so it is marked whole: translate="no" only keeps a browser's translator off the posting's words —

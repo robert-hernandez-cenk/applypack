@@ -1,60 +1,14 @@
 /*
- * The name a comparison shows for the resume it judged. A real resume is one
- * file under a name the user can change, so it reads its live name. The
- * launchers' scratch row is a different file after every upload, so a one-off
- * comparison reads the name it was made under — and a row from before that
- * name was kept, whose text the scratch row no longer holds, says so instead
- * of borrowing the latest file's name.
+ * Which earlier comparison a delta is measured against: the most recent
+ * earlier one of the same resume.
  */
-
-import { t } from '../i18n/t';
-
-export function comparedResumeName(snapshot: string, resume: { name: string; hidden: boolean }): string {
-  if (!resume.hidden) return resume.name;
-  return snapshot || t('match.earlierOneOff');
-}
 
 interface ComparedRow {
   resumeId: number;
-  resumeVersion: number;
   createdAt: Date;
-  /** `name` is already `comparedResumeName`. */
-  resume: { name: string; hidden: boolean };
 }
 
-/**
- * The most recent earlier comparison of the same resume — for the "vs last
- * time" delta. On the scratch row "the same resume" is the same file name:
- * the row's previous upload is usually somebody's other resume, and a delta
- * against it would read as progress that never happened.
- */
+/** The most recent earlier comparison of the same resume — for the "vs last time" delta. */
 export function previousFor<T extends ComparedRow>(selected: T, matches: T[]): T | null {
-  return (
-    matches.find(
-      (m) =>
-        m.resumeId === selected.resumeId &&
-        m.createdAt < selected.createdAt &&
-        (!selected.resume.hidden || m.resume.name === selected.resume.name),
-    ) ?? null
-  );
-}
-
-/**
- * How a delta names the comparison it is measured against: a version of a real
- * resume, or the earlier check of a one-off file, whose version counts uploads.
- * A sentence that names it takes these as its arguments and words the name
- * itself ("vs v4", "vs the last check of this file"): a language declines it.
- */
-export function earlierParams(previous: ComparedRow): { kind: 'file' | 'version'; version: number } {
-  return { kind: previous.resume.hidden ? 'file' : 'version', version: previous.resumeVersion };
-}
-
-/**
- * Whether a re-run of a one-off comparison judges a draft — text that is not
- * the file the comparison is named after. The scratch row cannot say, since it
- * may hold another upload by now, so the comparison it starts from does: a
- * draft stays a draft, and a file judged again unchanged is still the file.
- */
-export function oneOffDraft(base: { draft: boolean; resumeText: string }, text: string): boolean {
-  return base.draft || text !== base.resumeText;
+  return matches.find((m) => m.resumeId === selected.resumeId && m.createdAt < selected.createdAt) ?? null;
 }

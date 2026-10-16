@@ -74,7 +74,7 @@ const slug = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').
 /** The resume the posting's best search hunts with, else the primary search's. */
 async function resumeFor(job: StoredJob, fallbackId: number | null) {
   const id = job.scores[0]?.profile.resumeId ?? fallbackId;
-  return id === null ? null : prisma.resume.findFirst({ where: { id, hidden: false } });
+  return id === null ? null : prisma.resume.findFirst({ where: { id } });
 }
 
 async function prepare(job: StoredJob, tools: Tools, fallbackResumeId: number | null): Promise<DryRecord> {

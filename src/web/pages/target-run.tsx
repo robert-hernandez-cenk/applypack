@@ -79,7 +79,7 @@ export const TargetRunPage: FC<{ run: TargetRun; lanes: RunLanes }> = ({ run, la
   const copy = run.heading ?? runCopy(run.steps);
   const heading = failed ? copy.failed : copy.running;
   return (
-    <Layout title={failed ? heading : t('target.run.titleRunning', { heading })} active={run.heading ? undefined : 'target'}>
+    <Layout title={failed ? heading : t('target.run.titleRunning', { heading })}>
       <div class="mx-auto w-full max-w-2xl pt-6 lg:pt-16">
         <Card>
           <div class="mb-1 text-entity text-ink">{heading}</div>

@@ -164,7 +164,7 @@ async function loadNextThings(unmuted: Prisma.JobWhereInput): Promise<NextThing[
   const top = row && flat(row);
   if (top === null || top.fitScore === null) return null;
   const [resumes, compareCost] = await Promise.all([
-    prisma.resume.count({ where: { userId: currentUser().id, hidden: false } }),
+    prisma.resume.count({ where: { userId: currentUser().id } }),
     spendHint('resume-match'),
   ]);
   return nextThings({

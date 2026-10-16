@@ -27,7 +27,7 @@ export function pickResumeForJob<T extends PickableResume>(resumes: T[], jobText
  * What a job page preselects. A profile that names its resume has already
  * answered the question — "this search hunts jobs I'd apply to with THIS CV"
  * (docs/onboarding-plan.md §4) — so the link wins over the heuristic. A link
- * to a resume that is gone or hidden falls back to the overlap pick, which is
+ * to a resume that is gone falls back to the overlap pick, which is
  * also what every unlinked profile gets.
  */
 export function preselectResume<T extends PickableResume>(
@@ -44,8 +44,7 @@ export function preselectResume<T extends PickableResume>(
  * actually ran on this posting is the strongest evidence of what they sent, so
  * the newest match wins; with no match it falls back to whatever the page
  * already preselected (`preselectResume`: the winning search's resume, else
- * skill overlap). A match against a resume that is gone or hidden — the
- * /target scratch row never appears in the picker — falls back too.
+ * skill overlap). A match against a resume that is gone falls back too.
  */
 export function preselectAppliedResume<T extends PickableResume>(
   resumes: T[],

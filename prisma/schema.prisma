@@ -759,9 +759,6 @@ model Resume {
   // Bumped on "Upload new version"; matches record the version they scored.
   version         Int            @default(1)
   isDefault       Boolean        @default(false)
-  // The /target scratch row: replaced in place on every ephemeral compare,
-  // excluded from every list and picker.
-  hidden          Boolean        @default(false)
   scannedAt       DateTime?
   title           String?
   seniority       String?

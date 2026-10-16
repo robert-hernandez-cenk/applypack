@@ -57,8 +57,7 @@ import { tRich } from '../rich';
 
 export interface TargetPageProps {
   job: { id: number; title: string; companyName: string; location: string; description: string };
-  /** ephemeral = the hidden /target scratch resume: no versions, no saving. */
-  resume: { id: number; name: string; version: number; ephemeral: boolean };
+  resume: { id: number; name: string; version: number };
   match: MatchWithResume;
   /** The match's keywords, ordered and counted against the posting (§5). */
   keywords: CountedKeyword[];
@@ -415,7 +414,7 @@ export const TargetPage: FC<TargetPageProps> = ({
               </summary>
               <div class={MENU_PANEL}>
                 <div class="text-label text-ink">
-                  {resume.ephemeral ? t('target.reupload.another') : t('target.reupload.newVersion')}
+                  {t('target.reupload.newVersion')}
                 </div>
                 <form
                   method="post"
@@ -438,7 +437,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                     {t('target.reupload.compare')}
                   </Button>
                   <Hint>
-                    {resume.ephemeral ? t('target.reupload.hintOneOff') : t('target.reupload.hintSaved', { version: resume.version + 1 })}
+                    {t('target.reupload.hintSaved', { version: resume.version + 1 })}
                   </Hint>
                 </form>
               </div>
@@ -471,34 +470,30 @@ export const TargetPage: FC<TargetPageProps> = ({
                     {t('target.analyse.button')}
                   </Button>
                 </form>
-                {/* One save, and only for a resume of the user's own: the next
-                    version of it. This page compares — it does not manage
-                    resumes, and every extra "save as…" here ended up as another
-                    row on /resumes that nobody asked for. A one-off check from
-                    the Tailor resume page saves nothing at all: its text belongs to
-                    this comparison, which keeps its own snapshot. */}
-                {!resume.ephemeral && (
-                  <form
-                    method="post"
-                    action={`/resumes/${resume.id}/draft`}
-                    id="save-form"
-                    onsubmit={SUBMIT_ONCE}
+                {/* One save: the next version of the user's own resume. This page
+                    compares — it does not manage resumes, and every extra
+                    "save as…" here ended up as another row on /resumes that
+                    nobody asked for. */}
+                <form
+                  method="post"
+                  action={`/resumes/${resume.id}/draft`}
+                  id="save-form"
+                  onsubmit={SUBMIT_ONCE}
+                >
+                  <input type="hidden" name="text" id="save-text" value="" />
+                  <input type="hidden" name="jobId" value={job.id} />
+                  {/* The text the edits started from: the patcher diffs against it (ADR 0038). */}
+                  <input type="hidden" name="baseText" value={resumeText} />
+                  <Button
+                    variant="primary"
+                    class="w-full"
+                    data-save-button
+                    disabled
+                    title={t('target.save.title', { version: resume.version + 1 })}
                   >
-                    <input type="hidden" name="text" id="save-text" value="" />
-                    <input type="hidden" name="jobId" value={job.id} />
-                    {/* The text the edits started from: the patcher diffs against it (ADR 0038). */}
-                    <input type="hidden" name="baseText" value={resumeText} />
-                    <Button
-                      variant="primary"
-                      class="w-full"
-                      data-save-button
-                      disabled
-                      title={t('target.save.title', { version: resume.version + 1 })}
-                    >
-                      {t('target.save.button', { version: resume.version + 1 })}
-                    </Button>
-                  </form>
-                )}
+                    {t('target.save.button', { version: resume.version + 1 })}
+                  </Button>
+                </form>
               </div>
             </details>
             </div>
@@ -627,7 +622,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                 {t('target.pane.yourResume')} ·{' '}
                 <span translate="no">
                   {resume.name}
-                  {resume.ephemeral ? '' : ` v${match.resumeVersion}`}
+                  {` v${match.resumeVersion}`}
                 </span>
               </div>
               {/* The document is drawn by a script, so the switch appears with it. */}
@@ -741,9 +736,7 @@ export const TargetPage: FC<TargetPageProps> = ({
             ></textarea>
           </div>
           <Hint class="mt-2">
-            {resume.ephemeral
-              ? t('target.editor.hintOneOff')
-              : t('target.editor.hintSaved')}
+            {t('target.editor.hintSaved')}
             {readMatchEvidence(match.breakdown) === 'text' && ` ${t('target.editor.judgedOnText')}`}
           </Hint>
           </div>
@@ -831,7 +824,7 @@ export const TargetPage: FC<TargetPageProps> = ({
             {/* A live region whose text never changed announced nothing; this one is written when the bar appears. */}
             <span id="dirty-live" class="sr-only" aria-live="polite"></span>
             <span class="ml-2 text-meta text-ink-faint">
-              {resume.ephemeral ? t('target.dirty.oneOff') : t('target.dirty.saved')}
+              {t('target.dirty.saved')}
             </span>
           </div>
           <div class="ml-auto flex flex-wrap items-center gap-2">
@@ -841,16 +834,14 @@ export const TargetPage: FC<TargetPageProps> = ({
             <Button variant="violet" size="sm" form="reanalyze-form" title={t('target.analyse.barTitle')}>
               {t('target.analyse.button')}
             </Button>
-            {!resume.ephemeral && (
-              <Button
-                variant="primary"
-                size="sm"
-                form="save-form"
-                title={t('target.save.barTitle', { version: resume.version + 1 })}
-              >
-                {t('target.save.button', { version: resume.version + 1 })}
-              </Button>
-            )}
+            <Button
+              variant="primary"
+              size="sm"
+              form="save-form"
+              title={t('target.save.barTitle', { version: resume.version + 1 })}
+            >
+              {t('target.save.button', { version: resume.version + 1 })}
+            </Button>
           </div>
         </div>
       </div>
@@ -901,7 +892,7 @@ const RunChip: FC<{ m: MatchWithResume; currentId: number; jobId: number }> = ({
     <HistoryChip href={`/jobs/${jobId}/target?match=${m.id}`} current={m.id === currentId}>
       <FitBadge score={m.matchScore} label={t('match.scoreLabel')} />
       <span translate="no">{m.resume.name}</span>
-      {!m.resume.hidden && <span class="font-mono font-normal text-ink-faint">v{m.resumeVersion}</span>}
+      <span class="font-mono font-normal text-ink-faint">v{m.resumeVersion}</span>
       {m.draft && <Badge tone="neutral">{t('match.draft')}</Badge>}
       <span class="font-normal text-ink-faint"><When at={m.createdAt} /></span>
     </HistoryChip>

@@ -5,42 +5,33 @@ import { companyForPrompt } from '../../employer';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { hashShortId } from '../../text-utils';
-import { createManualJob, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
-import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
-import { checkPostingUrl, fetchPostingText } from '../../jobs/posting-url';
 import { generateCoverLetter } from '../../resume/cover-letter';
 import { matchResumeToJob } from '../../resume/match';
 import { countWords, COVER_TONES, readCoverAngles, type CoverTone } from '../../resume/prompts';
-import { getLatestCompanySnapshot } from '../../resume/store';
+import { getLatestCompanySnapshot, getResume } from '../../resume/store';
 import { verifyJob } from '../../verification/verify';
 import { getUserSettings, setCoverAngles } from '../../settings';
 import { LetterStartPage } from '../pages/letter-start';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
+import { idParam } from '../params';
 import { claimRun, LETTER_FAILED, startRun, updateRun, type RunStep } from '../target-runs';
 import { listPickableJobs } from '../job-pick';
-import { listResumeOptions, resolveResumeSource, ResumeSourceFields } from '../resume-source';
-import { resumeUploadLimit } from '../upload';
+import { listResumeOptions } from '../resume-source';
 import { t } from '../../i18n/t';
 
 /*
- * The /letter launcher (F8.3): a searchable picker over tracked jobs, or one
- * "new posting" box taking a URL and/or pasted text → one run:
- * [fetch] → [extract] → [match] → [verify] → letter. Everything slow is a
- * visible run step, so the form never hangs (TASKS §6.2).
+ * The /letter launcher (F8.3): a stored job and a saved resume → one run:
+ * [match] → [verify] → letter. A posting is added at /jobs/new and a resume on
+ * the Resumes page first (#55). Everything slow is a visible run step, so the
+ * form never hangs (TASKS §6.2).
  *
- * The default is the FAST path: a pasted posting is stored without a
- * fit-score call, and match / verify are opt-in. A letter the user is
- * waiting on must not queue three analyses it never reads.
+ * The default is the FAST path: match / verify are opt-in. A letter the user
+ * is waiting on must not queue analyses it never reads.
  */
 
 const LetterFormSchema = z.object({
-  jobMode: z.enum(['existing', 'new']),
-  jobId: z.coerce.number().int().optional(),
-  jobUrl: z.string().trim().max(2000).default(''),
-  description: z.string().default(''),
-  companyName: z.string().trim().max(MAX_FIELD_CHARS).default(''),
-  title: z.string().trim().max(MAX_FIELD_CHARS).default(''),
-  ...ResumeSourceFields,
+  jobId: z.unknown().transform(idParam).refine(Number.isFinite),
+  resumeId: z.unknown().transform(idParam).refine(Number.isFinite),
 });
 
 export const letterRoute = new Hono();
@@ -49,7 +40,6 @@ letterRoute.get('/letter', async (c) => {
   const [settings, jobs, resumes] = await Promise.all([getUserSettings(currentUser().id), listPickableJobs(), listResumeOptions()]);
   return c.html(
     <LetterStartPage
-      presetUrl={(c.req.query('url') ?? '').slice(0, 2000)}
       jobs={jobs}
       resumes={resumes}
       angles={readCoverAngles(settings.coverAngles)}
@@ -60,7 +50,7 @@ letterRoute.get('/letter', async (c) => {
   );
 });
 
-letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
+letterRoute.post('/letter', async (c) => {
   const form = await c.req.parseBody();
   const parsed = LetterFormSchema.safeParse(form);
   if (!parsed.success) return flashRedirect('/letter', 'err', t('letter.flash.pickSourceAndResume'));
@@ -86,48 +76,25 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
     : readCoverAngles((await getUserSettings(currentUser().id)).coverAngles);
   if (fromForm) await setCoverAngles(currentUser().id, angles);
 
-  // Resolve the resume inline — bad input fails before anything runs.
-  const resume = await resolveResumeSource(form, f);
-  if ('error' in resume) return flashRedirect('/letter', 'err', resume.error);
+  const resume = await getResume(currentUser().id, f.resumeId);
+  if (!resume) return flashRedirect('/letter', 'err', t('letter.flash.resumeGone'));
+  const row = await prisma.job.findFirst({
+    where: { id: f.jobId, userJobs: { some: { userId: currentUser().id } } },
+    include: { company: { select: { name: true, atsType: true } } },
+  });
+  if (!row) return flashRedirect('/letter', 'err', t('letter.flash.jobGone'));
+  const job = {
+    id: row.id,
+    title: row.title,
+    companyName: companyForPrompt(row.employer, row.company),
+    location: row.location,
+    description: row.description,
+    url: row.url,
+    postedAt: row.postedAt,
+  };
 
-  // Resolve the job source. URL and paste both end as a description; the job
-  // row itself is created inside the run (deduped, classified when new).
-  let existingJob: { id: number; title: string } | null = null;
-  let description = '';
-  let jobUrl = '';
-  let { companyName, title } = f;
-  if (f.jobMode === 'existing') {
-    if (!f.jobId) return flashRedirect('/letter', 'err', t('letter.flash.pickJob'));
-    const row = await prisma.job.findFirst({ where: { id: f.jobId, userJobs: { some: { userId: currentUser().id } } }, select: { id: true, title: true } });
-    if (!row) return flashRedirect('/letter', 'err', t('letter.flash.jobGone'));
-    existingJob = row;
-  } else {
-    // One box for both: pasted text wins, a bare URL gets fetched. Only the
-    // cheap shape check runs here — the request itself is a visible run step,
-    // so a slow page never looks like a hung form (TASKS §6.2).
-    description = f.description.replace(/\r\n/g, '\n').trim();
-    jobUrl = f.jobUrl;
-    if (description.length === 0) {
-      if (!jobUrl) {
-        return flashRedirect('/letter', 'err', t('letter.flash.needPosting'));
-      }
-      const checked = checkPostingUrl(jobUrl);
-      if (!checked.ok) return flashRedirect(`/letter?url=${encodeURIComponent(jobUrl)}`, 'err', checked.error);
-    } else if (description.length < MIN_DESCRIPTION_CHARS) {
-      return flashRedirect('/letter', 'err', t('letter.flash.postingTooShort', { n: MIN_DESCRIPTION_CHARS }));
-    }
-  }
-
-  // Fetch only when there is nothing pasted; a description the user supplied
-  // is always the better source than a scraped page.
-  const fetchUrl = f.jobMode === 'new' && description.length === 0;
-  // Detection is about the company and the title, not about where the text
-  // came from: filling both in skips the call even for a fetched page.
-  const needExtract = !existingJob && (!companyName || !title);
-  const hasSnapshot = existingJob ? (await getLatestCompanySnapshot(existingJob.id)) !== null : false;
+  const hasSnapshot = (await getLatestCompanySnapshot(job.id)) !== null;
   const steps: RunStep[] = [
-    ...(fetchUrl ? (['fetch'] as const) : []),
-    ...(needExtract ? (['extract'] as const) : []),
     ...(runMatch ? (['match'] as const) : []),
     ...(runVerify && !hasSnapshot ? (['verify'] as const) : []),
     'letter',
@@ -135,12 +102,12 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
   // Everything the user chose is in the key — the posting, the resume, the
   // tone and the two enrichers — so only a genuinely identical request joins.
   const { run, joined } = claimRun(
-    `letter:${existingJob?.id ?? `new:${hashShortId(`${jobUrl}\n${description}`)}`}:${resume.id}:${tone}:${runMatch ? 'm' : ''}${runVerify ? 'v' : ''}`,
+    `letter:${job.id}:${resume.id}:${tone}:${runMatch ? 'm' : ''}${runVerify ? 'v' : ''}:${hashShortId(JSON.stringify(angles))}`,
     {
       steps,
-      jobTitle: existingJob?.title ?? title ?? t('letter.run.detectingRole'),
+      jobTitle: job.title,
       resumeName: resume.name,
-      jobId: existingJob?.id,
+      jobId: job.id,
       backUrl: '/letter',
       backLabel: t('letter.run.back'),
     },
@@ -149,102 +116,38 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
 
   startRun(run.id, async () => {
     const warnings: string[] = [];
-    let job: { id: number; title: string; companyName: string; location: string; description: string; url: string; postedAt: Date };
-
-    if (existingJob) {
-      const row = await prisma.job.findUniqueOrThrow({
-        where: { id: existingJob.id },
-        include: { company: { select: { name: true, atsType: true } } },
-      });
-      job = { id: row.id, title: row.title, companyName: companyForPrompt(row.employer, row.company), location: row.location, description: row.description, url: row.url, postedAt: row.postedAt };
-    } else {
-      let location = '';
-      let salaryMin: number | undefined;
-      let salaryMax: number | undefined;
-      if (fetchUrl) {
-        const fetched = await fetchPostingText(jobUrl);
-        if (!fetched.ok) {
-          // Back-link keeps the URL, so pasting the text is the next click.
-          updateRun(run.id, {
-            stage: 'error',
-            error: fetched.error,
-            backUrl: `/letter?url=${encodeURIComponent(jobUrl)}`,
-          });
-          return;
-        }
-        description = fetched.text;
-        if (needExtract) updateRun(run.id, { stage: 'extract' });
-      }
-      if (needExtract) {
-        const facts = await extractPostingFacts(description);
-        companyName = companyName || facts?.company || 'Unknown company';
-        title = title || facts?.title || fallbackTitle(description);
-        location = facts?.location || '';
-        salaryMin = facts?.salaryMin ?? undefined;
-        salaryMax = facts?.salaryMax ?? undefined;
-        updateRun(run.id, { jobTitle: title });
-      }
-      // No fit-score call: the letter never reads it and the user is waiting.
-      // "Re-classify" on the job page fills it in later, for free time.
-      const result = await createManualJob(
-        {
-          companyName: companyName || 'Unknown company',
-          title: title || fallbackTitle(description),
-          url: jobUrl,
-          location,
-          description,
-          salaryMin,
-          salaryMax,
-        },
-        currentUser().id,
-        { classify: false },
-      );
-      job = {
-        id: result.job.id,
-        title: result.job.title,
-        companyName: companyName || 'Unknown company',
-        location: result.job.location,
-        description: result.job.description,
-        url: result.job.url,
-        postedAt: result.job.postedAt,
-      };
-      updateRun(run.id, { jobId: job.id });
-    }
 
     if (runMatch) {
       updateRun(run.id, { stage: 'match' });
       // The letter leads with strengths, which only the full report writes.
-      const row = await matchResumeToJob(
+      const matched = await matchResumeToJob(
         { id: resume.id, userId: resume.userId, name: resume.name, version: resume.version, text: resume.text },
         { id: job.id, title: job.title, companyName: job.companyName, location: job.location, description: job.description },
-        { mode: 'full', evidence: resume.evidence },
+        { mode: 'full' },
       );
-      if (!row) warnings.push(t('letter.run.matchFailed'));
+      if (!matched) warnings.push(t('letter.run.matchFailed'));
     }
 
-    if (steps.includes('verify')) {
+    // A verification that finished while the match ran is not paid for twice.
+    if (steps.includes('verify') && (await getLatestCompanySnapshot(job.id)) === null) {
       updateRun(run.id, { stage: 'verify' });
-      // A duplicate paste can already carry research — never pay for it twice.
-      const snapshot = await getLatestCompanySnapshot(job.id);
-      if (snapshot === null) {
-        const row = await verifyJob({
-          id: job.id,
-          title: job.title,
-          companyName: job.companyName,
-          location: job.location,
-          url: job.url,
-          description: job.description,
-          postedAt: job.postedAt,
-        });
-        if (!row) warnings.push(t('letter.run.researchFailed'));
-      }
+      const verified = await verifyJob({
+        id: job.id,
+        title: job.title,
+        companyName: job.companyName,
+        location: job.location,
+        url: job.url,
+        description: job.description,
+        postedAt: job.postedAt,
+      });
+      if (!verified) warnings.push(t('letter.run.researchFailed'));
     }
 
     updateRun(run.id, { stage: 'letter' });
     const outcome = await generateCoverLetter(
       { id: resume.id, userId: resume.userId, text: resume.text, version: resume.version },
       { id: job.id, title: job.title, companyName: job.companyName, location: job.location, description: job.description },
-      { tone, angles, evidence: resume.evidence },
+      { tone, angles },
     );
     if (outcome.kind === 'ok') {
       updateRun(run.id, {

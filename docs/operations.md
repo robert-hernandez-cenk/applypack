@@ -16,8 +16,7 @@
 | Import a file | `/jobs/import` | Bring jobs you already have as a file — JSON, JSON Lines, CSV or TSV. A preview shows how the columns were read and what an import would cost before anything is stored; the rows then go through the same filter and scoring as every job |
 | Job detail | `/jobs/:id` | Four tabs — the posting with the AI verdict, resume match, cover letter, "is it real?" — beside status actions, details and tracking |
 | Tailor resume | `/jobs/:id/target` | Posting ↔ resume side by side, live keyword score, edit in place |
-| Compare | `/target` | One-shot comparison: paste any posting, pick / upload / paste any resume |
-| Cover letter | `/letter` | Write a letter for a posting that isn't stored yet: pick, paste or link it, then draft |
+| Cover letter | `/letter` | Write a letter for a stored job with a saved resume |
 | Applications | `/applications` | Kanban with drag-and-drop. Applied and Rejected/Ghosted are fixed; every column between them is yours to name, add and reorder ([ADR 0025](./adr/0025-custom-work-stages.md)) |
 | Resumes | `/resumes` | Upload `.pdf` / `.docx` / `.md` / `.txt`, AI scan, version history, template check |
 | Clean version | `/resumes/:id/render` | Re-typeset a resume that cannot be edited in place as a single-column `.docx` / `.pdf` in its own typography |

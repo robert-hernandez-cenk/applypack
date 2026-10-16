@@ -6,7 +6,7 @@ import { scanResume } from '../resume/scan';
  * Scan every stored resume again — the way a new upload is scanned — so a
  * field the scan learned later (ADR 0046: `industries`) is filled on the
  * resumes that predate it. One AI call per resume, the row updated in place,
- * nothing else touched; the hidden scratch resume of /target is skipped.
+ * nothing else touched.
  *
  * Usage: node dist/scripts/rescan-resumes.js [--only <id>]
  */
@@ -15,7 +15,7 @@ const only = Number(process.argv[process.argv.indexOf('--only') + 1]);
 
 async function main(): Promise<void> {
   const resumes = await prisma.resume.findMany({
-    where: Number.isFinite(only) && only > 0 ? { id: only } : { hidden: false },
+    where: Number.isFinite(only) && only > 0 ? { id: only } : {},
     select: { id: true, userId: true, name: true, text: true },
     orderBy: { id: 'asc' },
   });
