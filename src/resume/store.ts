@@ -5,6 +5,7 @@ import { prisma } from '../db';
 import { withGlobalWriteLock } from '../settings';
 import { logger } from '../logger';
 import { readAnswers, upsertAnswer, type ReviewAnswer } from './answers';
+import { patchSource } from './tailored';
 import { readFrameReason, type FrameReason } from './keyword-frame';
 import { loadKeywordMatcher } from './keyword-matcher';
 import { withEvidence } from './evidence';
@@ -155,6 +156,16 @@ export async function upsertTailored(userId: number, resumeId: number, jobId: nu
   return row;
 }
 
+/**
+ * The copy whose text the editor started from, if any — the file its edits
+ * must be patched into (`patchSource`). Texts first, the file only for a hit.
+ */
+export async function getTailoredBasedOn(userId: number, resumeId: number, baseText: string): Promise<TailoredResume | null> {
+  const texts = await prisma.tailoredResume.findMany({ where: { resumeId, resume: { userId } }, select: { id: true, text: true } });
+  const hit = texts.find((r) => patchSource({ baseText, copyText: r.text }) === 'copy');
+  return hit ? getTailoredWithFile(userId, hit.id) : null;
+}
+
 export async function getTailoredForJob(userId: number, resumeId: number, jobId: number): Promise<TailoredSummary | null> {
   return prisma.tailoredResume.findFirst({ where: { resumeId, jobId, resume: { userId } }, omit: TAILORED_WITHOUT_ORIGINAL });
 }
@@ -189,8 +200,12 @@ export async function deleteTailored(userId: number, id: number): Promise<{ resu
 export async function promoteTailored(userId: number, id: number): Promise<ResumeSummary | null> {
   const copy = await getTailoredWithFile(userId, id);
   if (!copy) return null;
+  const current = await prisma.resume.findFirst({ where: { id: copy.resumeId, userId }, select: { name: true, version: true } });
+  if (!current) return null;
+  const ext = /\.(\w+)$/.exec(copy.sourceFilename)?.[1] ?? 'docx';
   return replaceResumeFile(userId, copy.resumeId, {
-    sourceFilename: copy.sourceFilename,
+    // The resume's own versioned name, not the posting-named file of the copy.
+    sourceFilename: versionFileName(current.name, current.version + 1, ext),
     mimeType: copy.mimeType,
     original: Buffer.from(copy.original),
     text: copy.text,
