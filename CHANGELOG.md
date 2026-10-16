@@ -17,11 +17,13 @@ All notable changes to this project are documented here. The format follows
   and a posting at **Add a job** first.
 - **Every comparison and letter is judged with your confirmed facts and your
   other resumes.** The "this is my own resume" box is gone. A comparison made
-  before this change on a file's text alone still opens and still says so.
+  before this change on a file's text alone would still say so, but the upgrade
+  deletes the only place those were made (below).
 
 ### Removed
 - The hidden scratch resume that held one-off files. The upgrade deletes it
-  and the comparisons made on it; your resumes are untouched.
+  and the comparisons, cover letters and reviews made on it; your resumes are
+  untouched.
 
 ## [2.59.8] — 2026-10-15
 

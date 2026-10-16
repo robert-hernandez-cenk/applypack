@@ -13,6 +13,7 @@ import { verifyJob } from '../../verification/verify';
 import { getUserSettings, setCoverAngles } from '../../settings';
 import { LetterStartPage } from '../pages/letter-start';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
+import { idParam } from '../params';
 import { claimRun, LETTER_FAILED, startRun, updateRun, type RunStep } from '../target-runs';
 import { listPickableJobs } from '../job-pick';
 import { listResumeOptions } from '../resume-source';
@@ -29,8 +30,8 @@ import { t } from '../../i18n/t';
  */
 
 const LetterFormSchema = z.object({
-  jobId: z.coerce.number().int(),
-  resumeId: z.coerce.number().int(),
+  jobId: z.unknown().transform(idParam).refine(Number.isFinite),
+  resumeId: z.unknown().transform(idParam).refine(Number.isFinite),
 });
 
 export const letterRoute = new Hono();
@@ -127,7 +128,8 @@ letterRoute.post('/letter', async (c) => {
       if (!matched) warnings.push(t('letter.run.matchFailed'));
     }
 
-    if (steps.includes('verify')) {
+    // A verification that finished while the match ran is not paid for twice.
+    if (steps.includes('verify') && (await getLatestCompanySnapshot(job.id)) === null) {
       updateRun(run.id, { stage: 'verify' });
       const verified = await verifyJob({
         id: job.id,

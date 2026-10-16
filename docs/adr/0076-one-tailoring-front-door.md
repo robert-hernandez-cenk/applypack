@@ -45,10 +45,11 @@ which a save is always possible and a length target is always present.
 
 - A one-off check of a file or of text that is not in Resumes needs the file added first. That is the
   intended cost: the tailored copy (#48) and condense (#49) can rely on a save.
-- Comparisons made on a scratch resume before the upgrade are deleted with it.
-- Old comparisons judged on text alone keep saying so ("Judged on this file's text alone").
-- `fallbackTitle` and `extractPostingFacts` lose the launcher as a caller; saved postings and
-  `/screen/new` still use them.
+- Comparisons, cover letters and reviews made on a scratch resume before the upgrade are deleted with it.
+- The `text` marker was only ever written on the scratch row, so after the upgrade no stored row carries it;
+  `readMatchEvidence` keeps reading it as a guard for a database restored from before.
+- `extractPostingFacts` loses the launcher as a caller (saved postings still use it); `fallbackTitle` is
+  left with tests only.
 
 ## Non-goals
 

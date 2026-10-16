@@ -423,9 +423,8 @@
   fourth `breakdown` marker, `verificationId`, is the memo key that makes a
   full row stale after a new verification. The fifth, `evidence` (`own` /
   `text`, `match-mode.ts:readMatchEvidence`), says whether the owner's
-  confirmed facts and other resumes joined the judgment: a file or a paste on
-  a launcher is judged on its text alone unless the person ticks "my own
-  resume" or it reads exactly like one of theirs (TASKS R1), and a memo never
+  confirmed facts and other resumes joined the judgment: every comparison is
+  `own` since ADR 0076, the legacy `text` is only read back, and a memo never
   answers across the two.
 - `src/web/public/score.mjs` mirrors `src/resume/score.ts` line for line —
   change one, change the other; `src/web/score.test.ts` enforces parity.

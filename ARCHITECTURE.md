@@ -595,7 +595,7 @@ src/
     update-notice.ts            ← the sidebar's "a newer release is out": the check's answer, cached an hour in the web process
     job-facets.ts               ← /jobs place / workplace / posted facets: params, where, chip counts; the list's URLs (jobsHref), the filters in force (pure)
     job-tabs.ts                 ← the job page's tabs: resolveJobTab (explicit, else inferred from match= / letter=), jobHref, the labels with what exists (pure)
-    job-pick.ts                 ← the jobs a candidate launcher offers (fit threshold, newest, ?job= kept)
+    job-pick.ts                 ← the jobs a candidate launcher offers (fit threshold, newest)
     job-guard.ts                ← middleware: /jobs/<id>/… is not found for a posting the person holds no row for (ADR 0067)
     runs-summary.ts             ← a run's stats as facts in a fixed order, a reason as a sentence (pure) — what /runs shows instead of JSON
     usage-hints.ts              ← what the AI ledger suggests changing (pure): the billed task, fallbacks, failures, a pricey scoring model, the budget's pace
@@ -783,7 +783,7 @@ user's schedule, read in the schedule's own time zone.
 | `POST /companies/new`            | web     | sync `probeAts` → create                 |
 | `POST /companies/starter-pack`   | web     | resolve a pack live (`probeAts`, ≥1 job wins) → preview; `POST /companies/starter-pack/import` inserts inactive, `POST /companies/starter-pack/enable` activates |
 | `POST /resumes`                  | web     | extract text → async run: `scanResume` on the progress page (about half a minute) |
-| `POST /jobs/:id/match`           | web     | async run (`comparison-run.ts:startComparison`): brief → `matchResumeToJob` (`mode` = fast \| full; every Compare button posts full); a stored quick check + `mode=full` starts the suggestions run instead; `matchId` on a scratch-row comparison re-judges that comparison's text; redirects to `/target/runs/:id` |
+| `POST /jobs/:id/match`           | web     | async run (`comparison-run.ts:startComparison`): brief → `matchResumeToJob` (`mode` = fast \| full; every Compare button posts full); a stored quick check + `mode=full` starts the suggestions run instead; `matchId` names the comparison a re-check aims at; redirects to `/target/runs/:id` |
 | `POST /jobs/:id/matches/:matchId/suggestions` | web | async run: `suggestForMatch` — actions/removals/strengths/cautions onto the stored row, score untouched |
 | `POST /jobs/:id/verify`          | web     | async run on the progress page: `checkLiveness` (free rungs, seconds) → stop on a verdict; else, or with `deep=1`, `verifyJob` with web tools (2-4 min) → `JobVerification` |
 | `POST /jobs/new`                 | web     | MANUAL company upsert + Job + `classifyExistingJob` |
@@ -796,7 +796,7 @@ user's schedule, read in the schedule's own time zone.
 | `POST /jobs/:id/cover`           | web     | async run: `generateCoverLetter` (fact-gated; blocked twice → error, no row); redirects to `/target/runs/:id`. The card form also saves the angle prefills; a Regenerate POST reuses them |
 | `POST /jobs/:id/cover/:letterId` | web     | save a manual edit; re-runs the gate warn-only, updates `gateVerdict`/`gateNotes` |
 | `GET /jobs/:id/cover/:letterId/file/:fmt` | web | letter (edited text wins) → .docx or .pdf attachment, built in-process |
-| `POST /letter`                   | web     | job by picker / URL / paste + resume resolve → async run [fetch? → extract? → classify? → match? → verify?] → gated letter. Everything slow is a run step; the POST only shape-checks (§6.2) |
+| `POST /letter`                   | web     | stored job + saved resume → async run [match? → verify?] → gated letter. Everything slow is a run step; the POST only shape-checks (§6.2) |
 | `POST /resumes/:id/draft`        | web     | async run: `saveEdited` writes the edits into the user's .docx when the template check allows it (else a `.md` text version) → `scanResume`; with a `jobId` (Save as vN on the targeted view), `matchResumeToJob` instead while the scan runs in the background. It passes no `mode`, so the saved text is re-scored as a quick check (`fast`) |
 | a request under `/static/`       | web     | `src/web/public`, served as-is (`serveStatic` in `src/web/app.ts`) |
 | `POST /discovery/:id/promote`    | web     | transactional Company upsert             |

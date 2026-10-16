@@ -48,7 +48,7 @@ export const LetterStartPage: FC<LetterStartProps> = ({
           <Card>
             <SectionTitle>{t('letter.jobPosting')}</SectionTitle>
             {hasJobs ? (
-              <JobPicker jobs={jobs}>{t('letter.start.pickerTail')}</JobPicker>
+              <JobPicker jobs={jobs} required>{t('letter.start.pickerTail')}</JobPicker>
             ) : (
               <Hint>
                 {tRich('letter.start.noJobs', {}, {
