@@ -9,6 +9,8 @@ import { loadKeywordMatcher } from '../resume/keyword-matcher';
 import { matchResumeToJob } from '../resume/match';
 import { readMatchEvidence, readMatchMode } from '../resume/match-mode';
 import { readPromptVersion } from '../resume/match-reuse';
+import { findCuts } from '../resume/condense-call';
+import { readCondenseStage } from '../resume/condense';
 import { PROMPT_VERSION, readActions, readHardRequirements, readKeywords, readRemovals, type CoverAngles } from '../resume/prompts';
 import { knobsFrom } from '../resume/render/knobs';
 import { readBreakdown } from '../resume/score';
@@ -211,7 +213,11 @@ export async function preparePosting(posting: PackPosting, resume: PackResume, o
   const keywords = readKeywords(row.keywords);
   const started = Date.now();
   opts.onStep?.('tailor');
-  const plan = planEdits({ actions: readActions(row.actions), removals: readRemovals(row.removals), keywords, postingTitle: posting.title }, opts.policy);
+  // The cuts are Condense's (ADR 0078), not the comparison's: asked for only when the person switched unattended removals on.
+  const cuts =
+    opts.policy.removals && readCondenseStage(row.breakdown) === 'none' ? ((await findCuts(resume.userId, row, posting, onError)) ?? row) : row;
+  if (cut()) return out;
+  const plan = planEdits({ actions: readActions(row.actions), removals: readRemovals(cuts.removals), keywords, postingTitle: posting.title }, opts.policy);
   const outcome = tailor(row.resumeText, plan, editor);
   const score = {
     before: scoreOnText(row.resumeText, keywords, breakdown, matcher).score,

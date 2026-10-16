@@ -47,6 +47,9 @@ yet been applied to.
   and the progress page (`web/condense-run.ts`), so a second press joins the first. One route,
   `POST /jobs/:id/matches/:matchId/condense/:step` (`cuts` | `words` | `refresh`), personal like the
   suggestions route.
+- **The application pack keeps its opt-in removals.** `pack/prepare.ts` reads cuts from the row, and a
+  comparison no longer writes any, so when the person has switched unattended removals on (off by default)
+  and the row has no cuts yet, `findCuts` runs before `planEdits`; the policy and its gate are unchanged.
 - **Two ledger features**, `resume-condense-cuts` and `resume-condense-words`, both `analysis` tasks.
 
 ## Alternatives considered
