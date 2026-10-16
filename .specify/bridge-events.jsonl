@@ -193,3 +193,7 @@
 
 {"event":"artifact_drift_detected","timestamp":"2026-10-16T19:04:22.5815092Z","actor":"claude","feature_directory":"specs/048-tailored-resume-copies","drifted_artifacts":[{"path":"spec.md","old_sha256":"0674a609f3202cdf80482de1f60f8c87547041c56b9fbeccebdfcc6ad98f19bd","new_sha256":"f5ca2c38a1d71340ae1f7678d4a78bc512b273f8a8609b26d6948cde065720dc"},{"path":"tasks.md","old_sha256":"2caeff6f98fa7a65ebd2fb1789556a5d75f8243a555445ddd18c51cb0863eba3","new_sha256":"f07a434e857a1777a788c64d11e8fe9fce3a3d0afa3012fe1e89409e223de6b5"}]}
 
+{"timestamp":"2026-10-16T19:48:23.1432432Z","action":"handoff","status":"ready","feature_directory":"specs/048-tailored-resume-copies","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261016T1948231023728Z-ready"}
+
+{"timestamp":"2026-10-16T19:48:33.4765011Z","action":"handoff","status":"ready","feature_directory":"specs/049-condense-two-phase","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261016T1948334540389Z-ready"}
+
