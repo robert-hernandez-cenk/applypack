@@ -37,10 +37,10 @@
 
 **Independent Test**: `/letter` with a stored job and a saved resume drafts a letter; the page offers no other inputs.
 
-- [ ] T006 [US3] Rewrite `src/web/pages/letter-start.tsx`: the job card is the `JobPicker` only (drop the `ModeCard name="jobMode"` wrapper and the "a new posting" card, `presetUrl`); the resume card is a `Select name="resumeId"` of `resumes` only (drop `upload`/`paste` cards and `MineCheckbox`). With no jobs or no resumes show a hint pointing to `/jobs/new` and `/resumes` instead of the form's submit. Keep tone, angles, `runMatch` and `runVerify` unchanged.
-- [ ] T007 [US3] Rewrite `src/web/routes/letter.tsx`: `LetterFormSchema` = `{ jobId, resumeId }` (zod, `z.coerce.number().int()`), no `ResumeSourceFields`, no `resumeUploadLimit`; resolve the resume with `getResume(currentUser().id, resumeId)` (flash `letter.flash.resumeGone` ← reuse `upload.source.gone` text under a letter key) and the job as today (`userJobs.some`); delete the `new` branch, the `fetch`/`extract` steps, `createManualJob`, `fetchPostingText`, `checkPostingUrl`, `extractPostingFacts`; `evidence: 'own'`. The run's steps become `[match?] [verify?] letter`.
-- [ ] T008 [P] [US3] Update `src/web/launcher.test.ts` (and `src/web/public/launcher.mjs` if it handles the removed modes) to the reduced form; delete cases for upload/paste/new-posting.
-- [ ] T009 [US3] Commit: `Cut /letter to a stored job and a saved resume (#55, US3)`.
+- [x] T006 [US3] Rewrite `src/web/pages/letter-start.tsx`: the job card is the `JobPicker` only (drop the `ModeCard name="jobMode"` wrapper and the "a new posting" card, `presetUrl`); the resume card is a `Select name="resumeId"` of `resumes` only (drop `upload`/`paste` cards and `MineCheckbox`). With no jobs or no resumes show a hint pointing to `/jobs/new` and `/resumes` instead of the form's submit. Keep tone, angles, `runMatch` and `runVerify` unchanged.
+- [x] T007 [US3] Rewrite `src/web/routes/letter.tsx`: `LetterFormSchema` = `{ jobId, resumeId }` (zod, `z.coerce.number().int()`), no `ResumeSourceFields`, no `resumeUploadLimit`; resolve the resume with `getResume(currentUser().id, resumeId)` (flash `letter.flash.resumeGone` ← reuse `upload.source.gone` text under a letter key) and the job as today (`userJobs.some`); delete the `new` branch, the `fetch`/`extract` steps, `createManualJob`, `fetchPostingText`, `checkPostingUrl`, `extractPostingFacts`; `evidence: 'own'`. The run's steps become `[match?] [verify?] letter`.
+- [x] T008 [P] [US3] (no change needed: `launcher.mjs` still serves /screen/new and the job picker) Update `src/web/launcher.test.ts` (and `src/web/public/launcher.mjs` if it handles the removed modes) to the reduced form; delete cases for upload/paste/new-posting.
+- [x] T009 [US3] Commit: `Cut /letter to a stored job and a saved resume (#55, US3)`.
 
 ## Phase 5: User Story 4 — Comparisons always judge the owner's own resume (P2)
 
