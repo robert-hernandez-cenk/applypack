@@ -5,7 +5,7 @@ import { Button, Card, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, Section
 import type { FlashMessage } from '../flash';
 import type { JobPickOption } from '../job-pick';
 import { JobPicker } from './job-picker';
-import { ModeCard } from './target-start';
+import { ModeCard } from './mode-card';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { MAX_UPLOAD_MB } from '../upload';

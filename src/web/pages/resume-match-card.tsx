@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Card,
+  Field,
   FitBadge,
   Hint,
   HistoryChip,
@@ -34,7 +35,7 @@ import {
 } from '../../resume/prompts';
 import { freshFrame, freshFrameNotice } from '../../resume/keyword-frame';
 import { proposalOf, suggestionKey, suggestionSheet, type Proposal } from '../../resume/change-sheet';
-import { readPageTarget } from '../../resume/length';
+import { PAGE_TARGETS, readPageTarget } from '../../resume/length';
 import { readMatchEvidence, readMatchMode, type MatchMode } from '../../resume/match-mode';
 import { verificationCautionMessages, verificationHintMessage, type VerificationForHint, type VerificationHint } from '../../resume/verification-hint';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
@@ -203,6 +204,17 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
               ))}
             </Select>
           </label>
+          {/* ADR 0074: the pages the resume should fit. The default asks for nothing. */}
+          <Field label={t('target.pages.label')} hint={t('target.pages.hint')} class="min-w-0 max-w-full">
+            <Select name="pages" class="!w-auto max-w-full">
+              <option value="keep" selected>
+                {t('target.pages.keep')}
+              </option>
+              {PAGE_TARGETS.map((n) => (
+                <option value={String(n)}>{t('target.pages.n', { n })}</option>
+              ))}
+            </Select>
+          </Field>
           <Button variant="violet" title={t('match.compareTitle')}>
             {t('match.compare')}
           </Button>

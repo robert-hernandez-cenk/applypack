@@ -19,7 +19,7 @@
 
 ## Phase 2: Foundational
 
-- [ ] T002 Move `ModeCard` out of `src/web/pages/target-start.tsx` into `src/web/ui.tsx` (exported, same props and markup) and update its importers `src/web/pages/letter-start.tsx` and `src/web/pages/screen-new.tsx`; `MineCheckbox` stays put until US4. Behaviour unchanged; `npm run lint:types` clean.
+- [x] T002 Move `ModeCard` out of `src/web/pages/target-start.tsx` into its own `src/web/pages/mode-card.tsx` (as built; was planned for `ui.tsx`) (exported, same props and markup) and update its importers `src/web/pages/letter-start.tsx` and `src/web/pages/screen-new.tsx`; `MineCheckbox` stays put until US4. Behaviour unchanged; `npm run lint:types` clean.
 
 ## Phase 3: User Story 1 — Tailor from the Resume match tab with a length target (P1) 🎯 MVP
 
@@ -27,9 +27,9 @@
 
 **Independent Test**: on a stored job with a saved resume pick "1 page", Compare, reach `/jobs/:id/target?match=…`, see the 1-page target on the comparison, Save as vN.
 
-- [ ] T003 [US1] In `src/web/pages/resume-match-card.tsx` add a `pages` `<Select>` (options: keep, 1, 2, 3; default keep) to the Compare form posting to `/jobs/:id/match`, reusing the markup and `target.pages.*` catalog keys the launcher used in `src/web/pages/target-start.tsx` (lines ~181–190: `Field label=t('target.pages.label') hint=t('target.pages.hint')`, `t('target.pages.keep')`, `t('target.pages.n', {n})`). Look the `PAGE_TARGETS` list up in `src/resume/length.ts` rather than hard-coding 1–3.
-- [ ] T004 [US1] Confirm `src/web/routes/jobs.tsx` `POST /jobs/:id/match` stores the posted target: a fresh Compare reads `parsePageTarget(form.pages)`; a re-check reads `readPageTarget(base.breakdown)` (FR-006). Add a small test in `src/web/comparison-pages.test.ts` only if a pure seam exists (e.g. extract the `pages` choice into `src/resume/length.ts:pageTargetForRun(base, formValue)` with tests); otherwise cover by the route smoke step in Phase 8.
-- [ ] T005 [US1] Commit: `Add page target to the Resume match form (#55, US1)`.
+- [x] T003 [US1] In `src/web/pages/resume-match-card.tsx` add a `pages` `<Select>` (options: keep, 1, 2, 3; default keep) to the Compare form posting to `/jobs/:id/match`, reusing the markup and `target.pages.*` catalog keys the launcher used in `src/web/pages/target-start.tsx` (lines ~181–190: `Field label=t('target.pages.label') hint=t('target.pages.hint')`, `t('target.pages.keep')`, `t('target.pages.n', {n})`). Look the `PAGE_TARGETS` list up in `src/resume/length.ts` rather than hard-coding 1–3.
+- [x] T004 [US1] Confirm `src/web/routes/jobs.tsx` `POST /jobs/:id/match` stores the posted target: a fresh Compare reads `parsePageTarget(form.pages)`; a re-check reads `readPageTarget(base.breakdown)` (FR-006). Add a small test in `src/web/comparison-pages.test.ts` only if a pure seam exists (e.g. extract the `pages` choice into `src/resume/length.ts:pageTargetForRun(base, formValue)` with tests); otherwise cover by the route smoke step in Phase 8.
+- [x] T005 [US1] Commit: `Add page target to the Resume match form (#55, US1)`.
 
 ## Phase 4: User Story 3 — /letter takes a stored job and a saved resume (P2)
 
