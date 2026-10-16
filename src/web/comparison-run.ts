@@ -3,7 +3,7 @@ import { hashShortId } from '../text-utils';
 import { briefForPosting, briefLine } from '../resume/brief';
 import type { PageTarget } from '../resume/length';
 import { findReusableMatch, matchResumeToJob } from '../resume/match';
-import type { MatchEvidence, MatchMode } from '../resume/match-mode';
+import type { MatchMode } from '../resume/match-mode';
 import { reuseNotice } from '../resume/match-reuse';
 import type { MatchJobInput } from '../resume/prompts';
 import { flashRedirect } from './flash';
@@ -29,8 +29,6 @@ export interface ComparisonRequest {
   /** The text to judge: the stored version, the editor's draft, or a fresh upload. */
   text: string;
   mode: MatchMode;
-  /** R1: the owner's facts and other resumes, or the text alone — a file on the Tailor resume page may not be theirs. */
-  evidence: MatchEvidence;
   /** ADR 0074: the pages the resume should fit; `keep` for every caller without the control. */
   pages: PageTarget;
   rebuild: boolean;
@@ -57,7 +55,7 @@ export async function startComparison(c: Context, req: ComparisonRequest): Promi
   // replace. A full report asked of a stored quick check needs only the
   // suggestions call.
   if (!req.force && !rebuild) {
-    const reused = await findReusableMatch(resume.userId, jobId, resume.id, text, mode, req.evidence, req.pages);
+    const reused = await findReusableMatch(resume.userId, jobId, resume.id, text, mode, 'own', req.pages);
     if (reused?.decision === 'reuse') {
       return flashRedirect(req.resultUrl(reused.row.id), 'warn', reuseNotice(formatRelative(reused.row.createdAt)), {
         rerun: true,
@@ -96,7 +94,7 @@ export async function startComparison(c: Context, req: ComparisonRequest): Promi
  */
 export async function runComparison(runId: string, req: ComparisonRequest, lead: RunStep[] = []): Promise<void> {
   if (!req.force && !req.rebuild) {
-    const reused = await findReusableMatch(req.resume.userId, req.jobId, req.resume.id, req.text, req.mode, req.evidence, req.pages);
+    const reused = await findReusableMatch(req.resume.userId, req.jobId, req.resume.id, req.text, req.mode, 'own', req.pages);
     if (reused?.decision === 'reuse') {
       updateRun(runId, {
         stage: 'done',
@@ -141,7 +139,6 @@ async function compare(runId: string, req: ComparisonRequest): Promise<void> {
   const row = await matchResumeToJob({ id: resume.id, userId: resume.userId, name: resume.name, version: resume.version, text }, job, {
     draft: req.draft ?? text !== resume.text,
     mode,
-    evidence: req.evidence,
     pages: req.pages,
     rebuild,
     brief: briefed,

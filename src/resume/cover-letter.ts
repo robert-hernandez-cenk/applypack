@@ -1,5 +1,4 @@
 import type { CoverLetter } from '@prisma/client';
-import { readMatchEvidence, type MatchEvidence } from './match-mode';
 import { logger } from '../logger';
 import { getAiRuntime } from '../ai-runtime';
 import { askForJson } from '../ai-json';
@@ -51,12 +50,6 @@ export async function generateCoverLetter(
     tone: CoverTone;
     angles?: CoverAngles;
     addressee?: string;
-    /**
-     * R1: the owner's confirmed facts may back a claim (`own`), or only the
-     * resume and the posting may (`text`) — a one-off file may be somebody
-     * else's. Absent, a one-off follows the comparison it distils, else `text`.
-     */
-    evidence?: MatchEvidence;
   },
 ): Promise<CoverOutcome> {
   const started = Date.now();
@@ -64,8 +57,7 @@ export async function generateCoverLetter(
     getLatestMatchForResumeAndJob(resume.userId, job.id, resume.id, resume.text),
     getLatestCompanySnapshot(job.id),
   ]);
-  const evidence = opts.evidence ?? (resume.hidden ? (match ? readMatchEvidence(match.breakdown) : 'text') : 'own');
-  const facts = evidence === 'own' ? await listFacts(resume.userId) : [];
+  const facts = await listFacts(resume.userId);
   const context: CoverContext = {
     tone: opts.tone,
     angles: opts.angles,

@@ -122,7 +122,7 @@ letterRoute.post('/letter', async (c) => {
       const matched = await matchResumeToJob(
         { id: resume.id, userId: resume.userId, name: resume.name, version: resume.version, text: resume.text },
         { id: job.id, title: job.title, companyName: job.companyName, location: job.location, description: job.description },
-        { mode: 'full', evidence: 'own' },
+        { mode: 'full' },
       );
       if (!matched) warnings.push(t('letter.run.matchFailed'));
     }
@@ -145,7 +145,7 @@ letterRoute.post('/letter', async (c) => {
     const outcome = await generateCoverLetter(
       { id: resume.id, userId: resume.userId, text: resume.text, version: resume.version },
       { id: job.id, title: job.title, companyName: job.companyName, location: job.location, description: job.description },
-      { tone, angles, evidence: 'own' },
+      { tone, angles },
     );
     if (outcome.kind === 'ok') {
       updateRun(run.id, {
