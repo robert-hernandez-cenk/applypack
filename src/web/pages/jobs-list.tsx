@@ -361,7 +361,7 @@ export const JobsListPage: FC<JobsListProps> = ({
                   bare
                   title={t('jobs.noJobsMatchTheseFilters')}
                   action={
-                    <Button href="/jobs" variant="secondary" size="sm">
+                    <Button href={`/jobs?status=${JOBS_ALL_STATUS}`} variant="secondary" size="sm">
                       {t('jobs.clearAllFilters')}
                     </Button>
                   }

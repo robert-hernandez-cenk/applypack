@@ -209,7 +209,7 @@ jobsRoute.get('/jobs', async (c) => {
   const mine: Prisma.UserJobWhereInput = { userId };
   const where: Prisma.JobWhereInput = {};
   if (status !== JOBS_ALL_STATUS) {
-    mine.status = status as JobStatus;
+    mine.status = status;
   }
   const minFitNum = intQuery(minFit);
   // With a search selected both filters read that search's own score, not the
@@ -322,7 +322,7 @@ jobsRoute.get('/jobs', async (c) => {
   // The list's own total is one of those counts (or their sum), so it costs no query of its own.
   const statusCounts: Partial<Record<JobStatus, number>> = Object.fromEntries(statusGroups.map((g) => [g.status, g._count._all]));
   const total = status !== JOBS_ALL_STATUS
-    ? (statusCounts[status as JobStatus] ?? 0)
+    ? (statusCounts[status] ?? 0)
     : statusGroups.reduce((sum, g) => sum + g._count._all, 0);
 
   return c.html(

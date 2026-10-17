@@ -17,3 +17,9 @@
 ## Link audit
 - To `status=all`: `overview.tsx` "See all jobs" empty-state button; `job-detail.tsx` back link, `?profile=` and `?country=` links; `job-new.tsx` / `job-import.tsx` back links (label "All jobs"); `target.tsx` breadcrumb; `muted-companies.tsx` `?muted=1`; `overview.tsx` `?watched=1`.
 - Untouched: `?status=<STATUS>` links (Overview cards, recent alerts), the menu link, "Open your jobs" buttons, `jobs-list.tsx` bare `/jobs` in empty states (lands on New by design), route-smoke redirect `back` values that name a status.
+
+## After code review
+- `watchlist.tsx` (`/jobs?q=<company>`) was missed by the first audit; it now carries `status=all`, like the other search-by-thing links.
+- The empty state's "Clear all filters" button went to bare `/jobs`, which is the New view it was already on; it now goes to `status=all`.
+- Left on the default on purpose: the post-import redirect (imported rows are New), the run-gone redirect and the target run's back link, `applications.tsx` / `resume-detail.tsx` "Open your jobs", and the menu.
+- `resolveJobsStatus` returns `JobStatus | 'all' | null`, built on a record keyed by the Prisma enum, so a new status fails to compile until listed.

@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { JobStatus, Prisma } from '@prisma/client';
 import { flagOf, isCountryCode, isRegionCode } from '../countries';
 import { WORKPLACE_CODES, type WorkplaceCode } from '../location';
 import type { MessageKey } from '../i18n/catalog';
@@ -302,9 +302,14 @@ function bump<K>(map: Map<K, number>, key: K): void {
 export const JOBS_ALL_STATUS = 'all';
 
 /** What `/jobs` shows when no status is asked for. */
-export const JOBS_DEFAULT_STATUS = 'NEW';
+export const JOBS_DEFAULT_STATUS: JobStatus = 'NEW';
 
-const JOB_STATUSES: readonly string[] = ['NEW', 'ALERTED', 'APPLIED', 'SAVED', 'DISMISSED'];
+/** Keyed on the enum, so a status added to the schema fails to compile until it is listed here. */
+const JOB_STATUS_SET: Record<JobStatus, true> = { NEW: true, ALERTED: true, APPLIED: true, SAVED: true, DISMISSED: true };
+
+function isJobStatus(raw: string): raw is JobStatus {
+  return Object.hasOwn(JOB_STATUS_SET, raw);
+}
 
 /**
  * The tab `/jobs` opens on, from its `status` query: missing or empty is New,
@@ -312,7 +317,8 @@ const JOB_STATUSES: readonly string[] = ['NEW', 'ALERTED', 'APPLIED', 'SAVED', '
  * answers 400). The one place the rule lives — the route, the page and every
  * link read the value it returns.
  */
-export function resolveJobsStatus(raw: string | undefined): string | null {
+export function resolveJobsStatus(raw: string | undefined): JobStatus | typeof JOBS_ALL_STATUS | null {
   if (raw === undefined || raw === '') return JOBS_DEFAULT_STATUS;
-  return raw === JOBS_ALL_STATUS || JOB_STATUSES.includes(raw) ? raw : null;
+  if (raw === JOBS_ALL_STATUS) return JOBS_ALL_STATUS;
+  return isJobStatus(raw) ? raw : null;
 }
