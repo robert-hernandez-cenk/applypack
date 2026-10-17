@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.59.13] — 2026-10-17
+
+### Added
+- **Send a tailored copy to Reactive Resume.** A resume imported from Reactive
+  Resume 6 remembers which one it was; on its tailored copies, **Send to
+  Reactive Resume** makes a NEW resume there, named `<Resume> - <Company> -
+  <Role>`, with your edits for that posting. Your original is only read, and the
+  layout and design carry over because the copy is a duplicate with only the
+  words changed. Edits that cannot be placed (a line made of several fields, a
+  heading) are listed as not applied, with why. A resume imported before this
+  release gets its source recorded by pulling it once more (#50, ADR 0079).
+
 ## [2.59.12] — 2026-10-16
 
 ### Added

@@ -136,6 +136,7 @@ of truth when the two disagree.
 - 0075 The Reactive Resume connection is a saved setting *(supersedes the in-memory key of 0073; builds on 0070, 0071: one row per person, one accessor, checked on save, a stash with no key, a new-version source)*
 - 0076 One tailoring front door *(amends 0074, 0029: the Resume match tab is the only way to compare, `/target` and the hidden scratch resume are removed, `/letter` takes a stored job and a saved resume, evidence is always `own` and legacy `text` rows still read)*
 - 0077 Tailored resume copies *(amends 0038, 0076: the editor's save writes a copy for the posting, never the resume; the copy's comparisons stay out of the resume's count and coverage; promote to master is the deliberate overwrite)*
+- 0079 A tailored copy goes back to Reactive Resume as a new resume *(builds on 0073, 0075, 0077: the resume keeps its source id and format, not its JSON; a send duplicates the source on the instance and patches only words inside fields; what cannot be placed is reported, never guessed)*
 
 Check a proposal against these before touching process layout, sources,
 scheduling, profiles, how the AI is called, the resume score or employer
