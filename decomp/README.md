@@ -20,6 +20,8 @@ Read in this order:
 | [10a-ui-flows-job-search.md](./10a-ui-flows-job-search.md) | UI flows: onboarding, overview, jobs, sources, runs, settings (19 journeys) |
 | [10b-ui-flows-resume-and-apply.md](./10b-ui-flows-resume-and-apply.md) | UI flows: resumes, match, tailor/condense, letter, render, Reactive Resume, packs, tracker (13 journeys) |
 | [10c-ui-flows-screening-admin-chrome.md](./10c-ui-flows-screening-admin-chrome.md) | UI flows: employer screening, sign-in, users, AI usage, global chrome and navigation map |
+| [11-flow-audit.md](./11-flow-audit.md) | UX flow audit of 10a-10c: 20 findings checked against the source, cross-journey rules, refuted claims |
+| [11a-redrawn-flows.md](./11a-redrawn-flows.md) | Six journeys redrawn with the missing branches (runs, sign-in and denial, screening run, tailor draft, pack queue, resume prerequisites) |
 
 The 10x files carry screen inventories and per-journey flow diagrams. They were checked against the page code more closely than 08 and correct it in places (see the note at the top of 08).
 
