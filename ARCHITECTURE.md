@@ -659,7 +659,7 @@ src/
       target.mjs                ← browser keyword matcher (pure ES module, node-tested)
       score.mjs                 ← browser mirror of resume/score.ts (parity-tested, ADR 0012)
       evidence.mjs              ← browser mirror of resume/evidence.ts, the live ring's evidence grade (parity-tested, ADR 0058)
-      target-page.mjs           ← the targeted view's DOM wiring over target.mjs and score.mjs
+      target-page.mjs           ← the targeted view's DOM wiring over target.mjs and score.mjs; `init()` returns `refresh(data)` for in-place keyword edits
       text-edits.mjs            ← apply / remove / add-a-term / undo over the resume text (pure, node-tested)
       apply-all.mjs             ← every open suggestion in one press, each undoable on its own (pure, node-tested)
       doc-pane.mjs              ← the Document view: draws the draft with docx-preview, paragraph edits, print (ADR 0059)
@@ -675,6 +675,7 @@ src/
       chips.mjs                 ← the chip editor over a newline-joined textarea
       countries.mjs             ← country picker: search over /countries.json + the suggestion list (tested via import())
       select-commit.mjs         ← a self-saving select that saves once, not once per arrowed option
+      inline-post.mjs           ← `form[data-inline]` posts with fetch, follows the redirect, swaps the `[data-region]`s (ADR 0081)
       chart.mjs                 ← a chart's hover: the guide, the dot, the card; arrow keys walk the points
       settings-models.mjs       ← the per-engine model pickers save themselves
       progress.mjs              ← the navigation progress bar

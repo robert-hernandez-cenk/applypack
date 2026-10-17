@@ -58,13 +58,13 @@ description: "Tasks for keyword edits that keep the page in place (#53)"
 
 ## Phase 6: Polish & cross-cutting
 
-- [ ] T015 [P] ADR `docs/adr/0081-inline-keyword-edits.md` via the `adr-writer` skill (context: reload per edit; decision: opt-in `data-inline`, follow the redirect, region swap by id, `refresh()` on the tailor page; alternatives: fragment endpoint, `<main>` swap; consequences: stale-until-reload confirm lists, one extra render) and its line in `docs/adr/README.md`
-- [ ] T016 [P] `ARCHITECTURE.md` file map: add `inline-post.mjs` beside `select-commit.mjs`; note `refresh()` where `target-page.mjs` is described
-- [ ] T017 [P] `CHANGELOG.md` `## [2.59.16]` **Fixed** entry (#53, ADR 0081) and `package.json` / `package-lock.json` version `2.59.16` (patch only)
-- [ ] T018 Full checks: `npm run lint:types`, `npm test` (env above), `npm run exports:audit`, `npm run i18n:browser` leaves no diff
-- [ ] T019 Route smoke on a scratch database per the local verification recipe (built-in database, `npm run build`, `migrate deploy`, `smoke:routes`); the two known local-machine pseudo-language failures are not this change
-- [ ] T020 Browser verification with Playwright against a scratch install at 1280 and 390 wide, following `quickstart.md`: scroll and focus preserved for level/ignore/restore/reset/remove/add, a refused add, unsaved editor text preserved with live ring, server-down error line, scripts-off normal post; record `scrollY` before/after
-- [ ] T021 Mark the verification tasks complete in this file and list anything unverified for the PR body
+- [x] T015 [P] ADR `docs/adr/0081-inline-keyword-edits.md` via the `adr-writer` skill (context: reload per edit; decision: opt-in `data-inline`, follow the redirect, region swap by id, `refresh()` on the tailor page; alternatives: fragment endpoint, `<main>` swap; consequences: stale-until-reload confirm lists, one extra render) and its line in `docs/adr/README.md`
+- [x] T016 [P] `ARCHITECTURE.md` file map: add `inline-post.mjs` beside `select-commit.mjs`; note `refresh()` where `target-page.mjs` is described
+- [x] T017 [P] `CHANGELOG.md` `## [2.59.16]` **Fixed** entry (#53, ADR 0081) and `package.json` / `package-lock.json` version `2.59.16` (patch only)
+- [x] T018 Full checks: `npm run lint:types`, `npm test` (env above), `npm run exports:audit`, `npm run i18n:browser` leaves no diff
+- [x] T019 Route smoke on a scratch database per the local verification recipe (built-in database, `npm run build`, `migrate deploy`, `smoke:routes`); the two known local-machine pseudo-language failures are not this change
+- [x] T020 Browser verification with Playwright against a scratch install at 1280 and 390 wide, following `quickstart.md`: scroll and focus preserved for level/ignore/restore/reset/remove/add, a refused add, unsaved editor text preserved with live ring, server-down error line, scripts-off normal post; record `scrollY` before/after
+- [x] T021 Mark the verification tasks complete in this file and list anything unverified for the PR body
 
 ## Dependencies
 
