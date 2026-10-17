@@ -56,7 +56,7 @@ description: "Task list for writing tailored edits back to Reactive Resume (#50)
 - [x] T021 [US3] Implement the reasons in `planWriteBack` until T020 passes; each `EditReport` carries `status`, `kind`, `label` (English noun for the field, e.g. "Experience · <company>"), the line text and `reason`
 - [x] T022 [US3] Word the report in `src/web/pages/` (a small `reactive-send-report` view used by the flash redirect target, or a flash list through `tRich`): count applied, list each not-applied edit with `placeName`-style worded label and a reason function of the code in the reader's language; stored/compared values stay English; unit-test the reason function covers every code (`src/web/reactive-failures.test.ts`)
 - [x] T023 [US3] Failure words for `noOrigin`, `noConnection`, `stale`, `generation`, `notFound`, `locked`, `conflict`, `badPatch`, `unauthorized`, `unreachable`, `timeout`, `tooLarge`, `notApi`, `redirect`, `privateAddress` in `src/web/reactive-failures.ts` (exhaustive map, so a new code does not compile without words); the `createdRemoteId` variant names the clone and says it was left in place
-- [ ] T024 [US3] Route-smoke steps in `src/scripts/route-smoke.ts`: `POST /tailored/:id/reactive-send` on a copy whose resume has no origin → refused with a flash and the copy unchanged; on a copy of a resume with an origin but no saved connection → "no connection" flash; a cross-origin POST is refused; the pseudo-language pass finds no English outside the catalog on the changed pages
+- [x] T024 [US3] Route-smoke steps in `src/scripts/route-smoke.ts`: `POST /tailored/:id/reactive-send` on a copy whose resume has no origin → refused with a flash and the copy unchanged; on a copy of a resume with an origin but no saved connection → "no connection" flash; a cross-origin POST is refused; the pseudo-language pass finds no English outside the catalog on the changed pages
 
 ## Phase 6: Polish and cross-cutting
 
@@ -68,7 +68,7 @@ description: "Task list for writing tailored edits back to Reactive Resume (#50)
 
 ## Phase 7: Verification
 
-- [ ] T030 **Verification** — route smoke on a throwaway database: `npm run build && npm run smoke:routes` (CLAUDE.md warns it inserts rows; never the live database); paste the tail of the output
+- [x] T030 **Verification** — route smoke on a throwaway database: `npm run build && npm run smoke:routes` (CLAUDE.md warns it inserts rows; never the live database); paste the tail of the output
 - [ ] T031 **Verification** — live roundtrip, **only with the user's go-ahead** (it writes to their instance), following quickstart.md step 3: record the original's `updatedAt` and a hash of its `data` (scratchpad only); import/tailor/send; confirm the new resume exists with the same template, colours and section order and exactly the changed texts; re-fetch the original and confirm `updatedAt` and `data` hash are unchanged; confirm the stale refusal creates nothing; move every test resume to Trash; put the redacted result (counts, truncated ids, no key, no personal text) in the PR; record whether the builder link `<base>/builder/<id>` opened the clone, else change it to the base address (research R8)
 - [ ] T032 If the live response differs from the redacted fixture's shape, update the fixture and the reader/apply tests in the same commit (the live data outranks the fixture)
 

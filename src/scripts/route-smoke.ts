@@ -188,6 +188,60 @@ function reactiveExport(name: string): unknown {
   };
 }
 
+/** A format-6 export (items carry `dates`), the one a write-back is made against (ADR 0079). */
+function reactiveV6Export(name: string): unknown {
+  return {
+    basics: { name, headline: 'Backend Engineer', email: 'smoke@example.com', location: 'Berlin' },
+    summary: { content: '<p>Backend engineer who builds billing services in Node.js and TypeScript on PostgreSQL.</p>' },
+    sections: {
+      experience: {
+        items: [
+          {
+            id: 'e1',
+            company: 'Acme',
+            position: 'Backend Engineer',
+            dates: { start: '2021-01', end: '2026-01', present: false },
+            description: '<ul><li><p>Built the billing service</p></li><li><p>Moved it from MySQL to PostgreSQL</p></li></ul>',
+          },
+          {
+            id: 'e2',
+            company: 'Globex',
+            position: 'Engineer',
+            dates: { start: '2018-01', end: '2021-01', present: false },
+            description: '<p>Ran the on-call rota and kept the deploys boring.</p>',
+          },
+        ],
+      },
+      skills: { items: [{ id: 's1', name: 'Backend', keywords: ['Node.js', 'TypeScript', 'PostgreSQL', 'Docker'] }] },
+    },
+  };
+}
+
+/**
+ * An instance that reads a resume, copies it and takes a patch (ADR 0079), and
+ * records every request it gets, so a send can be held to "the original is only read".
+ */
+async function reactiveWritableStandIn(
+  data: unknown,
+): Promise<{ url: string; requests: Array<{ method: string; url: string; body: string }>; close: () => void }> {
+  const requests: Array<{ method: string; url: string; body: string }> = [];
+  const server = createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => {
+      const url = req.url ?? '';
+      requests.push({ method: req.method ?? '', url, body: Buffer.concat(chunks).toString('utf8') });
+      res.writeHead(200, { 'content-type': 'application/json' });
+      if (req.method === 'POST' && url.endsWith('/duplicate')) return res.end(JSON.stringify('copy-1'));
+      if (req.method === 'PATCH') return res.end(JSON.stringify({ id: 'copy-1', updatedAt: '2026-10-17T00:00:00.000Z' }));
+      if (url.endsWith('/resumes')) return res.end(JSON.stringify([{ id: 'w1', name: 'Smoke writable' }]));
+      return res.end(JSON.stringify({ id: url.split('/').pop(), name: 'Smoke writable', isLocked: false, updatedAt: '2026-10-16T00:00:00.000Z', data }));
+    });
+  });
+  await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+  return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, requests, close: () => server.close() };
+}
+
 /** A server that answers like a Reactive Resume instance's API, and counts what reaches it. */
 async function reactiveStandIn(exportFor: unknown): Promise<{ url: string; hits: () => number; close: () => void }> {
   let hits = 0;
@@ -1046,7 +1100,90 @@ async function main(): Promise<void> {
       status: same.status,
       ok: same.status === 303 && same.headers.get('location') === `/resumes/${f.resumeId}` && unchanged.version === after.version,
     });
+    // ADR 0079: a tailored copy of a resume pulled from a format-6 instance goes back as a NEW resume.
+    const writable = await reactiveWritableStandIn(reactiveV6Export('Smoke Writable'));
+    try {
+      await app.request('/settings/reactive-resume', form({ url: writable.url, key: KEY }));
+      const listedW = await app.request('/resumes/reactive/list', form({}));
+      await app.request('/resumes/reactive/import', form({ pull: pickerPull(listedW.status === 200 ? await listedW.text() : ''), id: 'w1' }));
+      const source = await prisma.resume.findFirst({ where: { remoteId: 'w1' }, select: { id: true, text: true, remoteGeneration: true } });
+      if (!source) throw new Error('smoke: the format-6 pull did not make a resume');
+      const edited = source.text.replace('- Built the billing service', '- Built the billing service and cut p95 latency by 40%');
+      const sendCopy = await upsertTailored(DEFAULT_USER_ID, source.id, f.jobId, {
+        sourceFilename: 'smoke-writable.md',
+        mimeType: 'text/markdown',
+        original: Buffer.from(edited),
+        text: edited,
+      });
+      const detail = await (await app.request(`/resumes/${source.id}`, { headers: ORIGIN })).text();
+      rows.push({
+        route: 'GET /resumes/:id of a format-6 resume with a copy (the send button is there)',
+        url: `/resumes/${source.id}`,
+        status: 200,
+        ok: source.remoteGeneration === 'v6' && detail.includes(`/tailored/${sendCopy.id}/reactive-send`),
+      });
+      const before = writable.requests.length;
+      const sent = await app.request(`/tailored/${sendCopy.id}/reactive-send`, form({ back: 'resume' }));
+      const sentHtml = await sent.text();
+      const mine = writable.requests.slice(before);
+      const patch = mine.find((r) => r.method === 'PATCH');
+      const operations = patch ? (JSON.parse(patch.body) as { operations: Array<{ path: string; value: string }> }).operations : [];
+      rows.push({
+        route: 'POST /tailored/:id/reactive-send (a copy, edited, becomes a new resume; the original is only read)',
+        url: `/tailored/${sendCopy.id}/reactive-send`,
+        status: sent.status,
+        ok:
+          sent.status === 200 &&
+          sentHtml.includes(`${writable.url}/builder/copy-1`) &&
+          !sentHtml.includes(KEY) &&
+          mine.some((r) => r.method === 'POST' && r.url === '/api/openapi/resumes/w1/duplicate') &&
+          operations.length === 1 &&
+          operations[0]!.path === '/sections/experience/items/0/description' &&
+          operations[0]!.value.includes('cut p95 latency by 40%') &&
+          mine.filter((r) => r.method !== 'GET').every((r) => !/\/resumes\/w1$/.test(r.url)),
+      });
+      // A copy of the other resume, read as an older format, is declined before the instance hears of it.
+      const declinedBefore = writable.requests.length;
+      const declined = await app.request(`/tailored/${f.tailoredId}/reactive-send`, form({ back: 'resume' }));
+      rows.push({
+        route: 'POST /tailored/:id/reactive-send for a resume read as an older format (declined, nothing sent)',
+        url: `/tailored/${f.tailoredId}/reactive-send`,
+        status: declined.status,
+        ok: declined.status === 200 && (await declined.text()).includes('Only resumes from Reactive Resume 6') && writable.requests.length === declinedBefore,
+      });
+      const crossOrigin = await app.request(`/tailored/${sendCopy.id}/reactive-send`, {
+        ...form({ back: 'resume' }),
+        headers: { origin: 'http://evil.example', host: 'localhost', 'content-type': 'application/x-www-form-urlencoded' },
+      });
+      rows.push({
+        route: 'POST /tailored/:id/reactive-send from another origin (refused)',
+        url: `/tailored/${sendCopy.id}/reactive-send`,
+        status: crossOrigin.status,
+        ok: crossOrigin.status === 403 && writable.requests.length === declinedBefore,
+      });
+      // A resume that came from a file has nowhere to be sent: told so, and the instance is not asked.
+      const plainText = `${RESUME}\nA resume that came from a file.`;
+      const fromFile = await createResume(DEFAULT_USER_ID, { name: 'Smoke from a file', sourceFilename: 'file.txt', mimeType: 'text/plain', original: Buffer.from(plainText), text: plainText });
+      const fileCopy = await upsertTailored(DEFAULT_USER_ID, fromFile.id, f.jobId, { sourceFilename: 'file-copy.md', mimeType: 'text/markdown', original: Buffer.from(plainText), text: plainText });
+      const noOrigin = await app.request(`/tailored/${fileCopy.id}/reactive-send`, form({ back: 'resume' }));
+      rows.push({
+        route: 'POST /tailored/:id/reactive-send for a resume with no origin (back to it with a message, nothing sent)',
+        url: `/tailored/${fileCopy.id}/reactive-send`,
+        status: noOrigin.status,
+        ok: noOrigin.status === 303 && noOrigin.headers.get('location') === `/resumes/${fromFile.id}#tailored` && flashOf(noOrigin).length > 0 && writable.requests.length === declinedBefore,
+      });
+      await prisma.resume.delete({ where: { id: fromFile.id } });
+    } finally {
+      writable.close();
+    }
     const removed = await app.request('/settings/reactive-resume/remove', form({}));
+    const noConnection = await app.request(`/tailored/${f.tailoredId}/reactive-send`, form({ back: 'resume' }));
+    rows.push({
+      route: 'POST /tailored/:id/reactive-send with no saved connection (told to connect first, nothing sent)',
+      url: `/tailored/${f.tailoredId}/reactive-send`,
+      status: noConnection.status,
+      ok: noConnection.status === 303 && flashOf(noConnection).length > 0,
+    });
     const hitsBefore = instance.hits();
     const afterRemoval = await app.request('/resumes/reactive/list', form({}));
     rows.push({
