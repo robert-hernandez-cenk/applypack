@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.59.12] — 2026-10-16
+
+### Added
+- **Condense, on the Resume match editor.** Cutting a resume down is a stage of
+  its own now, in three steps you start one at a time: **Find cuts** (what to
+  delete, sized to your page target), **Tighten wording** (shorter wording for
+  what is left, written against the text in the editor after the cuts you
+  accepted) and **Refresh suggestions** (the changes and additions written again
+  over the shorter text). The panel is open when the resume is over its target
+  and closed, but available, when it is not (#49, ADR 0078).
+
+### Changed
+- A new comparison and its suggestions no longer carry cuts or the page-length
+  instruction: they write changes and additions only, and the cuts come from
+  Condense. Cuts stored by earlier comparisons still show and still work.
+
 ## [2.59.11] — 2026-10-16
 
 ### Changed

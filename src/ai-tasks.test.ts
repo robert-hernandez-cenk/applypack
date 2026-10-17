@@ -6,7 +6,7 @@ import { AI_TASKS, AI_TASK_ROLE, isAiTask, taskOf } from './ai-tasks';
 import type { AiFeature } from './ai-usage';
 
 test('every task has a feature behind it, and the engine test belongs to none', () => {
-  const features = ['classifier', 'prefilter', 'posting-extract', 'gmail-extract', 'posting-brief', 'resume-scan', 'resume-structure', 'resume-match', 'resume-match-fast', 'resume-suggestions', 'resume-rewrite', 'resume-review', 'cover-letter', 'job-verify', 'screening', 'screening-compare', 'screening-bench'] as const;
+  const features = ['classifier', 'prefilter', 'posting-extract', 'gmail-extract', 'posting-brief', 'resume-scan', 'resume-structure', 'resume-match', 'resume-match-fast', 'resume-suggestions', 'resume-condense-cuts', 'resume-condense-words', 'resume-rewrite', 'resume-review', 'cover-letter', 'job-verify', 'screening', 'screening-compare', 'screening-bench'] as const;
   assert.deepEqual([...new Set(features.map(taskOf))].sort(), [...AI_TASKS].sort());
   assert.equal(taskOf('engine-test'), null);
 });

@@ -11,10 +11,11 @@ import { loadKeywordMatcher } from './keyword-matcher';
 import { withEvidence } from './evidence';
 import { effectiveKeywords } from './keyword-overrides';
 import type { JsonResume } from './json-resume';
+import { readCondense, withCondenseStage } from './condense';
 import { readPageTarget, type PageTarget } from './length';
 import { readMatchEvidence, readMatchMode, storedBreakdown, type MatchEvidence, withSuggestionsMode, type MatchMode } from './match-mode';
 import { readPromptVersion, readVerificationId } from './match-reuse';
-import type { MatchAction, MatchKeyword, MatchSuggestions, ResumeMatchResult, ResumeReviewResult, ResumeScan } from './prompts';
+import type { MatchAction, MatchKeyword, MatchRemoval, MatchSuggestions, ResumeMatchResult, ResumeReviewResult, ResumeScan } from './prompts';
 import { readKeywords } from './prompts';
 import type { FactAnswer } from './facts';
 import { countableFlags } from './red-flags';
@@ -648,16 +649,48 @@ export async function updateMatchSuggestions(
   suggestions: MatchSuggestions,
   /** The verification whose company context the suggestions call read (ADR 0042). */
   verificationId: number | null,
+  /** The editor text these suggestions were written against (Condense's refresh); null keeps the comparison's own text. */
+  actionsOn: string | null = null,
 ): Promise<ResumeMatch> {
-  const current = await prisma.resumeMatch.findUniqueOrThrow({ where: { id }, select: { breakdown: true } });
+  const current = await prisma.resumeMatch.findUniqueOrThrow({ where: { id }, select: { breakdown: true, condense: true } });
   return prisma.resumeMatch.update({
     where: { id },
     data: {
       strengths: suggestions.strengths,
       cautions: suggestions.cautions,
       actions: suggestions.actions as Prisma.InputJsonValue,
-      removals: suggestions.removals as Prisma.InputJsonValue,
       breakdown: withSuggestionsMode(current.breakdown, verificationId) as Prisma.InputJsonValue,
+      ...(actionsOn === null ? {} : { condense: { ...readCondense(current.condense), actionsOn } as Prisma.InputJsonValue }),
+    },
+  });
+}
+
+/**
+ * Condense, step one lands (ADR 0078): the cuts replace the row's removals, any
+ * wording proposals of an earlier go are stale (they quoted a text the cuts
+ * were about to change) and are cleared, and the stage marker moves to
+ * `removals`. The breakdown is re-read here, like updateMatchSuggestions does.
+ */
+export async function updateMatchCuts(id: number, removals: MatchRemoval[]): Promise<ResumeMatch> {
+  const current = await prisma.resumeMatch.findUniqueOrThrow({ where: { id }, select: { breakdown: true, condense: true } });
+  return prisma.resumeMatch.update({
+    where: { id },
+    data: {
+      removals: removals as unknown as Prisma.InputJsonValue,
+      condense: { rewrites: [], from: '', actionsOn: readCondense(current.condense).actionsOn } as Prisma.InputJsonValue,
+      breakdown: withCondenseStage(current.breakdown, 'removals') as Prisma.InputJsonValue,
+    },
+  });
+}
+
+/** Condense, step two lands: the shorter wordings and the text they were written against. */
+export async function updateMatchWords(id: number, rewrites: MatchAction[], from: string): Promise<ResumeMatch> {
+  const current = await prisma.resumeMatch.findUniqueOrThrow({ where: { id }, select: { breakdown: true, condense: true } });
+  return prisma.resumeMatch.update({
+    where: { id },
+    data: {
+      condense: { ...readCondense(current.condense), rewrites, from } as Prisma.InputJsonValue,
+      breakdown: withCondenseStage(current.breakdown, 'rewrites') as Prisma.InputJsonValue,
     },
   });
 }

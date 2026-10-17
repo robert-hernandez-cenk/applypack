@@ -374,7 +374,7 @@
   (unpdf, ADR 0011), `resume-text.ts`, `prompts.ts`, `pick.ts`, `score.ts`
   (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts`, `match-mode.ts`,
   `match-reuse.ts`, `bench-report.ts`,
-  `profile-draft.ts` (ADR 0015), `fact-check.ts` (ADR 0020),
+  `profile-draft.ts` (ADR 0015), `fact-check.ts` (ADR 0020), `condense.ts` (ADR 0078),
   `keyword-overrides.ts`, `keyword-frame.ts`, `review-score.ts` (ADR 0030),
   `change-sheet.ts`, `replacement-gate.ts` (ADR 0037),
   `docx-structure.ts`, `docx-patch.ts`, `docx-props.ts` (ADR 0038),
@@ -384,7 +384,7 @@
   `coverage.ts`, `duplicate.ts`, `review-gate.ts`, `usage.ts`,
   `draft-document.ts`, `pdf-geometry.ts`, `pdf-layout.ts` (ADR 0059), `summary-guide.ts`,
   `tailored.ts` (ADR 0077) are pure (tested);
-  `scan.ts` / `match.ts` / `suggestions.ts` / `review.ts` / `cover-letter.ts`
+  `scan.ts` / `match.ts` / `suggestions.ts` / `condense-call.ts` / `review.ts` / `cover-letter.ts`
   call the AI provider (the letter is gated by `fact-check.ts` and generates from stored
   inputs only — ADR 0021); `store.ts` is the only file that touches Prisma.
   Called by the dashboard and, since ADR 0063, by the worker's pack runner

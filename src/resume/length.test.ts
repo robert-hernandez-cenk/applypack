@@ -7,7 +7,6 @@ import {
   cutBudget,
   estimatePages,
   lengthExtraTokens,
-  lengthLines,
   lengthPlan,
   parsePageTarget,
   readPageTarget,
@@ -94,29 +93,4 @@ test('lengthExtraTokens: no more room without a target or when it is met, more w
   const big = lengthExtraTokens(lengthPlan(text(CHARS_PER_PAGE * 20), 1));
   assert.ok(small >= 0 && mid > small && big > mid);
   assert.equal(big, (CUTS_MAX - CUTS_DEFAULT) * 120, 'the cap of cuts is the cap of the extra room');
-});
-
-test('lengthLines: nothing for "keep" and nothing when the target is met', () => {
-  assert.deepEqual(lengthLines(lengthPlan(text(CHARS_PER_PAGE * 4), 'keep')), []);
-  assert.deepEqual(lengthLines(lengthPlan(text(CHARS_PER_PAGE), 2)), []);
-});
-
-test('lengthLines: states target, estimate, overshoot and the cap, and how to choose cuts', () => {
-  const plan = lengthPlan(text(CHARS_PER_PAGE * 4), 2);
-  const block = lengthLines(plan).join('\n');
-  assert.match(block, /LENGTH TARGET/);
-  assert.match(block, /2 pages/);
-  assert.match(block, /about 4\.0 pages/);
-  assert.match(block, new RegExp(`${plan.overshootChars} characters`));
-  assert.match(block, new RegExp(`up to ${cutBudget(plan.overshootChars)} removals`));
-  assert.match(block, /least relevant to THIS posting/);
-  assert.match(block, /older roles/i);
-  assert.match(block, /must-have/i);
-  assert.match(block, /overrides the "~8 removals" pace/);
-  // Our own instruction: it sits outside every fence (ADR 0022).
-  assert.doesNotMatch(block, /=== (BEGIN|END)/);
-});
-
-test('lengthLines: one page reads "1 page"', () => {
-  assert.match(lengthLines(lengthPlan(text(CHARS_PER_PAGE * 3), 1)).join('\n'), /1 page\b/);
 });

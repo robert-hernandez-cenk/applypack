@@ -392,6 +392,8 @@ export function init(data) {
     const saveText = document.getElementById('save-text');
     if (saveText) saveText.value = text;
     document.getElementById('reanalyze-text').value = dirty ? text : '';
+    // Condense's forms read the text on screen (ADR 0078).
+    for (const field of document.querySelectorAll('[data-editor-text]')) field.value = text;
     // Nothing to carry out until the text differs from what the AI judged.
     const copyEdits = document.getElementById('copy-edits');
     if (copyEdits) copyEdits.disabled = !dirty;

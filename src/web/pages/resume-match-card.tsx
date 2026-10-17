@@ -948,7 +948,9 @@ export const ActionsBlock: FC<{
   reach?: Reach | null;
   /** What the first reader looks for in a summary (summary-guide.ts) — it keeps the summary section open with no card in it. */
   summaryGuide?: SummaryGuide | null;
-}> = ({ actions, interactive = false, rewrite, reach = null, summaryGuide = null }) => {
+  /** The list's own heading, when it is not "What to change" (Condense's shorter wording). */
+  heading?: string;
+}> = ({ actions, interactive = false, rewrite, reach = null, summaryGuide = null, heading }) => {
   // The index is taken before the per-section filter: it addresses the action
   // in the stored row, which is what the rewrite route updates.
   const numbered = actions.map((a, index) => ({ a, index }));
@@ -957,8 +959,8 @@ export const ActionsBlock: FC<{
   );
   return (
     <div>
-      <div class={SUBHEAD}>{t('match.actions.heading', { n: actions.length })}</div>
-      {actions.length === 0 && <NoEdits reach={reach} />}
+      <div class={SUBHEAD}>{heading ?? t('match.actions.heading', { n: actions.length })}</div>
+      {actions.length === 0 && heading === undefined && <NoEdits reach={reach} />}
       {sections.length > 0 && (
         <div class={`space-y-4 ${actions.length === 0 ? 'mt-3' : ''}`}>
           {sections.map((section) => (

@@ -13,6 +13,8 @@ import { structureFromText } from '../../resume/structure-from-text';
 import { readActions, readHardRequirements, readRemovals } from '../../resume/prompts';
 import { CHARS_PER_PAGE, lengthPlan, readPageTarget, roundPages, type LengthPlan } from '../../resume/length';
 import { readMatchEvidence, readMatchMode } from '../../resume/match-mode';
+import { readCondense, readCondenseStage } from '../../resume/condense';
+import { CondensePanel } from './condense-panel';
 import { notEnglishNotice } from '../../text-language';
 import { readBreakdown } from '../../resume/score';
 import { mainAdvice, readyToApply } from '../score-lines';
@@ -151,6 +153,9 @@ export const TargetPage: FC<TargetPageProps> = ({
   const scored = effectiveKeywords(keywords);
   const actions = readActions(match.actions);
   const removals = readRemovals(match.removals);
+  // Condense (ADR 0078): the shorter wording of its second step rides with the other change cards.
+  const rewrites = readCondense(match.condense).rewrites;
+  const stage = readCondenseStage(match.breakdown);
   const hard = readHardRequirements(match.hardRequirements);
   // A file judged on its own text may not be the user's: its questions are not theirs to answer (TASKS R1).
   const { asks, unproven } = readMatchEvidence(match.breakdown) === 'text' ? { asks: [], unproven: [] } : confirmable(scored, job.title);
@@ -177,7 +182,7 @@ export const TargetPage: FC<TargetPageProps> = ({
     unsureNote: UNSURE_NOTE,
     // The line under the name: where the chip of the posting's own title leads (#349).
     headline: structureFromText(resumeText).basics.label,
-    actions,
+    actions: [...actions, ...rewrites],
     removals,
     // The score parts the live count holds fixed; null on pre-ADR-0012
     // matches. penalty rides along frozen: the flag texts were judged against
@@ -762,6 +767,15 @@ export const TargetPage: FC<TargetPageProps> = ({
                 <SuggestionsPrompt matchId={match.id} jobId={job.id} next="target" />
               ) : (
                 <>
+                  <CondensePanel
+                    jobId={job.id}
+                    matchId={match.id}
+                    plan={lengthPlan(resumeText, pageTarget)}
+                    stage={stage}
+                    removals={removals}
+                    rewrites={rewrites}
+                    full={!fast}
+                  />
                   <div>
                     <div class="flex flex-wrap items-center gap-2">
                       <ChangeSheetButton
@@ -799,7 +813,6 @@ export const TargetPage: FC<TargetPageProps> = ({
                     reach={reachOf(breakdown, match.matchScore)}
                     summaryGuide={summaryGuide}
                   />
-                  <RemovalsBlock removals={removals} interactive />
                 </>
               )}
               <MatchSignals match={match} verification={verification} />

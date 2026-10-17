@@ -66,6 +66,8 @@ const TASK_OF: Record<AiFeature, AiTask | null> = {
   'resume-match': 'analysis',
   'resume-match-fast': 'analysis',
   'resume-suggestions': 'analysis',
+  'resume-condense-cuts': 'analysis',
+  'resume-condense-words': 'analysis',
   'resume-rewrite': 'analysis',
   'resume-review': 'analysis',
   'cover-letter': 'letters',

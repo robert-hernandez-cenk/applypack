@@ -46,9 +46,8 @@ test('reuseNotice names the age and says the model was not called', () => {
 });
 
 test('suggestionsFlash counts what was written and never claims the model stayed idle', () => {
-  const flash = suggestionsFlash({ actions: 4, removals: 2 });
+  const flash = suggestionsFlash({ actions: 4 });
   assert.match(flash, /4 edits/);
-  assert.match(flash, /2 removals/);
   assert.match(flash, /score is unchanged/);
   assert.doesNotMatch(flash, /not called/);
 });
@@ -56,10 +55,10 @@ test('suggestionsFlash counts what was written and never claims the model stayed
 // The "suggest" decision is the one path where the user asked for a full
 // analysis and gets a score that did not move — it has to say why.
 test('suggestionsFlash explains the kept verdicts when a stored quick check was reused', () => {
-  const flash = suggestionsFlash({ actions: 1, removals: 0 }, '3m ago');
+  const flash = suggestionsFlash({ actions: 1 }, '3m ago');
   assert.match(flash, /3m ago/);
   assert.match(flash, /verdicts and score stand/);
-  assert.match(flash, /1 edit, 0 removals/);
+  assert.match(flash, /1 edit/);
 });
 
 test('a full row is stale for a full request when the verification it read is not the one stored now (#162 stage 2)', () => {

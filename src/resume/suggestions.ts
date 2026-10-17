@@ -1,6 +1,5 @@
 import type { ResumeMatch } from '@prisma/client';
-import { anthropicAnswerRoom } from '../ai-provider-parse';
-import { lengthExtraTokens, lengthPlan, readPageTarget } from './length';
+import { actionsText } from './condense';
 import { readMatchEvidence } from './match-mode';
 import { logger } from '../logger';
 import { getAiRuntime } from '../ai-runtime';
@@ -19,7 +18,7 @@ import {
 import { briefForPosting } from './brief';
 import { readBreakdown } from './score';
 import { loadKeywordMatcher } from './keyword-matcher';
-import { gateActions, gateRemovals } from './replacement-gate';
+import { gateActions } from './replacement-gate';
 import { rewriteRefusedLeads } from './rewrite';
 import { appliedWording, freshActions, rewritesOfApplied } from './applied';
 import { domainMismatch } from './domain';
@@ -30,8 +29,12 @@ import { getLatestMatchForJob, getLatestVerificationContext, getResumeIndustries
  * The lazy second half of a quick check (ADR 0029): the stored verdicts —
  * keywords, alignment, gates — go into the prompt unchanged, the model writes
  * only actions, removals, strengths and cautions, and the row becomes a full
- * analysis with the same score. Judged against the text the row analysed,
- * never the resume's current one. Null on AI failure.
+ * analysis with the same score. Judged against the text the row analysed (or
+ * the text of its last refresh), never the resume's current one - unless the
+ * editor's own text is handed in as `text`, which is what Condense's refresh
+ * does (ADR 0078): the additions and rewordings then read the condensed
+ * resume. The stored cuts are not this call's and are never touched.
+ * Null on AI failure.
  */
 export async function suggestForMatch(
   userId: number,
@@ -40,7 +43,10 @@ export async function suggestForMatch(
   onError?: (reason: string) => void,
   /** What a first reply owed and did not deliver (suggestion-floor.ts). */
   owed?: string | null,
+  /** The editor's text, when the person has condensed it. */
+  text?: string,
 ): Promise<ResumeMatch | null> {
+  const resumeText = text ?? actionsText(match);
   const [facts, verification, briefed, previous, matcher, industries] = await Promise.all([
     // A comparison judged on its text alone keeps its suggestions to it too (TASKS R1).
     readMatchEvidence(match.breakdown) === 'own' ? listFacts(userId) : [],
@@ -53,9 +59,8 @@ export async function suggestForMatch(
     loadKeywordMatcher(),
     getResumeIndustries(userId, match.resumeId),
   ]);
-  const applied = previous ? appliedWording(readActions(previous.actions), match.resumeText, matcher.locateQuote) : [];
-  const length = lengthPlan(match.resumeText, readPageTarget(match.breakdown));
-  const prompt = buildSuggestionsPrompt(match.resumeText, job, {
+  const applied = previous ? appliedWording(readActions(previous.actions), resumeText, matcher.locateQuote) : [];
+  const prompt = buildSuggestionsPrompt(resumeText, job, {
     owed: owed ?? null,
     summary: match.summary,
     alignment: readBreakdown(match.breakdown)?.alignment ?? null,
@@ -69,12 +74,10 @@ export async function suggestForMatch(
     brief: briefed?.brief ?? null,
     appliedFromLastRun: applied.map((a) => a.wording),
     candidateDomains: domainMismatch(industries, briefed?.brief),
-    // The target the comparison was made for, so "Rewrite all" and the floor's re-ask aim at it too (ADR 0074).
-    length,
   });
   const answer = await askForJson(
     await getAiRuntime(),
-    { ...prompt, maxTokens: SUGGESTIONS_MAX_TOKENS + Math.min(lengthExtraTokens(length), anthropicAnswerRoom(SUGGESTIONS_MAX_TOKENS)), label: 'resume-suggestions', role: 'resume', timeoutMs: RESUME_TIMEOUT_MS.suggestions, onError, subject: { jobId: job.id, resumeId: match.resumeId } },
+    { ...prompt, maxTokens: SUGGESTIONS_MAX_TOKENS, label: 'resume-suggestions', role: 'resume', timeoutMs: RESUME_TIMEOUT_MS.suggestions, onError, subject: { jobId: job.id, resumeId: match.resumeId } },
     // Every array defaults to empty, so "{}" parses — but a reply with nothing
     // in it would flip the row to "full" and lock the button out for good.
     (text) => {
@@ -86,7 +89,7 @@ export async function suggestForMatch(
   if (!answer) return null;
   // The same gates the full report runs before it stores (ADR 0037).
   const gateSources = {
-    resumeText: match.resumeText,
+    resumeText,
     posting: `${job.title}\n${job.description}`,
     facts,
     // Carries `evidence` (evidence.ts) — the "listed only" gap the floor asks about.
@@ -94,13 +97,13 @@ export async function suggestForMatch(
     matcher,
   };
   const gate = gateActions(answer.data.actions, gateSources);
-  const cuts = gateRemovals(answer.data.removals, gateSources);
-  const churn = rewritesOfApplied(applied, gate.actions, match.resumeText, matcher.locateQuote);
-  const fresh = freshActions(gate.actions, applied, gateSources.keywords, match.resumeText, matcher);
+  const churn = rewritesOfApplied(applied, gate.actions, resumeText, matcher.locateQuote);
+  const fresh = freshActions(gate.actions, applied, gateSources.keywords, resumeText, matcher);
   const row = await updateMatchSuggestions(
     match.id,
-    { ...answer.data, actions: fresh.kept, removals: cuts.removals },
+    { ...answer.data, actions: fresh.kept },
     verification?.id ?? null,
+    text ?? null,
   );
   logger.info(
     {
@@ -108,11 +111,8 @@ export async function suggestForMatch(
       jobId: match.jobId,
       resumeId: match.resumeId,
       actions: answer.data.actions.length,
-      removals: answer.data.removals.length,
       replacementsBlocked: gate.blocked,
       replacementsWarned: gate.warned,
-      removalsBlocked: cuts.blocked,
-      removalsWarned: cuts.warned,
       applied: applied.length,
       rewritesOfApplied: churn.length,
       reworksDropped: fresh.dropped.length,
@@ -126,5 +126,5 @@ export async function suggestForMatch(
 }
 
 function isEmpty(s: MatchSuggestions): boolean {
-  return s.actions.length + s.removals.length + s.strengths.length + s.cautions.length === 0;
+  return s.actions.length + s.strengths.length + s.cautions.length === 0;
 }

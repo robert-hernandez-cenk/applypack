@@ -24,7 +24,6 @@ import {
   parseBriefResponse,
   parseRewriteResponse,
 } from './prompts';
-import { CHARS_PER_PAGE, CUTS_MAX, lengthPlan } from './length';
 import { MATCH_MODES } from './match-mode';
 import { REVIEW_DIMENSIONS } from './review-score';
 import { factCheck } from './fact-check';
@@ -145,7 +144,7 @@ test('prompts carry the resume and posting, and clip oversized input', () => {
   assert.match(match.user, /Location: \(not specified\)/);
   assert.match(match.user, /\[\.\.\. truncated\]/);
   assert.ok(match.user.length < 40_000);
-  assert.match(match.system, /"removals"/);
+  assert.doesNotMatch(match.system, /"removals"/, 'cuts belong to the Condense stage (ADR 0078)');
   assert.match(match.system, /"aliases"/);
   assert.match(match.system, /VERBATIM/);
 });
@@ -177,7 +176,8 @@ test('the quick check returns the score-complete subset and nothing else', () =>
   for (const field of ['"keywords"', '"alignment"', '"red_flags"', '"hard_requirements"', '"summary"']) {
     assert.match(fast, new RegExp(field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `quick check drops ${field}`);
   }
-  for (const field of ['"actions"', '"removals"', '"strengths"', '"cautions"']) {
+  assert.doesNotMatch(full, /"removals"/, 'the full report no longer asks for cuts (ADR 0078)');
+  for (const field of ['"actions"', '"strengths"', '"cautions"']) {
     assert.doesNotMatch(fast, new RegExp(field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `quick check still asks for ${field}`);
     assert.match(full, new RegExp(field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `full report lost ${field}`);
   }
@@ -310,13 +310,12 @@ test('bullet rules: verb-first, posting vocabulary, no invented metrics or place
   assert.match(system, /ask the candidate for the real number/);
 });
 
-test('removals rules protect the contact line and wanted keywords', () => {
-  const { system } = buildMatchPrompt('resume', JOB, 'full');
-  assert.match(system, /never remove the contact line/);
-  assert.match(system, /email, phone/);
-  assert.match(system, /KEEP WANTED KEYWORDS/);
-  assert.match(system, /"present" or "add" for THIS posting/);
-  assert.match(system, /which items to drop and which to keep/);
+test('neither comparison prompt carries cut rules or a page-length block (ADR 0078)', () => {
+  for (const system of [buildMatchPrompt('resume', JOB, 'full').system, buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT).system]) {
+    assert.doesNotMatch(system, /never remove the contact line/);
+    assert.doesNotMatch(system, /KEEP WANTED KEYWORDS/);
+    assert.doesNotMatch(system, /removals/);
+  }
 });
 
 test('keyword terms must be short verbatim phrases with resume-aware aliases', () => {
@@ -396,14 +395,10 @@ test('suggestions prompt keeps the action and removal rules verbatim (gotcha 11)
   assert.match(system, /REQUIRED COVERAGE/);
   assert.match(system, /BULLET RULES/);
   assert.match(system, /NEVER invent a metric/);
-  assert.match(system, /never remove the contact line/);
-  assert.match(system, /KEEP WANTED KEYWORDS/);
-  assert.match(system, /which items to drop and which to keep/);
   // It writes suggestions only — no keyword or score fields in the output shape.
   assert.doesNotMatch(system, /"keywords"/);
   assert.doesNotMatch(system, /"red_flags"/);
   assert.match(system, /"actions"/);
-  assert.match(system, /"removals"/);
 });
 
 test('suggestions prompt states an ungraded alignment instead of guessing', () => {
@@ -415,7 +410,6 @@ test('parseSuggestionsResponse accepts the subset and defaults the empty arrays'
   const r = parseSuggestionsResponse('{"actions": [{"section": "skills", "where": "Skills", "what": "Add Docker", "why": "listed as preferred", "priority": "medium", "quote": null}]}');
   assert.ok(r.ok);
   assert.equal(r.data.actions[0]?.section, 'skills');
-  assert.deepEqual(r.data.removals, []);
   assert.deepEqual(r.data.strengths, []);
   assert.deepEqual(r.data.cautions, []);
   assert.equal(parseSuggestionsResponse('no json here').ok, false);
@@ -1152,41 +1146,7 @@ test("the candidate's domains reach the full analysis and the suggestions, fence
   assert.match(buildSuggestionsPrompt('resume', JOB, { ...SUGGEST_INPUT, candidateDomains: different }).user, /never claim experience in that sector/);
 });
 
-test('page target (ADR 0074): the block reaches the full analysis and the suggestions, never the quick check', () => {
-  const over = lengthPlan('x'.repeat(CHARS_PER_PAGE * 4), 2);
-  const full = buildMatchPrompt('resume', JOB, 'full', { length: over }).user;
-  assert.equal(full.split('LENGTH TARGET').length, 2, 'exactly once');
-  assert.match(full, /fit 2 pages/);
-  assert.doesNotMatch(buildMatchPrompt('resume', JOB, 'fast', { length: over }).user, /LENGTH TARGET/);
-  assert.match(buildSuggestionsPrompt('resume', JOB, { ...SUGGEST_INPUT, length: over }).user, /LENGTH TARGET/);
-});
-
-test('page target (ADR 0074): "keep", a met target or no plan leave every prompt byte-for-byte as it was', () => {
-  const keep = lengthPlan('x'.repeat(CHARS_PER_PAGE * 4), 'keep');
-  const met = lengthPlan('x'.repeat(CHARS_PER_PAGE), 2);
-  for (const length of [keep, met]) {
-    for (const mode of MATCH_MODES) {
-      assert.deepEqual(buildMatchPrompt('resume', JOB, mode, { length }), buildMatchPrompt('resume', JOB, mode, {}));
-    }
-    assert.deepEqual(buildSuggestionsPrompt('resume', JOB, { ...SUGGEST_INPUT, length }), buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT));
-  }
-});
-
-test('page target (ADR 0074): a reply with as many removals as the prompt may ask for still parses', () => {
-  const removals = Array.from({ length: CUTS_MAX }, (_, i) => ({
-    section: 'experience',
-    where: `role ${i}`,
-    what: 'older bullet',
-    why: 'not relevant here',
-    quote: `bullet ${i}`,
-  }));
-  const parsed = parseSuggestionsResponse(JSON.stringify({ removals }));
-  assert.equal(parsed.ok, true, parsed.ok ? '' : parsed.error);
-  if (parsed.ok) assert.equal(parsed.data.removals.length, CUTS_MAX);
-});
-
-test('page target (ADR 0074): the system prompts do not change with a target — only the user message does', () => {
-  const over = lengthPlan('x'.repeat(CHARS_PER_PAGE * 4), 2);
-  assert.equal(buildMatchPrompt('resume', JOB, 'full', { length: over }).system, buildMatchPrompt('resume', JOB, 'full').system);
-  assert.equal(buildSuggestionsPrompt('resume', JOB, { ...SUGGEST_INPUT, length: over }).system, buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT).system);
+test('no prompt of the comparison carries the page-length block (ADR 0078: it belongs to Condense)', () => {
+  for (const mode of MATCH_MODES) assert.doesNotMatch(buildMatchPrompt('resume', JOB, mode).user, /LENGTH TARGET/);
+  assert.doesNotMatch(buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT).user, /LENGTH TARGET/);
 });

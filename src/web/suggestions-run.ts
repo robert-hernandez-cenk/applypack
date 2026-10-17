@@ -1,6 +1,6 @@
 import type { ResumeMatch } from '@prisma/client';
 import { suggestionsFailed, suggestionsFlash } from '../resume/match-reuse';
-import { readActions, readRemovals, type MatchJobInput } from '../resume/prompts';
+import { readActions, type MatchJobInput } from '../resume/prompts';
 import { suggestForMatch } from '../resume/suggestions';
 import { claimRun, startRun, updateRun } from './target-runs';
 import { t } from '../i18n/t';
@@ -22,6 +22,8 @@ export function startSuggestionsRun(input: {
   job: MatchJobInput & { id: number };
   resumeName: string;
   resultUrl: string;
+  /** The editor's condensed text: the suggestions are then written against it (ADR 0078). */
+  text?: string;
 }): string {
   const { match, job } = input;
   // One comparison can only be completed once: a second "Get suggestions" —
@@ -35,7 +37,7 @@ export function startSuggestionsRun(input: {
     backLabel: t('target.run.backToComparison'),
   });
   if (joined) return `/target/runs/${run.id}`;
-  startRun(run.id, () => finishSuggestions(run.id, { userId: input.userId, match, job, resultUrl: input.resultUrl }));
+  startRun(run.id, () => finishSuggestions(run.id, { userId: input.userId, match, job, resultUrl: input.resultUrl, text: input.text }));
   return `/target/runs/${run.id}`;
 }
 
@@ -46,19 +48,26 @@ export function startSuggestionsRun(input: {
  */
 async function finishSuggestions(
   runId: string,
-  input: { userId: number; match: ResumeMatch; job: MatchJobInput & { id: number }; resultUrl: string; when?: string },
+  input: { userId: number; match: ResumeMatch; job: MatchJobInput & { id: number }; resultUrl: string; when?: string; text?: string },
 ): Promise<void> {
   let reason = '';
-  const row = await suggestForMatch(input.userId, input.match, input.job, (r) => {
-    reason = r;
-  });
+  const row = await suggestForMatch(
+    input.userId,
+    input.match,
+    input.job,
+    (r) => {
+      reason = r;
+    },
+    undefined,
+    input.text,
+  );
   updateRun(
     runId,
     row
       ? {
           stage: 'done',
           resultUrl: input.resultUrl,
-          flash: suggestionsFlash({ actions: readActions(row.actions).length, removals: readRemovals(row.removals).length }, input.when),
+          flash: suggestionsFlash({ actions: readActions(row.actions).length }, input.when),
         }
       : { stage: 'error', error: suggestionsFailed(reason) },
   );

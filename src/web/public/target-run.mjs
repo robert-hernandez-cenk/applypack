@@ -33,6 +33,8 @@ const ACTIVITIES = {
   keywords: [...VERDICT_LINES, SCORE_LINE],
   match: [...VERDICT_LINES, 'browser.activity.matchDraft', SCORE_LINE],
   suggestions: ['browser.activity.suggestions1', 'browser.activity.suggestions2', 'browser.activity.suggestions3'],
+  cuts: ['browser.activity.cuts1', 'browser.activity.cuts2', 'browser.activity.cuts3'],
+  wording: ['browser.activity.wording1', 'browser.activity.wording2'],
   liveness: ['browser.activity.liveness1', 'browser.activity.liveness2'],
   // The prompt's seven named checks (EVIDENCE_CHECKS), in its order.
   verify: [

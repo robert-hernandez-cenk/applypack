@@ -599,7 +599,7 @@ earns its weight once the text spells it, whatever status the last analysis
 gave it (ADR 0045). The number under the editor is the live estimate of
 `src/web/public/score.mjs`, the mirror of `src/resume/score.ts`. Both panes'
 highlights come from the match's `keywords`
-(with `aliases`), `actions` and `removals` (with verbatim `quote`s).
+(with `aliases`), `actions` and `removals` (with verbatim `quote`s; the cuts come from Condense, ADR 0078).
 The page has one AI action, **Analyse my resume again**: it posts the edited text
 (`draftText`) and runs the full report on it — same rules, same suggestions,
 same progress page as any other comparison — writing a `ResumeMatch` with
@@ -719,7 +719,7 @@ The loop: edit the resume → "Upload a new version" on `/resumes/:id`
 records which version scored; the card shows the delta vs the previous run.
 The model marks facts and `resume/score.ts` computes the number from them
 (ADR 0012), so scores are comparable; the full report also returns
-`removals`, what to cut so the resume reads cleaner.
+changes and additions; what to cut is its own stage, **Condense** (ADR 0078): Find cuts, Tighten wording, then Refresh suggestions on the shorter text.
 
 From five compared postings on, `/resumes/:id` adds **Missing across
 postings** (`resume/coverage.ts`, no AI): the keyword table of the latest

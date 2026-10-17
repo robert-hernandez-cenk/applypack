@@ -95,6 +95,8 @@ const AI_FEATURES = [
   'resume-match',
   'resume-match-fast',
   'resume-suggestions',
+  'resume-condense-cuts',
+  'resume-condense-words',
   'resume-rewrite',
   'resume-review',
   'cover-letter',

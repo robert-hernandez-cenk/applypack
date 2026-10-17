@@ -17,7 +17,7 @@ import {
 import { briefForPosting, type BriefResult } from './brief';
 import { annotateElsewhere, applyFacts } from './facts';
 import { countableFlags } from './red-flags';
-import { gateActions, gateRemovals } from './replacement-gate';
+import { gateActions } from './replacement-gate';
 import { floorDemand, floorGaps, unwrittenMusts } from './suggestion-floor';
 import { suggestForMatch } from './suggestions';
 import { rewriteRefusedLeads } from './rewrite';
@@ -31,8 +31,7 @@ import { dropMalformedKeywords } from './keyword-shape';
 import { annotateEvidence } from './evidence';
 import { planKeywordFrame } from './keyword-frame';
 import { loadKeywordMatcher } from './keyword-matcher';
-import { anthropicAnswerRoom } from '../ai-provider-parse';
-import { lengthExtraTokens, lengthPlan, readPageTarget, type PageTarget } from './length';
+import { readPageTarget, type PageTarget } from './length';
 import { readMatchEvidence, readMatchMode, type MatchEvidence, type MatchMode } from './match-mode';
 import { pickReusable, readPromptVersion, readVerificationId } from './match-reuse';
 import { scoreMatch } from './score';
@@ -84,7 +83,7 @@ export async function matchResumeToJob(
      * (a one-off file judged alone, before ADR 0076); nothing writes it now.
      */
     evidence?: MatchEvidence;
-    /** ADR 0074: the pages the candidate wants the resume to fit; the full analysis aims its cuts at it. */
+    /** ADR 0074: the pages the candidate wants the resume to fit; stored with the row, and Condense aims its cuts at it. */
     pages?: PageTarget;
     onError?: (reason: string) => void;
   } = {},
@@ -133,7 +132,6 @@ export async function matchResumeToJob(
     mode === 'full' && previousMatch
       ? appliedWording(readActions(previousMatch.actions), resume.text, matcher.locateQuote)
       : [];
-  const length = lengthPlan(resume.text, pages);
   const context: MatchContext = {
     confirmedFacts: facts.filter((f) => f.status === 'confirmed').map((f) => ({ term: f.term, note: f.note })),
     deniedTerms: facts.filter((f) => f.status === 'denied').map((f) => f.term),
@@ -150,13 +148,12 @@ export async function matchResumeToJob(
     brief: briefed?.brief ?? null,
     appliedFromLastRun: applied.map((a) => a.wording),
     candidateDomains: domainMismatch(industries, briefed?.brief),
-    length,
   };
   const answer = await askForJson(
     await getAiRuntime(),
     {
       ...buildMatchPrompt(resume.text, job, mode, context),
-      maxTokens: mode === 'fast' ? MATCH_FAST_MAX_TOKENS : MATCH_MAX_TOKENS + Math.min(lengthExtraTokens(length), anthropicAnswerRoom(MATCH_MAX_TOKENS)),
+      maxTokens: mode === 'fast' ? MATCH_FAST_MAX_TOKENS : MATCH_MAX_TOKENS,
       label: mode === 'fast' ? 'resume-match-fast' : 'resume-match',
       role: 'resume',
       subject: { jobId: job.id, resumeId: resume.id },
@@ -194,7 +191,6 @@ export async function matchResumeToJob(
   // the resume, the posting and the facts — never by the model (ADR 0037).
   const gateSources = { resumeText: resume.text, posting, facts, keywords, matcher };
   const gate = gateActions(reply.actions, gateSources);
-  const cuts = gateRemovals(reply.removals, gateSources);
   // How many reworks of applied wording the model wrote (the metric), and
   // then the rule as code: only one naming a keyword the text lacks stays.
   const churn = rewritesOfApplied(applied, gate.actions, resume.text, matcher.locateQuote);
@@ -218,7 +214,8 @@ export async function matchResumeToJob(
     // The marker surfaces on the match card's meta line — the user can see
     // that a fallback engine (not chain #1) produced this analysis.
     model: answer.model,
-    result: { ...reply, keywords, actions: fresh.kept, removals: cuts.removals },
+    // No cuts here: they are the Condense stage's, asked for from the editor (ADR 0078).
+    result: { ...reply, keywords, actions: fresh.kept, removals: [] },
     breakdown,
     promptVersion: PROMPT_VERSION,
     mode,
@@ -263,8 +260,6 @@ export async function matchResumeToJob(
       score: row.matchScore,
       replacementsBlocked: gate.blocked,
       replacementsWarned: gate.warned,
-      removalsBlocked: cuts.blocked,
-      removalsWarned: cuts.warned,
       cap: breakdown.cap,
       keywords: keywords.length,
       anchored: anchor.anchored,
