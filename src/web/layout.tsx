@@ -152,6 +152,31 @@ const TOKENS_CSS = `
     box-shadow: 0 0 8px rgb(var(--accent) / 0.55);
   }
   #page-progress[hidden] { display: none; }
+  /* Result messages as toasts (public/toast.mjs, ADR 0082). Without script the slot is the banner in
+     the page flow; with it (html[data-js], set in the head, so there is no jump when toast.mjs loads) the slot is pinned to the corner of the screen: bottom, so it does not cover the
+     header buttons that cause most messages, and above the mobile menu (40) but under the progress bar (60).
+     The raised surface sits behind the tinted banner, whose own ground is translucent. Motion is flattened
+     by the reduced-motion rule below. */
+  html[data-js] #flash-slot:not(:empty), #flash-slot[data-toast] {
+    position: fixed; z-index: 50; bottom: 1rem; left: 1rem; right: 1rem;
+    max-height: calc(100dvh - 2rem); overflow: auto;
+    border-radius: 0.375rem; background-color: rgb(var(--surface-raised));
+    box-shadow: 0 8px 30px rgb(var(--shadow-ink) / 0.18);
+    animation: toast-in 160ms ease-out;
+    transition: opacity 160ms ease-in, transform 160ms ease-in;
+  }
+  @media (min-width: 640px) {
+    html[data-js] #flash-slot:not(:empty), #flash-slot[data-toast] { left: auto; width: 28rem; max-width: calc(100vw - 2rem); }
+  }
+  html[data-js] #flash-slot[data-leaving], #flash-slot[data-toast][data-leaving] { opacity: 0; transform: translateY(0.5rem); }
+  html[data-js] #flash-slot > [data-kind], #flash-slot[data-toast] > [data-kind] { margin: 0; }
+  [data-toast-close] {
+    display: grid; flex-shrink: 0; place-items: center; width: 2rem; height: 2rem; margin: -0.5rem -0.625rem -0.5rem 0;
+    border-radius: 0.375rem; color: inherit; opacity: 0.75; cursor: pointer;
+  }
+  [data-toast-close]:hover { opacity: 1; background: rgb(var(--ink) / 0.08); }
+  [data-toast-close] svg { width: 1rem; height: 1rem; }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
   @media (max-width: 767.98px) {
     .app-sidebar {
       position: fixed; top: 0; bottom: 0; left: 0; z-index: 40; width: 16rem;
@@ -183,6 +208,11 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 const PROGRESS_BOOT = `
 import { init } from '/static/progress.mjs';
 init();
+`;
+
+/** Result messages become toasts (public/toast.mjs); the module enhances the slot as it loads. */
+const TOAST_BOOT = `
+import '/static/toast.mjs';
 `;
 
 const NAV_JS = `
@@ -239,6 +269,8 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
           a class a release added would otherwise have no rule until its cache let go. */}
       <link rel="stylesheet" href={`/static/tailwind.css?v=${APP_VERSION}`} />
       <style dangerouslySetInnerHTML={{ __html: TOKENS_CSS }} />
+      {/* Script runs here: the message's popup place is its place from the first paint, with no jump when toast.mjs loads. */}
+      <script dangerouslySetInnerHTML={{ __html: "document.documentElement.setAttribute('data-js','')" }} />
       <BrowserMessages />
     </head>
     <body class="bg-surface font-sans text-sm text-ink antialiased">
@@ -269,6 +301,7 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
       <div id="nav-backdrop" class="nav-backdrop" aria-hidden="true"></div>
       <script dangerouslySetInnerHTML={{ __html: NAV_JS }} />
       <script type="module" dangerouslySetInnerHTML={{ __html: PROGRESS_BOOT }} />
+      <script type="module" dangerouslySetInnerHTML={{ __html: TOAST_BOOT }} />
     </body>
   </html>
   </>

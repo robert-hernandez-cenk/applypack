@@ -252,3 +252,17 @@
 
 {"event":"artifact_drift_detected","timestamp":"2026-10-17T12:02:43.4231750Z","actor":"claude","feature_directory":"specs/053-tailor-edits-no-reload","drifted_artifacts":[{"path":"tasks.md","old_sha256":"83888fc7ec113939ffe3d365e36d2509078a0c113aadc397b916ea2e8779f120","new_sha256":"32790848c8848c846ea69792af9b23455c94449663d2a9b10776fc70786b4d89"}]}
 
+{"timestamp":"2026-10-17T12:21:22Z","action":"guard","status":"allow","feature_directory":"specs/053-tailor-edits-no-reload","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.plan"}
+{"timestamp":"2026-10-17T12:22:50Z","action":"guard","status":"allow","feature_directory":"specs/053-tailor-edits-no-reload","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.tasks"}
+{"timestamp":"2026-10-17T12:23:23.9870703Z","action":"handoff","status":"ready","feature_directory":"specs/053-tailor-edits-no-reload","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261017T1223239565064Z-ready"}
+
+{"timestamp":"2026-10-17T12:23:37.0053165Z","action":"handoff","status":"ready","feature_directory":"specs/054-toast-flash-messages","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261017T1223369845519Z-ready"}
+
+{"timestamp":"2026-10-17T12:23:46.8688491Z","action":"handoff","status":"executing","feature_directory":"specs/054-toast-flash-messages","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261017T1223468377930Z-executing"}
+
+{"timestamp":"2026-10-17T12:23:47.6507410Z","action":"guard","status":"allow","feature_directory":"specs/054-toast-flash-messages","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
+
+{"timestamp":"2026-10-17T12:47:50.9102598Z","action":"handoff","status":"complete","feature_directory":"specs/054-toast-flash-messages","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261017T1247508565245Z-complete"}
+
+{"event":"artifact_drift_detected","timestamp":"2026-10-17T12:47:50.9162957Z","actor":"claude","feature_directory":"specs/054-toast-flash-messages","drifted_artifacts":[{"path":"plan.md","old_sha256":"e002c6bf4b2bb39e4f3e37d7ea6e8cd222ac98458f878bec8dd4452dbf098059","new_sha256":"c4b2a83470ee979cd4592c5f81d04b20e58be96aa127e17b3f752e2289fe40bf"},{"path":"tasks.md","old_sha256":"db7a25855b47b9ccc6cd35d44262b263c06ca3bcb99cf8f241c8e4ae8a521a85","new_sha256":"a4bf4048a58972d3192821190aeda65c8614c011eb55ad58aa9c70553139539c"}]}
+

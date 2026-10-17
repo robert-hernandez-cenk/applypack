@@ -144,7 +144,19 @@ export const Notice: FC<PropsWithChildren<{ tone: keyof typeof MESSAGE_TONE; cla
   children,
 }) => <div role={role} class={`rounded-md border px-3.5 py-2.5 text-note leading-5 ${MESSAGE_TONE[tone]}${extra ? ` ${extra}` : ''}`}>{children}</div>;
 
-/** `children` is the message's one action, if any — a form or a button after the text. */
+/**
+ * A message that offers something to do — its `children`, a download, a link to continue — is
+ * not closed by the toast's timer (public/toast.mjs): a button must not vanish while the person reaches for it.
+ */
+function offersAction(flash: FlashMessage, children: Child): boolean {
+  const hasChildren = Array.isArray(children) ? children.some(Boolean) : Boolean(children);
+  return hasChildren || Boolean(flash.download) || Boolean(flash.tailor);
+}
+
+/**
+ * `children` is the message's one action, if any — a form or a button after the text. This is the
+ * banner a browser without script shows; with script, public/toast.mjs makes the slot a toast (#54).
+ */
 export const Flash: FC<PropsWithChildren<{ flash?: FlashMessage | null }>> = ({ flash, children }) => (
   // The slot is always there, so a form that posts in place (inline-post.mjs, #53) has somewhere to put
   // the message of an edit even when the page loaded without one.
@@ -152,7 +164,9 @@ export const Flash: FC<PropsWithChildren<{ flash?: FlashMessage | null }>> = ({ 
   {flash ? (
     <>
     <div
-      role="status"
+      role={flash.kind === 'err' ? 'alert' : 'status'}
+      data-kind={flash.kind}
+      data-sticky={offersAction(flash, children) ? '' : undefined}
       class={`mb-4 flex items-start gap-2.5 rounded-md border px-3.5 py-2.5 text-sm ${FLASH_TONE[flash.kind]}`}
     >
       <svg

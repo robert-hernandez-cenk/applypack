@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.59.17] — 2026-10-17
+
+### Changed
+- **Result messages are a popup, not a banner at the top.** After an action —
+  "now preferred — score stays 83", "Saved", a refusal — the message appears in
+  the bottom corner of the screen wherever the page is scrolled (full width on a
+  phone), without pushing the page down. A plain success closes by itself after
+  a few seconds, longer for longer text, and waits while you point at it;
+  warnings, errors and messages with a button or link (Re-run anyway, Tailor
+  resume, Download) stay until you close them. Every message has a close button
+  and closes on Escape; errors are announced as alerts. Keyword edits saved in
+  place show their message the same way, including "not saved". Without script
+  the message is the banner it was (#54, ADR 0082).
+
 ## [2.59.16] — 2026-10-17
 
 ### Fixed

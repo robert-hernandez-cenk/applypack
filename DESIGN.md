@@ -611,7 +611,11 @@ fetched.
 
 ### System Feedback
 - **Flash:** rounded 8px banner, 25% tone border, 5% tone fill, tone text, with
-  a drawn 16px icon; ok, warn and danger kinds. An error says three things:
+  a drawn 16px icon; ok, warn and danger kinds. With script it is a toast: the slot
+  is fixed at the bottom of the screen on a raised surface with a card shadow
+  (28rem bottom-right, full width with 1rem gutters on a phone), a 2rem close
+  button at its right, 160ms rise and fade (none under reduced motion). A plain
+  success leaves after 4–12s; warnings, errors and messages with an action stay. An error says three things:
   what failed, what is safe, the way forward. "Invalid form values" says none.
   When a schema refused one field, the field says so too: a danger border and
   ring (`aria-invalid`), described by the message, and focused.

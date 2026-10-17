@@ -1144,6 +1144,17 @@ stamps, application fields and stage history; the posting itself is shared and a
 person sees only the postings they hold. Resumes, notifications and mutes are
 not scoped yet (issue #5, later slices).
 
+## Result messages (ADR 0082)
+
+What an action says about itself — saved, refused, "score stays 83, no AI call" — is one message per page load, carried
+across the redirect in a one-shot cookie and drawn by `Flash` into `#flash-slot`. With script (`public/toast.mjs`) it
+is a toast fixed to the bottom of the screen (bottom-right from 640 px, full width below), whatever the scroll, with a
+close button and Escape. A plain success closes by itself after 4–12 s (40 ms a character; paused while hovered or
+focused); a warning, an error and any message with an action (Re-run anyway, Tailor resume →, Download .docx) stay
+until closed. An error is `role="alert"`, the rest `role="status"`; nothing takes focus. Edits saved in place (ADR 0081)
+show their message, and their "not saved" line, the same way. Without script the message is the banner at the top of the
+page, as before. One message at a time; a newer one replaces the older.
+
 ## Hard out-of-scope (Phase 7+)
 
 - Per-user AI keys and employer mode (screenings) for several people. An install now has users (ADR 0065, issue #5): the job catalog is shared and the workspace becomes private slice by slice; employer mode stays one HR person or hiring manager per install.

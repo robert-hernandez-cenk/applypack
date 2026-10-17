@@ -3184,6 +3184,7 @@
   "browser.editor.shrink": "згорнути редактор",
   "browser.editor.expand": "розгорнути редактор",
   "browser.inline.failed": "Зміну не збережено. Перевірте з'єднання й спробуйте ще раз.",
+  "browser.toast.dismiss": "Закрити повідомлення",
   "browser.card.applied": "Застосовано",
   "browser.card.removed": "Вилучено",
   "browser.card.skipped": "Пропущено",

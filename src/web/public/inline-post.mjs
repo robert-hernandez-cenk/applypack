@@ -7,14 +7,14 @@
  * is set by the post and read by the page it lands on), and replaces each
  * `[data-region]` of the current page with the element of the same id in the
  * page that came back. Without script, or without fetch, the form posts as it
- * always did. Dependency-free ES module served as-is; the decisions are pure
+ * always did. The message of each post shows as a toast (toast.mjs, #54). Dependency-free ES module served as-is; the decisions are pure
  * and tested from src/web/inline-post.test.ts, the DOM glue in a browser.
  *
  * Contract: specs/053-tailor-edits-no-reload/contracts/inline-regions.md.
  */
 
 import { t } from './i18n.mjs';
-import { announce } from './copy.mjs';
+import { enhanceFlash } from './toast.mjs';
 import { wireSelectCommits } from './select-commit.mjs';
 
 /** Where the message of a post lives, and the regions' marker. */
@@ -123,20 +123,22 @@ function reviveScripts(root) {
   }
 }
 
-/** The error line, in the message area; "not saved" must never look like a saved page. */
+/** The error line, in the message area, shown as a toast; "not saved" must never look like a saved page. */
 function showFailure() {
   const slot = document.getElementById(FLASH_SLOT);
   const message = t('browser.inline.failed');
-  announce(message);
   if (!slot) return;
   const line = document.createElement('div');
   line.setAttribute('role', 'alert');
+  line.setAttribute('data-kind', 'err');
   line.className = FAILURE_CLASS;
   const text = document.createElement('span');
   text.className = 'min-w-0 flex-1';
   text.textContent = message;
   line.appendChild(text);
   slot.replaceChildren(line);
+  // The line's own role=alert is the announcement.
+  enhanceFlash(slot, { spoken: true });
 }
 
 /** Replace the regions with the returned page's, keep focus, scroll and folds, tell the page. */
@@ -159,8 +161,8 @@ function swapRegions(incomingDoc) {
     pickFocus(candidates, wanted)?.el.focus({ preventScroll: true });
   }
   window.scrollTo(scrollX, scrollY);
-  const flash = document.getElementById(FLASH_SLOT);
-  if (flash && flash.textContent.trim() !== '') announce(flash.textContent.trim());
+  // The swapped-in message is a toast; a status one is spoken through the page's polite live region.
+  enhanceFlash(undefined, { spoken: true });
   document.dispatchEvent(new CustomEvent('inline:swapped', { detail: { doc: incomingDoc } }));
 }
 
