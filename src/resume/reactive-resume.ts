@@ -152,6 +152,9 @@ function plain(html: unknown): string {
   return s ? stripHtml(withLinkTargets(s)).replace(/^•\s*/gm, '- ').replace(/^(- .*)\n\n(?=- )/gm, '$1\n') : '';
 }
 
+/** `plain`, for the write-back (ADR 0079): what a piece of a field reads as, in the reader's own words. */
+export const richTextLines = (html: string): string => plain(html);
+
 function datePoint(s: string): string {
   const m = YEAR_MONTH.exec(s);
   const month = m ? MONTHS[Number(m[2]) - 1] : undefined;
