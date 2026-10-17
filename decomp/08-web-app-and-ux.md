@@ -1,5 +1,7 @@
 # 08 - Web App, Routes, Pages and UX Structure
 
+> **Superseded in places by the screen-level flow documents (10a-10c).** They were checked against the page code line by line. Where they disagree with this file, trust them: see "Corrections to 08" in [10a](./10a-ui-flows-job-search.md#14-corrections-to-08-found-while-checking-against-code) (for example: the Overview has no live Running card, the Jobs list has no bulk actions, there is no URL-import for jobs, and Settings has no Users or Account tab) and the findings in [10c](./10c-ui-flows-screening-admin-chrome.md) (no invite flow, no account page, no per-applicant rescore).
+
 Derived from source only (`src/web/**`, `src/users/admin-policy.ts`, `src/i18n/**`, `package.json`). Covers the HTTP surface, page inventory, UX conventions and how long-running work reports progress. The internals of resume, screening and pack pages are only named here.
 
 ---

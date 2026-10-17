@@ -17,6 +17,11 @@ Read in this order:
 | [07-packs-applications-screening.md](./07-packs-applications-screening.md) | Packs, application tracking, employer screening |
 | [08-web-app-and-ux.md](./08-web-app-and-ux.md) | Sitemap, filters, onboarding, settings |
 | [09-platform-runtime-and-deploy.md](./09-platform-runtime-and-deploy.md) | Launcher, env, auth, i18n, CI |
+| [10a-ui-flows-job-search.md](./10a-ui-flows-job-search.md) | UI flows: onboarding, overview, jobs, sources, runs, settings (19 journeys) |
+| [10b-ui-flows-resume-and-apply.md](./10b-ui-flows-resume-and-apply.md) | UI flows: resumes, match, tailor/condense, letter, render, Reactive Resume, packs, tracker (13 journeys) |
+| [10c-ui-flows-screening-admin-chrome.md](./10c-ui-flows-screening-admin-chrome.md) | UI flows: employer screening, sign-in, users, AI usage, global chrome and navigation map |
+
+The 10x files carry screen inventories and per-journey flow diagrams. They were checked against the page code more closely than 08 and correct it in places (see the note at the top of 08).
 
 Every area document has the same sections: purpose, architecture diagrams, flow diagrams, state machines, feature table, business rules (with constants), integrations, oddities a rewrite could drop, and a source map back to the code.
 
