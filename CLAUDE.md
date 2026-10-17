@@ -23,10 +23,6 @@
   (standing policy since 2026-08-31): when a feature branch passes its
   verification matrix, push it and create the PR without waiting to be
   asked — one feature = one branch = one PR.
-- **Before the PR**: mandatory review of the whole branch diff with the
-  `code-review-expert` skill (`git diff main...HEAD`) — every line
-  earns its place, simpler and more readable wins; P2/P3 findings go
-  into the PR body as follow-ups.
 - **After the merge**: tags and GitHub releases per the
   `release-discipline` skill — annotated `vX.Y.0` per runtime feature,
   release parity with tags (latest release == latest tag), parity check
