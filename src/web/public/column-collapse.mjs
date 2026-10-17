@@ -69,12 +69,25 @@ export function initCollapse(doc, storage = browserStorage(doc)) {
   });
 
   // A card dragged over the rail opens it so there is something to drop on.
-  // The saved choice is left as it was: this is only for the drag.
+  // The saved choice is left as it was: this is only for the drag, and the
+  // rail closes again when the drag ends without a drop on it.
+  let openedByDrag = false;
   column.addEventListener('dragenter', () => {
     if (collapsed) {
       collapsed = false;
+      openedByDrag = true;
       show(false);
     }
+  });
+  doc.addEventListener('dragend', () => {
+    if (openedByDrag) {
+      openedByDrag = false;
+      collapsed = true;
+      show(true);
+    }
+  });
+  button.addEventListener('click', () => {
+    openedByDrag = false;
   });
   return 1;
 }

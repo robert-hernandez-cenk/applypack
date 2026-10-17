@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { appliedWhere, hasApplied, PRE_APPLY_KEYS, seedsApplied } from './applied-state';
+import { appliedWhere, hasApplied, isPreApply, PRE_APPLY_KEYS, seedsApplied } from './applied-state';
 
 const none = { stage: null, appliedAt: null, status: 'NEW' };
 
@@ -17,10 +17,24 @@ test('Consider and Applying do not count as applied', () => {
   assert.equal(hasApplied({ ...none, stage: 'applying' }), false);
 });
 
-test('Applied, a work column and every end state count as applied', () => {
-  for (const stage of ['applied', 'screen', 'my-own-column', 'rejected', 'ghosted', 'expired']) {
+test('Applied, a work column, Rejected and Ghosted count as applied', () => {
+  for (const stage of ['applied', 'screen', 'my-own-column', 'rejected', 'ghosted']) {
     assert.equal(hasApplied({ ...none, stage }), true, stage);
   }
+});
+
+test('Expired alone is not an application: a posting can close before it was ever sent', () => {
+  assert.equal(hasApplied({ ...none, stage: 'expired' }), false);
+  // Once something else says it went out, it did.
+  assert.equal(hasApplied({ ...none, stage: 'expired', appliedAt: new Date('2026-10-01') }), true);
+  assert.equal(hasApplied({ ...none, stage: 'expired', status: 'APPLIED' }), true);
+});
+
+test('isPreApply names the two stages before Applied', () => {
+  assert.equal(isPreApply('consider'), true);
+  assert.equal(isPreApply('applying'), true);
+  assert.equal(isPreApply('applied'), false);
+  assert.equal(isPreApply('expired'), false);
 });
 
 test('the Applied status counts even without a stage', () => {
@@ -45,7 +59,7 @@ test('appliedWhere is the same rule as a Prisma filter', () => {
     OR: [
       { status: 'APPLIED' },
       { appliedAt: { not: null } },
-      { AND: [{ pipelineStage: { not: null } }, { pipelineStage: { notIn: ['consider', 'applying'] } }] },
+      { AND: [{ pipelineStage: { not: null } }, { pipelineStage: { notIn: ['consider', 'applying', 'expired'] } }] },
     ],
   });
 });

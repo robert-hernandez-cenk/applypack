@@ -1621,13 +1621,15 @@ async function isolationChecks(ownJobId: number): Promise<Check[]> {
   const ENDS = ['rejected', 'ghosted', 'expired'];
   await prisma.company.update({
     where: { id: company.id },
-    data: { jobs: { create: [posting('mark', 'Isolation Mark'), ...ENDS.map((end) => posting(`end-${end}`, `Isolation End ${end}`))] } },
+    data: { jobs: { create: [posting('mark', 'Isolation Mark'), posting('form', 'Isolation Form'), ...ENDS.map((end) => posting(`end-${end}`, `Isolation End ${end}`))] } },
   });
-  const added = await prisma.job.findMany({ where: { companyId: company.id, externalId: { in: ['mark', ...ENDS.map((end) => `end-${end}`)] } } });
+  const added = await prisma.job.findMany({ where: { companyId: company.id, externalId: { in: ['mark', 'form', ...ENDS.map((end) => `end-${end}`)] } } });
   const markPosting = added.find((j) => j.externalId === 'mark')!;
+  const formPosting = added.find((j) => j.externalId === 'form')!;
   await prisma.userJob.createMany({
     data: [
       { userId: teammate.id, jobId: markPosting.id, status: 'NEW', fitScore: 50 },
+      { userId: teammate.id, jobId: formPosting.id, status: 'NEW', fitScore: 50, pipelineStage: 'applying' },
       ...ENDS.map((end) => ({ userId: teammate.id, jobId: added.find((j) => j.externalId === `end-${end}`)!.id, status: 'NEW' as const, fitScore: 50, pipelineStage: end })),
     ],
   });
@@ -1639,6 +1641,14 @@ async function isolationChecks(ownJobId: number): Promise<Check[]> {
     `/jobs/${markPosting.id}/status`,
     marked.status,
     marked.status === 303 && afterMark.pipelineStage === 'applied' && afterMark.appliedAt !== null && afterMark.status === 'APPLIED',
+  );
+  const viaForm = await asTeammate.request(`/jobs/${formPosting.id}/application`, form({ pipelineStage: 'applied', appliedAt: '' }));
+  const afterForm = await heldRow(formPosting.id);
+  add(
+    'POST /jobs/:id/application moving a card to Applied with no date dates it today',
+    `/jobs/${formPosting.id}/application`,
+    viaForm.status,
+    viaForm.status === 303 && afterForm.pipelineStage === 'applied' && afterForm.appliedAt !== null,
   );
   const endBoard = await (await asTeammate.request('/applications', { headers: ORIGIN })).text();
   const noOffer = endBoard.slice(endBoard.indexOf('id="stage-col-no-offer"'));

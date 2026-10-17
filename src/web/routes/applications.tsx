@@ -293,10 +293,15 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
 
   const stageValue =
     pipelineStage && pipelineStage.length > 0 ? pipelineStage : null;
-  const appliedAtValue =
+  const typedAppliedAt =
     appliedAt && appliedAt.length > 0 && !Number.isNaN(Date.parse(appliedAt))
       ? new Date(appliedAt)
       : null;
+  // Reaching Applied dates the application whichever door it came through (the board does the same):
+  // an empty date on a card that is only now moving to Applied is today, a date the person typed stays.
+  const appliedAtValue =
+    typedAppliedAt ??
+    (stageValue !== current.pipelineStage && stageValue !== null ? (appliedAtOnMove(stageValue, current.appliedAt, new Date()) ?? null) : null);
 
   // Keeping the job's current stage is always allowed — even one whose
   // column was removed by hand — but a CHANGE must land on a configured key.

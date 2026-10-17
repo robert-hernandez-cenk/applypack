@@ -24,11 +24,11 @@ Reserved (a work column cannot take them): `applied rejected ghosted unfiled con
 hasApplied({ stage, appliedAt, status }) =
     status === 'APPLIED'
  || appliedAt !== null
- || (stage !== null && stage not in ['consider','applying'])
+ || (stage !== null && stage not in ['consider','applying','expired'])
 ```
 
-`appliedWhere` is the same rule as a Prisma `UserJobWhereInput` (for the pack and the company/source counts).
+`appliedWhere` is the same rule as a Prisma `UserJobWhereInput` (for the pack; the company and source delete counts keep "any stage" on purpose).
 
 ## Transitions
 
-Any stage -> any stage. A ledger row (`JobStageEvent`) on every real change, `source = 'ui'`. `appliedAt` is set only when reaching `applied` (board move: if empty; Mark applied: if empty; the job form: as typed) and is never cleared by a move.
+Any stage -> any stage. A ledger row (`JobStageEvent`) on every real change, `source = 'ui'`. `appliedAt` is set only when reaching `applied` (board move: if empty; Mark applied: if empty; the job form: as typed, or today when it moves the card to `applied` with no date) and is never cleared by a move.

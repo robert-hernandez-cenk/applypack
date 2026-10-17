@@ -2,7 +2,7 @@
 // honesty rule applies here too: backfill rows carry no real event day,
 // so they never date a stage — such cards fall back to appliedAt.
 
-import { PRE_APPLY_KEYS } from '../applied-state';
+import { isPreApply } from '../applied-state';
 import { TERMINAL_KEYS } from './stage-config';
 import { t } from '../i18n/t';
 
@@ -46,7 +46,7 @@ export function stageTimeLine(
     .sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime())[0];
 
   // Nothing has been sent from Consider or Applying: an apply date is no date for them (ADR 0080).
-  const preApply = (PRE_APPLY_KEYS as readonly string[]).includes(stage);
+  const preApply = isPreApply(stage);
   const since = entered?.occurredOn ?? (preApply ? null : appliedAt);
   if (!since) return null;
 

@@ -28,9 +28,11 @@ parked before applying would have been misread as an application by each.
   state is chosen with the quick-move select or the stage field on the job page. Cards whose stage no column
   covers (a removed work column) keep a small "Unfiled" panel of their own, as they were not a funnel step.
 - **One rule says "applied"**: `src/applied-state.ts:hasApplied` — the inbox status is Applied, or there is an
-  apply date, or the stage is anything but `consider`/`applying`. `appliedWhere` is the same rule as a Prisma
-  filter. The pack store and `needsAppliedResume` go through it. The stale-applications digest already asked for
-  `applied` only. An apply date wins over a pre-apply stage (a card moved back from Applied was applied).
+  apply date, or the stage is anything but `consider`, `applying` and `expired`. `appliedWhere` is the same rule as
+  a Prisma filter. The pack store and `needsAppliedResume` go through it. The stale-applications digest already
+  asked for `applied` only. An apply date wins over those stages (a card moved back from Applied was applied), and
+  Expired alone is not an application: a posting can close before it was ever sent (found in review; Rejected and
+  Ghosted still imply one, because only a sent application can be turned down or go quiet).
 - **The apply date belongs to Applied.** A board move into `applied` sets it if empty; Mark applied sets it if
   empty and moves the stage to `applied` from no stage, Consider or Applying (a later stage stays where the
   person put it). No other move sets or clears it.
@@ -59,6 +61,9 @@ parked before applying would have been misread as an application by each.
 ✅ Every end state is visible in one place, and Expired has a home; nothing stored changes.
 ✅ The "applied" question has one answer and one test.
 ❌ "Closed" is gone as a word on the board; bookmarks to `#closed` land at the top.
+❌ A person's own work column that already used the key `consider`, `applying` or `expired` (say, one labelled
+"Applying") is dropped from their list by the same reserved-key rule as `applied`, and its cards join the fixed
+stage of that name. No migration: the cards keep their stage, only the column's label and place go.
 ❌ A new reader of `pipelineStage` must ask `applied-state.ts`, not test for non-null; the two ownership readers
 are the exceptions, and each says so where it is written.
 

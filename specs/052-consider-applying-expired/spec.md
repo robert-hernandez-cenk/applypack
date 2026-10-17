@@ -122,7 +122,7 @@ keyboard and tells assistive technology whether it is expanded. On a phone the b
 
 - **FR-001**: The board MUST show its fixed columns in this order: Consider, Applying, Applied, the person's work columns, No Offer. The work columns, their order and their names are the person's and MUST NOT change.
 - **FR-002**: Consider, Applying and Expired MUST be stages a posting can hold. Their keys, and that of the No Offer column, MUST be reserved so a person's own column cannot take them.
-- **FR-003**: A posting in Consider or Applying MUST NOT count as applied in: the application pack's "kept as sent" rules, the "Applied with" resume prompt, and the stale-applications digest. (The counts shown before deleting a company or a source are NOT converted: they warn about what a delete removes, and it removes a Consider or Applying card too, so those cards stay counted there.) One shared rule decides "has this posting been applied to" (the posting's status is Applied, or it has an apply date, or it holds any stage other than Consider and Applying).
+- **FR-003**: A posting in Consider or Applying MUST NOT count as applied in: the application pack's "kept as sent" rules, the "Applied with" resume prompt, and the stale-applications digest. (The counts shown before deleting a company or a source are NOT converted: they warn about what a delete removes, and it removes a Consider or Applying card too, so those cards stay counted there.) One shared rule decides "has this posting been applied to" (the posting's status is Applied, or it has an apply date, or it holds any stage other than Consider, Applying and Expired — a posting can close before it was sent).
 - **FR-004**: The cleanup job and the daily offer sync MUST keep protecting a posting that holds Consider or Applying, as they do any stage.
 - **FR-005**: The job page MUST offer a **Consider** button immediately left of **Mark applied** when application tracking is on and the posting is neither in Consider nor already applied. It moves the posting to Consider and records the change in the stage history. It MUST NOT change the posting's inbox status.
 - **FR-006**: **Mark applied** MUST set the stage to Applied, set the apply date if empty, and record the chosen resume snapshot, when the posting has no stage, is in Consider, or is in Applying. A stage the person has already moved on to (a work column, an end state) MUST NOT be reset to Applied by it.
@@ -141,7 +141,7 @@ keyboard and tells assistive technology whether it is expanded. On a phone the b
 
 - **Stage**: a label on a person's row for a posting (`pipelineStage`); a string, not an enumeration. Fixed ones: Consider, Applying, Applied, Rejected, Ghosted, Expired. The rest are the person's own.
 - **End state**: Rejected, Ghosted or Expired. Grouped on the board as No Offer; each card keeps its own.
-- **Has applied**: derived, never stored: status Applied, or an apply date, or any stage other than Consider and Applying.
+- **Has applied**: derived, never stored: status Applied, or an apply date, or any stage other than Consider, Applying and Expired.
 - **Stage history**: the existing append-only ledger of stage changes; Consider and Applying changes are recorded in it like any other.
 
 ## Success Criteria *(mandatory)*

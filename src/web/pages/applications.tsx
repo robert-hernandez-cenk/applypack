@@ -5,7 +5,7 @@ import { Badge, Button, Empty, FitBadge, Flash, PageHeader } from '../ui';
 import { Icon } from '../icons';
 import type { FlashMessage } from '../flash';
 import type { Tone } from '../format';
-import { PRE_APPLY_KEYS } from '../../applied-state';
+import { isPreApply } from '../../applied-state';
 import {
   allStages,
   boardStages,
@@ -41,14 +41,6 @@ export interface ApplicationsProps {
   flash?: FlashMessage | null;
 }
 
-/**
- * One board card: the link navigates, the form below it quick-moves, and
- * board.mjs makes the whole card draggable. With drag active (body[data-dnd],
- * fine pointer, md+) the form collapses until the card has hover or focus —
- * it stays the keyboard and no-JS path.
- */
-const PRE_APPLY_STAGES: readonly string[] = PRE_APPLY_KEYS;
-
 const END_BADGE_TONE: Record<string, Tone> = { rejected: 'danger', ghosted: 'neutral', expired: 'warn' };
 
 /** A card in the No Offer column says which end state it is in: a word, never just a colour. */
@@ -58,6 +50,12 @@ const EndBadge: FC<{ stage: StageDef }> = ({ stage }) => (
   </Badge>
 );
 
+/**
+ * One board card: the link navigates, the form below it quick-moves, and
+ * board.mjs makes the whole card draggable. With drag active (body[data-dnd],
+ * fine pointer, md+) the form collapses until the card has hover or focus —
+ * it stays the keyboard and no-JS path.
+ */
 const StageCard: FC<{ card: ApplicationCard; stage: string; work: StageDef[]; badge?: StageDef }> = ({
   card,
   stage,
@@ -92,7 +90,7 @@ const StageCard: FC<{ card: ApplicationCard; stage: string; work: StageDef[]; ba
           title={card.stageLine?.since.toISOString().slice(0, 10)}
         >
           {/* Nothing has been sent from Consider or Applying, so "no apply date" would say something is missing. */}
-          {card.stageLine?.text ?? (PRE_APPLY_STAGES.includes(stage) ? '' : t('applications.noApplyDate'))}
+          {card.stageLine?.text ?? (isPreApply(stage) ? '' : t('applications.noApplyDate'))}
           {card.recruiterContact ? ` · ${card.recruiterContact}` : ''}
         </span>
         <FitBadge score={card.fitScore} />
@@ -192,8 +190,11 @@ const BOARD_CSS = `
 
 /* Coarse-pointer devices can't HTML5-drag reliably — keep their forms visible. */
 const BOARD_BOOT = `
-  const { initCollapse } = await import('/static/column-collapse.mjs');
-  initCollapse(document);
+  // The fold is a convenience: if its module cannot load, dragging still has to work.
+  try {
+    const { initCollapse } = await import('/static/column-collapse.mjs');
+    initCollapse(document);
+  } catch {}
   if (window.matchMedia('(pointer: fine)').matches) {
     const { initBoard } = await import('/static/board.mjs');
     initBoard(document);
@@ -212,10 +213,10 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
   const activeCount = columns.reduce((sum, s) => sum + count(s.key), 0);
   // The end states are one column, No Offer; each card keeps its own state (ADR 0080).
   const noOfferCards = TERMINAL_STAGES.flatMap((s) => (byStage[s.key] ?? []).map((card) => ({ card, stage: s })));
-  // "Unfiled" is an exception to look at, not a step of the funnel: it counts with No Offer
-  // in the header and keeps a small panel of its own.
+  // "Unfiled" is an exception to look at, not a step of the funnel: it keeps a small panel of its
+  // own and is not counted in the header, so the header's numbers are the columns' numbers.
   const unfiledCount = stranded ? count(UNFILED_STAGE.key) : 0;
-  const closedCount = noOfferCards.length + unfiledCount;
+  const noOfferCount = noOfferCards.length;
 
   return (
     <Layout title={t('applications.applications')} active="applications" fill>
@@ -223,14 +224,14 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
         title={t('applications.applications')}
         meta={
           applicationTrackingEnabled
-            ? t(closedCount > 0 ? 'applications.metaNoOffer' : 'applications.meta', { active: activeCount, noOffer: closedCount })
+            ? t(noOfferCount > 0 ? 'applications.metaNoOffer' : 'applications.meta', { active: activeCount, noOffer: noOfferCount })
             : undefined
         }
         actions={
           applicationTrackingEnabled ? (
             <div class="flex flex-wrap items-center gap-2">
               {/* TASKS N7: the board as a file, for the spreadsheet people keep anyway. */}
-              {activeCount + closedCount > 0 && (
+              {activeCount + noOfferCount + unfiledCount > 0 && (
                 <>
                   <Button href="/applications/export.csv" variant="secondary" size="sm" title={t('applications.everyApplicationOneRowEach')}>
                     {t('applications.csv')}

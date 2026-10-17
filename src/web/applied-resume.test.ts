@@ -106,7 +106,12 @@ describe('needsAppliedResume', () => {
   });
 
   it('asks once a posting is on a later stage', () => {
-    assert.equal(needsAppliedResume({ ...applied, pipelineStage: 'expired' }), true);
     assert.equal(needsAppliedResume({ ...applied, pipelineStage: 'screen' }), true);
+    assert.equal(needsAppliedResume({ ...applied, pipelineStage: 'rejected' }), true);
+  });
+
+  it('never asks about a posting that expired unsent, but does once it has a date', () => {
+    assert.equal(needsAppliedResume({ ...applied, pipelineStage: 'expired' }), false);
+    assert.equal(needsAppliedResume({ ...applied, pipelineStage: 'expired', appliedAt: new Date() }), true);
   });
 });
