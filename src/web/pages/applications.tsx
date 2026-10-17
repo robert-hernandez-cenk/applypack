@@ -144,15 +144,15 @@ const ColumnHeader: FC<{ dot: string; id: string; stage: StageDef; count: number
     </h2>
     <span class="col-count ml-auto text-meta text-ink-faint tabular-nums">{count}</span>
     {toggleFor && (
-      // Desktop only: a phone stacks the columns, so there is nothing to fold. board.mjs-style script
-      // (column-collapse.mjs) keeps aria-expanded and the name in step; without it the column is just open.
+      // Desktop only: a phone stacks the columns, so there is nothing to fold. column-collapse.mjs
+      // keeps aria-expanded and the name in step; without script the column is just open.
       <button
         type="button"
         data-collapse-toggle
         aria-expanded="true"
         aria-controls={toggleFor}
         aria-label={t('browser.board.collapseNoOffer')}
-        class="col-toggle hidden h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-muted transition-colors duration-150 hover:bg-surface-raised hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 md:inline-flex"
+        class="col-toggle -my-2 hidden h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-muted transition-colors duration-150 hover:bg-surface-raised hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 md:inline-flex"
       >
         <span class="col-chevron inline-flex" aria-hidden="true">
           <Icon name="chevron-left" size={16} />

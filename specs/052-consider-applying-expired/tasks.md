@@ -74,7 +74,7 @@ description: "Tasks for Consider, Applying, Expired and the No Offer column (#52
 - [x] T027 Route smoke (`src/scripts/route-smoke.ts`): Consider from a job page (button present left of Mark applied, POST moves it; tracking off → no button), quick-move to Applying then Applied (apply date only after), Mark applied from Consider, a card in each end state shows in No Offer with the badge, an unknown stage is still 400, cross-origin POST to `/jobs/:id/consider` refused; keep existing assertions about `/applications` consistent with the removed Closed panel
 - [x] T028 [P] `docs/adr/0080-consider-applying-expired-no-offer.md` (amends 0025; use the adr-writer template and add the row to `docs/adr/README.md`); `docs/where-to-look.md` rows (board stages, `applied-state.ts`, collapse module, "Pipeline stage on a job", "Add / rename / reorder board columns"); `CLAUDE.md` is not changed; `SPEC.md`/`ARCHITECTURE.md` mentions of Applied/Closed updated where they describe the fixed columns
 - [x] T029 [P] Release: `package.json` and `package-lock.json` to `2.59.15`, `CHANGELOG.md` entry (Added/Changed) per release-discipline (patch only)
-- [ ] T030 Verify (Stage 8): `npm run lint:types`, full `npm test`, `npm run exports:audit`, `npm audit --omit=dev --audit-level=high`, `prisma migrate diff` shows no schema change, route smoke on a scratch DB, viewport screenshots at 1280 and 390 (light and dark); mark these tasks complete
+- [x] T030 Verify (Stage 8): `npm run lint:types`, full `npm test`, `npm run exports:audit`, `npm audit --omit=dev --audit-level=high`, `prisma migrate diff` shows no schema change, route smoke on a scratch DB, viewport screenshots at 1280 and 390 (light and dark); mark these tasks complete
 
 ## Dependencies
 
