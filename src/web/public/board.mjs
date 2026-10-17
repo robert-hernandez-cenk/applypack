@@ -2,7 +2,9 @@
  * Drag-and-drop for the /applications board. Served as a static ES module;
  * the page boots it with initBoard(document). A drop POSTs to the same
  * stage-only endpoint the per-card form uses, then reloads so counts,
- * Closed panel and funnel stats re-render from the server. The form stays
+ * the No Offer column and funnel stats re-render from the server. A column
+ * that groups several stages (No Offer) names them in data-drop-group: a card
+ * already inside the group is not moved onto it. The form stays
  * in the DOM as the keyboard / no-JS path (collapsed until the card has
  * hover or focus — CSS keyed off body[data-dnd]). Importing this file
  * under node:test touches no DOM.
@@ -10,9 +12,9 @@
 
 import { t } from './i18n.mjs';
 
-/** The request for one move, or null when there is nothing to do. */
-export function planMove(jobId, fromStage, toStage) {
-  if (!jobId || !toStage || fromStage === toStage) return null;
+/** The request for one move, or null when there is nothing to do. `group` is the stages the target column holds. */
+export function planMove(jobId, fromStage, toStage, group = []) {
+  if (!jobId || !toStage || fromStage === toStage || group.includes(fromStage)) return null;
   return {
     action: `/jobs/${encodeURIComponent(jobId)}/stage`,
     body: `toStage=${encodeURIComponent(toStage)}`,
@@ -81,15 +83,19 @@ export function initBoard(doc) {
     });
   }
 
-  // Dragging over the collapsed Closed panel opens it, so a card can be
-  // dropped straight onto Rejected / Ghosted.
-  doc.getElementById('closed')?.addEventListener('dragenter', function open() {
-    this.open = true;
-  });
+  // Dragging over a closed panel opens it, so a card can be dropped inside.
+  for (const panel of doc.querySelectorAll('details[data-open-on-drag]')) {
+    panel.addEventListener('dragenter', function open() {
+      this.open = true;
+    });
+  }
+
+  // The stages a column holds, when it holds several (No Offer).
+  const groupOf = (target) => (target.dataset.dropGroup ?? '').split(' ').filter(Boolean);
 
   for (const target of targets) {
     target.addEventListener('dragover', (e) => {
-      if (!dragged || dragged.fromStage === target.dataset.dropStage) return;
+      if (!dragged || !planMove(dragged.jobId, dragged.fromStage, target.dataset.dropStage, groupOf(target))) return;
       e.preventDefault(); // this is what allows the drop
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
       target.classList.add(...HIGHLIGHT);
@@ -102,7 +108,7 @@ export function initBoard(doc) {
       clearHighlights(doc);
       if (!dragged) return;
       const { li, jobId, fromStage } = dragged;
-      const plan = planMove(jobId, fromStage, target.dataset.dropStage);
+      const plan = planMove(jobId, fromStage, target.dataset.dropStage, groupOf(target));
       if (!plan) return;
       // Optimistic: the card lands in the column right away; the reload
       // (or the revert on failure) restores the server's truth.

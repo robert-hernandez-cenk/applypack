@@ -325,10 +325,14 @@ clause at the start of the affected job/handler. The toggles live on
 
 `UserJob.pipelineStage` is the funnel state, orthogonal to `UserJob.status`
 (`status=APPLIED` + `pipelineStage='ghosted'` is a valid pair). Columns are
-configured on `/settings` → Applications: **Applied** and **Rejected/Ghosted** are
-fixed, everything between them is user-named and reorderable, and keys never
-change once created (ADR 0025). Every stage move writes a `JobStageEvent`
-ledger row in the same transaction (ADR 0024).
+configured on `/settings` → Applications: **Consider, Applying, Applied** open the
+board and **Rejected, Ghosted, Expired** close it (shown together as the
+collapsible **No Offer** column, each card badged with its own state); everything
+between them is user-named and reorderable, and keys never change once created
+(ADR 0025, amended by 0080). Consider and Applying are held, not sent: the
+apply date is set on reaching Applied and only there, and neither stage counts
+as applied for the pack, the resume prompt or the digest (`hasApplied`). Every
+stage move writes a `JobStageEvent` ledger row in the same transaction (ADR 0024).
 
 **Which resume it went out with.** "Mark applied" on `/jobs/:id` carries a
 resume select — preselected from the comparison on screen, else from the

@@ -6,7 +6,7 @@ All findings come from reading the code at `origin/main` (4121730).
 
 - `src/pack/store.ts:53` (`appliedTo`, a Prisma `where`) and `:223` (`packJobState.applied`): a ready pack of an applied job is kept as sent. **Convert** (a Consider job must not freeze its pack).
 - `src/web/applied-resume.ts:112` (`needsAppliedResume`): asks "which resume did you send?". **Convert.**
-- `src/web/routes/companies.tsx:126`, `src/web/routes/jobs-import.tsx:86`: "applications" counted in the delete confirm. **Convert** (a Consider posting is not an application).
+- `src/web/routes/companies.tsx:126`, `src/web/routes/jobs-import.tsx:86`: "applications" counted in the delete confirm. **No change** (found while implementing, reversing the first plan): the number warns about what a delete takes with it, and a delete removes a Consider or Applying card as surely as an application, so those stay counted. The text says "tracked against it".
 - `src/jobs/stale-applications-job.ts:40`: filters `pipelineStage: 'applied'` already. **No change**, covered by a test of the rule.
 - `src/jobs/cleanup-job.ts:35` and `src/jobs/france-travail-sync.ts:100`: a non-null stage means "the person's own work, keep it". That is ownership, not "applied", and the spec says to keep protecting. **No change**; `planSync` gets a Consider/Applying test.
 - Overview stats (`overview-stats.ts`, `overview-numbers.ts`) read `status`/`appliedAt`, not the stage. **No change** (verified by grep).

@@ -1,8 +1,9 @@
 // ADR 0025: the board's work columns are user data. This is the pure
 // half — parsing the stored JSON, list edits with their guards, and the
 // presentation helpers the board derives from the configured order. The
-// entry ('applied') and the exits ('rejected'/'ghosted') are fixed; only
-// the columns between them are editable. Prisma access lives in settings.ts.
+// entry ('consider'/'applying'/'applied') and the exits ('rejected'/'ghosted'/
+// 'expired', shown as the No Offer column; ADR 0080) are fixed; only the
+// columns between them are editable. Prisma access lives in settings.ts.
 
 import { z } from 'zod';
 import type { MessageKey } from '../i18n/catalog';
@@ -34,9 +35,32 @@ export function wordedStage(stage: StageDef): boolean {
   return typeof Object.getOwnPropertyDescriptor(stage, 'label')?.get === 'function';
 }
 
+// ADR 0080 (amends 0025): three fixed stages open the board, three fixed end
+// states close it, and the person's work columns sit between.
+const CONSIDER_STAGE = named('consider', 'stages.consider');
+const APPLYING_STAGE = named('applying', 'stages.applying');
 const ENTRY_STAGE = named('applied', 'stages.applied');
-export const TERMINAL_STAGES: StageDef[] = [named('rejected', 'stages.rejected'), named('ghosted', 'stages.ghosted')];
+const ENTRY_STAGES: StageDef[] = [CONSIDER_STAGE, APPLYING_STAGE, ENTRY_STAGE];
+export const TERMINAL_STAGES: StageDef[] = [
+  named('rejected', 'stages.rejected'),
+  named('ghosted', 'stages.ghosted'),
+  named('expired', 'stages.expired'),
+];
 export const TERMINAL_KEYS = TERMINAL_STAGES.map((s) => s.key);
+
+/**
+ * The last board column. It groups the end states and is never a stage a card
+ * holds: each card keeps its own (Rejected, Ghosted or Expired), shown as a badge.
+ */
+export const NO_OFFER_STAGE = named('no-offer', 'stages.noOffer');
+
+/** The stage a card dropped on No Offer takes. */
+export const NO_OFFER_DROP_STAGE = 'rejected';
+
+/** A stage ApplyPack owns: the board's entry and end states, not a work column. */
+export function isFixedStage(key: string): boolean {
+  return ENTRY_STAGES.some((s) => s.key === key) || TERMINAL_KEYS.includes(key);
+}
 
 export const DEFAULT_WORK_STAGES: StageDef[] = [
   named('screen', 'stages.default.screen'),
@@ -46,7 +70,7 @@ export const DEFAULT_WORK_STAGES: StageDef[] = [
 ];
 
 export const MAX_WORK_STAGES = 10;
-const RESERVED_KEYS = new Set(['applied', 'rejected', 'ghosted', 'unfiled']);
+const RESERVED_KEYS = new Set([...ENTRY_STAGES.map((s) => s.key), ...TERMINAL_KEYS, NO_OFFER_STAGE.key, 'unfiled']);
 
 const StageListSchema = z
   .array(
@@ -141,9 +165,9 @@ export function renameStage(
   return list.map((s) => (s.key === key ? { ...s, label: trimmed.slice(0, 40) } : s));
 }
 
-/** Ordered board columns: the fixed entry plus the configured work list. */
+/** Ordered board columns before No Offer: the fixed entry stages plus the configured work list. */
 export function boardStages(work: StageDef[]): StageDef[] {
-  return [ENTRY_STAGE, ...work];
+  return [...ENTRY_STAGES, ...work];
 }
 
 /**
@@ -163,26 +187,27 @@ export function strandedStages(work: StageDef[], held: readonly (string | null)[
 
 /** Every stage a job can hold, in funnel order. */
 export function allStages(work: StageDef[]): StageDef[] {
-  return [ENTRY_STAGE, ...work, ...TERMINAL_STAGES];
+  return [...ENTRY_STAGES, ...work, ...TERMINAL_STAGES];
 }
 
 export function labelFor(work: StageDef[], key: string): string {
   return allStages(work).find((s) => s.key === key)?.label ?? key;
 }
 
-/** Quick-move preselect: forward through the funnel, the last work column
- *  moves out to rejected, and a terminal card revives into the first work
- *  stage. */
+/** Quick-move preselect: forward through the funnel (Consider, Applying,
+ *  Applied, the work columns), the last work column moves out to rejected,
+ *  and an end-state card revives into the first work stage. */
 export function nextStageKey(work: StageDef[], current: string): string {
   const board = boardStages(work);
   const i = board.findIndex((s) => s.key === current);
   if (i >= 0 && i < board.length - 1) return board[i + 1]!.key;
-  if (i === board.length - 1) return 'rejected';
-  return work[0]?.key ?? 'rejected';
+  if (i === board.length - 1) return NO_OFFER_DROP_STAGE;
+  return work[0]?.key ?? NO_OFFER_DROP_STAGE;
 }
 
 /**
- * Column accent dot. Applied and the exits keep their fixed colours; work
+ * Column accent dot. The stages ApplyPack names keep their fixed colours
+ * (Consider hollow, Applying and the end states grey, Applied info); work
  * columns cycle a palette. The default list reads hollow info ring, warn,
  * hollow warn ring, ok: pre-ADR-0025 the first was violet, which DESIGN.md
  * keeps for AI spend and the Saved status, so it became the ring of
@@ -199,7 +224,8 @@ const DOT_CYCLE = [
 
 export function dotClassFor(work: StageDef[], key: string): string {
   if (key === ENTRY_STAGE.key) return 'bg-info';
-  if (TERMINAL_KEYS.includes(key)) return 'bg-line-strong';
+  if (key === CONSIDER_STAGE.key) return 'border-2 border-line-strong bg-transparent';
+  if (key === APPLYING_STAGE.key || key === NO_OFFER_STAGE.key || TERMINAL_KEYS.includes(key)) return 'bg-line-strong';
   const i = work.findIndex((s) => s.key === key);
   return DOT_CYCLE[i % DOT_CYCLE.length] ?? 'bg-info';
 }

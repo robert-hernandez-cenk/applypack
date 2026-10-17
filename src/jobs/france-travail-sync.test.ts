@@ -34,6 +34,14 @@ describe('planSync', () => {
     ]);
   });
 
+  it('anonymises, never deletes, a withdrawn offer held in Consider or Applying: it is the person\'s own work (ADR 0080)', () => {
+    const held = [
+      { id: 7, externalId: 'G', status: JobStatus.NEW, pipelineStage: 'consider' },
+      { id: 8, externalId: 'H', status: JobStatus.NEW, pipelineStage: 'applying' },
+    ];
+    assert.deepEqual(planSync(held, new Set(['G', 'H'])).map((p) => p.action), ['anonymise', 'anonymise']);
+  });
+
   it('keeps everything the board still lists', () => {
     assert.deepEqual(planSync(stored, new Set(['B'])).map((p) => p.action), ['keep', 'delete', 'keep', 'keep', 'keep', 'keep']);
   });

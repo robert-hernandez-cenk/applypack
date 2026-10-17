@@ -6,9 +6,11 @@ import {
   boardStages,
   DEFAULT_WORK_STAGES,
   dotClassFor,
+  isFixedStage,
   labelFor,
   MAX_WORK_STAGES,
   moveStage,
+  NO_OFFER_STAGE,
   nextStageKey,
   parseStageConfig,
   removeStage,
@@ -118,11 +120,11 @@ test('board and full orders wrap the work list with the fixed stages', () => {
   const work = W('screen');
   assert.deepEqual(
     boardStages(work).map((s) => s.key),
-    ['applied', 'screen'],
+    ['consider', 'applying', 'applied', 'screen'],
   );
   assert.deepEqual(
     allStages(work).map((s) => s.key),
-    ['applied', 'screen', 'rejected', 'ghosted'],
+    ['consider', 'applying', 'applied', 'screen', 'rejected', 'ghosted', 'expired'],
   );
 });
 
@@ -132,14 +134,39 @@ test('labelFor resolves fixed, work and unknown keys', () => {
   assert.equal(labelFor(W('screen'), 'long-gone'), 'long-gone');
 });
 
-test('nextStageKey walks the funnel forward and revives terminals', () => {
+test('nextStageKey walks the funnel forward and revives the end states', () => {
   const work = DEFAULT_WORK_STAGES;
+  assert.equal(nextStageKey(work, 'consider'), 'applying');
+  assert.equal(nextStageKey(work, 'applying'), 'applied');
   assert.equal(nextStageKey(work, 'applied'), 'screen');
   assert.equal(nextStageKey(work, 'screen'), 'tech');
   assert.equal(nextStageKey(work, 'offer'), 'rejected');
   assert.equal(nextStageKey(work, 'rejected'), 'screen');
   assert.equal(nextStageKey(work, 'ghosted'), 'screen');
+  assert.equal(nextStageKey(work, 'expired'), 'screen');
   assert.equal(nextStageKey([], 'applied'), 'rejected');
+});
+
+test('Consider, Applying, Expired and the No Offer column are reserved', () => {
+  const stored = ['consider', 'applying', 'expired', 'no-offer', 'screen'].map((key) => ({ key, label: key }));
+  assert.deepEqual(parseStageConfig(stored), [{ key: 'screen', label: 'screen' }]);
+  for (const label of ['Consider', 'Applying', 'Expired', 'No Offer']) {
+    const next = addStage([], label) as { key: string }[];
+    assert.match(next[0]!.key, /-2$/, label);
+  }
+});
+
+test('the fixed stages are the entry and end ones; a work column is not fixed', () => {
+  for (const key of ['consider', 'applying', 'applied', 'rejected', 'ghosted', 'expired']) {
+    assert.equal(isFixedStage(key), true, key);
+  }
+  assert.equal(isFixedStage('screen'), false);
+});
+
+test('the No Offer column is named by the catalog and is not a stage a card can hold', () => {
+  assert.equal(NO_OFFER_STAGE.key, 'no-offer');
+  assert.equal(NO_OFFER_STAGE.label, 'No Offer');
+  assert.equal(allStages(DEFAULT_WORK_STAGES).some((s) => s.key === NO_OFFER_STAGE.key), false);
 });
 
 test('default dots: Applied, the four work columns in cycle order, the exits', () => {
@@ -151,6 +178,9 @@ test('default dots: Applied, the four work columns in cycle order, the exits', (
   assert.equal(dotClassFor(work, 'onsite'), 'border-2 border-warn bg-transparent');
   assert.equal(dotClassFor(work, 'offer'), 'bg-ok');
   assert.equal(dotClassFor(work, 'rejected'), 'bg-line-strong');
+  assert.equal(dotClassFor(work, 'expired'), 'bg-line-strong');
+  assert.equal(dotClassFor(work, 'consider'), 'border-2 border-line-strong bg-transparent');
+  assert.equal(dotClassFor(work, 'applying'), 'bg-line-strong');
   assert.equal(dotClassFor(work, 'unknown'), 'bg-info');
 });
 

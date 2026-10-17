@@ -4,6 +4,7 @@ import { idParam } from '../params';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { getUserSettings } from '../../settings';
+import { CONSIDER_KEY } from '../../applied-state';
 import { getPack, markPackSent } from '../../pack/store';
 import { getResume } from '../../resume/store';
 import { appliedResumeColumns, packAsShown, readAppliedResumeChoice } from '../applied-resume';
@@ -11,7 +12,7 @@ import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { jobHref, resolveJobTab } from '../job-tabs';
 import { ApplicationsPage, type ApplicationCard } from '../pages/applications';
 import { allStages, labelFor, parseStageConfig, strandedStages, UNFILED_STAGE, wordedStage } from '../stage-config';
-import { appliedDateCorrection, stageChangeEvent } from '../stage-events';
+import { appliedAtOnMove, appliedDateCorrection, stageChangeEvent } from '../stage-events';
 import { groupEventsByJob, stageTimeLine, type StageTimeLine } from '../stage-time';
 import { applicationsCsv, applicationsMarkdown, dayIn, type ApplicationExportRow } from '../applications-export';
 import { appliedWithLabel } from '../../jobs/applied-with';
@@ -209,20 +210,42 @@ applicationsRoute.post('/jobs/:id/stage', async (c) => {
   });
   if (!current) return c.text(t('http.notFound'), 404);
 
-  const event = stageChangeEvent(
-    id,
-    current.pipelineStage,
-    toStage,
-    current.appliedAt,
-    new Date(),
-  );
+  const now = new Date();
+  // The apply date belongs to Applied: a card reaching it is dated today, any other move leaves the date alone.
+  const appliedAt = appliedAtOnMove(toStage, current.appliedAt, now);
+  const event = stageChangeEvent(id, current.pipelineStage, toStage, appliedAt ?? current.appliedAt, now);
   if (event) {
     await prisma.$transaction([
-      prisma.userJob.update({ where: key, data: { pipelineStage: toStage } }),
+      prisma.userJob.update({ where: key, data: { pipelineStage: toStage, ...(appliedAt ? { appliedAt } : {}) } }),
       prisma.jobStageEvent.create({ data: { ...event, userId } }),
     ]);
   }
   return flashRedirect('/applications', 'ok', t('applications.movedTo', { stage: labelFor(work, toStage) }));
+});
+
+// "Consider" on a posting's page (ADR 0080): the posting joins the board's first column.
+// Nothing has been sent, so it touches neither the inbox status nor the apply date.
+applicationsRoute.post('/jobs/:id/consider', async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  const form = await c.req.parseBody();
+  const back = jobHref(id, resolveJobTab({ tab: typeof form.tab === 'string' ? form.tab : null }));
+  const settings = await getUserSettings(currentUser().id);
+  if (!settings.applicationTrackingEnabled) return c.redirect(back, 303);
+
+  const userId = currentUser().id;
+  const key = { userId_jobId: { userId, jobId: id } };
+  const current = await prisma.userJob.findUnique({ where: key, select: { pipelineStage: true, appliedAt: true } });
+  if (!current) return c.text(t('http.notFound'), 404);
+
+  const event = stageChangeEvent(id, current.pipelineStage, CONSIDER_KEY, current.appliedAt, new Date());
+  if (event) {
+    await prisma.$transaction([
+      prisma.userJob.update({ where: key, data: { pipelineStage: CONSIDER_KEY } }),
+      prisma.jobStageEvent.create({ data: { ...event, userId } }),
+    ]);
+  }
+  return flashRedirect(back, 'ok', t('applications.movedTo', { stage: t('stages.consider') }));
 });
 
 applicationsRoute.post('/jobs/:id/application', async (c) => {
