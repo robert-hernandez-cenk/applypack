@@ -238,3 +238,7 @@
 
 {"timestamp":"2026-10-17T10:43:22.6996496Z","action":"guard","status":"allow","feature_directory":"specs/052-consider-applying-expired","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
 
+{"timestamp":"2026-10-17T11:21:27.6006161Z","action":"handoff","status":"complete","feature_directory":"specs/052-consider-applying-expired","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261017T1121275482446Z-complete"}
+
+{"event":"artifact_drift_detected","timestamp":"2026-10-17T11:21:27.6071178Z","actor":"claude","feature_directory":"specs/052-consider-applying-expired","drifted_artifacts":[{"path":"spec.md","old_sha256":"62747901b1fcc9fe371edb682d5045f55e38154e4c7b9ba5e62629c705c898d6","new_sha256":"460d1aa43ac6ce72de59cbcfaf065f2b02d9ef87552ae23aff641521cb31f3ad"},{"path":"tasks.md","old_sha256":"8746981b8ef54e44ce7b09239a877b5635b3fe33132cace85fa3e79205ab8d8a","new_sha256":"70fb13927b1eac309d988e03359f7449a00eafd878d6cf02adac0ebdd4596057"}]}
+
