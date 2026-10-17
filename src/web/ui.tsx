@@ -145,8 +145,11 @@ export const Notice: FC<PropsWithChildren<{ tone: keyof typeof MESSAGE_TONE; cla
 }) => <div role={role} class={`rounded-md border px-3.5 py-2.5 text-note leading-5 ${MESSAGE_TONE[tone]}${extra ? ` ${extra}` : ''}`}>{children}</div>;
 
 /** `children` is the message's one action, if any — a form or a button after the text. */
-export const Flash: FC<PropsWithChildren<{ flash?: FlashMessage | null }>> = ({ flash, children }) =>
-  flash ? (
+export const Flash: FC<PropsWithChildren<{ flash?: FlashMessage | null }>> = ({ flash, children }) => (
+  // The slot is always there, so a form that posts in place (inline-post.mjs, #53) has somewhere to put
+  // the message of an edit even when the page loaded without one.
+  <div id="flash-slot" data-region class="empty:hidden">
+  {flash ? (
     <>
     <div
       role="status"
@@ -201,7 +204,9 @@ export const Flash: FC<PropsWithChildren<{ flash?: FlashMessage | null }>> = ({ 
       />
     )}
     </>
-  ) : null;
+  ) : null}
+  </div>
+);
 
 const CARD_VARIANT = {
   /** An object that stands alone: raised, outlined, a soft shadow under it. */

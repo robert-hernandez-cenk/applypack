@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.59.16] — 2026-10-17
+
+### Fixed
+- **Keyword edits keep your place.** Changing a keyword's level, Ignore,
+  Restore, Reset, Remove and Add used to load the whole page again: the view
+  jumped to the top, the control lost focus, and on the Tailor page the editor
+  started over. They now save in place on the Tailor page and on the Resume
+  match tab: the row, the score and the message update, scroll and focus stay,
+  and the text you are editing, the unsaved-changes bar and the edits you
+  applied are untouched while the score ring, highlights and missing-keyword
+  chips follow the new levels. Without script the forms post and reload as
+  before; when a change cannot be saved a message says so (#53, ADR 0081).
+
 ## [2.59.15] — 2026-10-17
 
 ### Added

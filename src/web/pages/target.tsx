@@ -351,8 +351,11 @@ export const TargetPage: FC<TargetPageProps> = ({
             <p class="text-sm leading-6 text-ink" lang="en">
               {match.summary}
             </p>
-            <MainAdviceLine advice={advice} />
-            {breakdown && <ScoreCeilingLine bd={breakdown} />}
+            {/* Replaced by a keyword edit that posts in place (inline-post.mjs, #53). */}
+            <div id="score-advice" data-region class="space-y-1.5 empty:hidden">
+              <MainAdviceLine advice={advice} />
+              {breakdown && <ScoreCeilingLine bd={breakdown} />}
+            </div>
             {/* The length of the text in the editor, repainted by target-page.mjs on every edit (ADR 0074). */}
             <p id="length-meter" data-ui="hint" class="text-note tabular-nums text-ink-faint" title={t('target.length.title')}>
               {lengthMeterText(lengthPlan(resumeText, pageTarget))}
@@ -362,17 +365,19 @@ export const TargetPage: FC<TargetPageProps> = ({
                 above three suggested edits, five removals and an unconfirmed
                 hard requirement on a live 100/100. A score is not a verdict
                 while something is still open (web/score-lines.ts). */}
-            {breakdown &&
-              readyToApply({
-                breakdown,
-                keywords: scored,
-                hard,
-                score: match.matchScore,
-                threshold: READY_TO_APPLY,
-                edits: actions.length + removals.length,
-              }) && (
-                <p class="text-note font-medium text-ok">{t('target.readyToApply')}</p>
-              )}
+            <div id="score-ready" data-region class="empty:hidden">
+              {breakdown &&
+                readyToApply({
+                  breakdown,
+                  keywords: scored,
+                  hard,
+                  score: match.matchScore,
+                  threshold: READY_TO_APPLY,
+                  edits: actions.length + removals.length,
+                }) && (
+                  <p class="text-note font-medium text-ok">{t('target.readyToApply')}</p>
+                )}
+            </div>
             {(fast || actions.length > 0 || removals.length > 0) && (
               <button
                 type="button"
@@ -771,7 +776,9 @@ export const TargetPage: FC<TargetPageProps> = ({
         <div class="pane-changes">
           <Card>
             <div class="space-y-5">
-              <DeltaBox match={match} previous={previous} />
+              <div id="delta-box" data-region class="space-y-5 empty:hidden">
+                <DeltaBox match={match} previous={previous} />
+              </div>
               {fast ? (
                 <SuggestionsPrompt matchId={match.id} jobId={job.id} next="target" />
               ) : (
@@ -829,7 +836,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                   it shut, because it is the longest block on the page by far. */}
               <details class="kw-fold">
                 <summary class="cursor-pointer text-note font-medium text-ink-muted">
-                  {t('target.keywordFold', { n: keywords.length })}
+                  <span id="kw-fold-count" data-region>{t('target.keywordFold', { n: keywords.length })}</span>
                 </summary>
                 <div class="mt-3">
               <KeywordTable
@@ -1045,8 +1052,12 @@ const TARGET_CSS = `
 /* The page logic lives in /static/target-page.mjs so it is served, cached and
  * importable from node:test; this inline snippet only boots it with the data. */
 const TARGET_BOOT = `
-import { init } from '/static/target-page.mjs';
+import { init, readData } from '/static/target-page.mjs';
 import { wireSelectCommits } from '/static/select-commit.mjs';
-init(JSON.parse(document.getElementById('target-data').textContent));
+import { wireInlinePosts } from '/static/inline-post.mjs';
+const page = init(JSON.parse(document.getElementById('target-data').textContent));
 wireSelectCommits(document);
+// A keyword edit posts in place (#53): the regions are already swapped, the live scorer takes the new levels.
+document.addEventListener('inline:swapped', (event) => page.refresh(readData(event.detail.doc)));
+wireInlinePosts(document);
 `;

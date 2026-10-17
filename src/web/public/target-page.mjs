@@ -175,6 +175,25 @@ function reason(error, fallback = 'browser.edit.failed') {
 /** The key an added keyword is remembered under — cards own the plain keys. */
 const keywordKey = (term) => 'kw:' + term;
 
+/**
+ * The live scorer's data as a page carries it (`#target-data`), or null when
+ * the page has none or it does not parse. A keyword edit that posts in place
+ * (inline-post.mjs, #53) reads it from the page the server answered with.
+ */
+export function readData(doc) {
+  try {
+    return JSON.parse(doc.getElementById('target-data')?.textContent ?? 'null');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Boots the page. Returns `refresh(fresh)`: new server data (keyword levels,
+ * the score they give) laid over the old and drawn at once, without touching
+ * the editor text, the unsaved bar or the edits applied. Every read of `data`
+ * below happens at draw time, which is what lets the swap be this small.
+ */
 export function init(data) {
   const editor = document.getElementById('editor');
   const backdrop = document.getElementById('backdrop');
@@ -987,4 +1006,12 @@ export function init(data) {
   try { stored = localStorage.getItem(viewKey); } catch {}
   showView(stored === 'text' ? 'text' : 'doc');
   render();
+
+  return {
+    refresh(fresh) {
+      if (!fresh) return;
+      Object.assign(data, fresh);
+      render();
+    },
+  };
 }
