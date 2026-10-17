@@ -215,3 +215,4 @@
 
 {"timestamp":"2026-10-17T07:00:58Z","action":"guard","status":"allow","feature_directory":"specs/050-reactive-resume-writeback","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.plan"}
 {"timestamp":"2026-10-17T07:01:34Z","action":"guard","status":"allow","feature_directory":"specs/050-reactive-resume-writeback","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.tasks"}
+{"timestamp":"2026-10-17T07:01:50Z","action":"handoff","status":"ready","feature_directory":"specs/050-reactive-resume-writeback","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":""}
