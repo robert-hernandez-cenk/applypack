@@ -2700,6 +2700,7 @@
   "target.save.button": "Guardar copia adaptada",
   "target.save.barTitle": "Guarda el texto como copia adaptada para esta oferta y vuelve a comprobarla; el currículum no cambia (~1 min)",
   "target.copy.saved": "Copia adaptada guardada el {date}",
+  "target.copy.opened": "Se abrió tu copia adaptada para esta oferta: es el texto que estás editando.",
   "target.view": "Vista",
   "target.showMatched": "mostrar los resaltados de lo cubierto",
   "target.legend.have": "en tu currículum",

@@ -595,7 +595,7 @@ async function main(): Promise<void> {
       // Condense (ADR 0078): the wording step reads the text the cuts leave, so it waits for them.
       name: 'POST /jobs/:id/matches/:matchId/condense/words before any cuts (refused, back to the editor)',
       init: form({ text: 'Smoke resume text' }),
-      expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}/target?match=1` && /Find the cuts first/.test(flashOf(res)),
+      expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}/target?match=1&base=1` && /Find the cuts first/.test(flashOf(res)),
     },
     {
       name: 'POST /jobs/:id/matches/:matchId/condense/nonsense (not a step)',
@@ -1001,7 +1001,7 @@ async function main(): Promise<void> {
   // because the browser's fetch follows that redirect to read the page.
   const inlineRegions = ['id="flash-slot"', 'id="keyword-table"', 'data-inline'];
   for (const [url, extra] of [
-    [`/jobs/${f.jobId}/target?match=1`, ['id="score-advice"', 'id="score-ready"', 'id="delta-box"', 'id="kw-fold-count"']],
+    [`/jobs/${f.jobId}/target?match=1&base=1`, ['id="score-advice"', 'id="score-ready"', 'id="delta-box"', 'id="kw-fold-count"']],
     [`/jobs/${f.jobId}?tab=match`, ['id="match-score"', 'id="match-breakdown"']],
   ] as const) {
     const res = await app.request(url, { headers: ORIGIN });
@@ -1009,6 +1009,11 @@ async function main(): Promise<void> {
     const missing = [...inlineRegions, ...extra].filter((marker) => !html.includes(marker));
     rows.push({ route: `GET ${url} carries the inline regions${missing.length ? ` (missing ${missing.join(', ')})` : ''}`, url, status: res.status, ok: res.status === 200 && missing.length === 0 });
   }
+  // ADR 0084: the base comparison is older than the saved copy, so the editor opens on the copy's own comparison.
+  const staleUrl = `/jobs/${f.jobId}/target?match=1`;
+  const stale = await app.request(staleUrl, { headers: ORIGIN });
+  const staleTo = stale.headers.get('location') ?? '';
+  rows.push({ route: `GET ${staleUrl} (a base comparison older than the copy opens the copy's)`, url: staleUrl, status: stale.status, ok: stale.status === 303 && /^\/jobs\/\d+\/target\?match=(?!1$)\d+$/.test(staleTo) });
   // ADR 0082 (#54): the message is the banner in the slot (what a browser without script shows) and the
   // module that makes it a toast is on the page and served. An error is an alert; a plain success is a status
   // that closes by itself; one that offers something to do is marked to stay.
@@ -1026,7 +1031,7 @@ async function main(): Promise<void> {
   const errFlash = await slotOf({ kind: 'err', text: 'Refused.' });
   const actionFlash = await slotOf({ kind: 'ok', text: 'Written.', download: '/resumes/1/download' });
   // The tailor page offers "Re-run anyway" (the message's `children`) when the flash says the result is a stored one.
-  const rerunFlash = await slotOf({ kind: 'ok', text: 'Stored.', rerun: true, mode: 'tailor' }, `/jobs/${f.jobId}/target?match=1`);
+  const rerunFlash = await slotOf({ kind: 'ok', text: 'Stored.', rerun: true, mode: 'tailor' }, `/jobs/${f.jobId}/target?match=1&base=1`);
   const bannerOf = (slot: string): string => slot.split('|')[1]!.split('</div>')[0]!;
   const toastChecks: [string, boolean][] = [
     ['no message leaves an empty slot', /^200\|id="flash-slot" data-region(="true")? class="empty:hidden"><\/div>/.test(noFlash)],
@@ -1046,7 +1051,7 @@ async function main(): Promise<void> {
     status: toastModule.status,
     ok: toastModule.status === 200 && (toastModule.headers.get('content-type') ?? '').includes('javascript') && (await toastModule.text()).includes('export function enhanceFlash'),
   });
-  const keywordBack = `/jobs/${f.jobId}/target?match=1`;
+  const keywordBack = `/jobs/${f.jobId}/target?match=1&base=1`;
   const keywordUrl = `/jobs/${f.jobId}/matches/1/keywords`;
   const ignored = await app.request(keywordUrl, form({ term: 'Docker', op: 'ignore', back: keywordBack }));
   rows.push({

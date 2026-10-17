@@ -141,6 +141,7 @@ of truth when the two disagree.
 - 0081 A form can change part of a page in place: the post follows its redirect, named regions are swapped *(builds on 0061: `data-inline` forms, `data-region` ids, `inline-post.mjs`, a `refresh()` for the tailor page's live scorer; no new endpoint)*
 - 0082 A result message is a toast: the server keeps rendering the banner, one browser module pins it to the corner *(builds on 0081, 0061: `public/toast.mjs`, `data-toast` on the flash slot, sticky for warnings, errors and messages with an action; no second rendering)*
 - 0083 The page target is set in the Condense panel, not on the compare form *(amends 0074, 0078: `updateMatchPages`; a later comparison of the same posting and resume inherits it)*
+- 0084 With a tailored copy saved, the editor opens on the copy's comparison *(amends 0077: `staleBaseMatch`; `base=1` keeps an older base run viewable)*
 
 Check a proposal against these before touching process layout, sources,
 scheduling, profiles, how the AI is called, the resume score or employer

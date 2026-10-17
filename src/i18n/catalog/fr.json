@@ -2700,6 +2700,7 @@
   "target.save.button": "Enregistrer une copie adaptée",
   "target.save.barTitle": "Enregistre le texte comme copie adaptée pour cette offre et la revérifie ; le CV lui-même ne change pas (~1 min)",
   "target.copy.saved": "Copie adaptée enregistrée le {date}",
+  "target.copy.opened": "Votre copie adaptée pour cette offre est ouverte — c’est le texte que vous modifiez.",
   "target.view": "Vue",
   "target.showMatched": "afficher les surlignages couverts",
   "target.legend.have": "dans votre CV",

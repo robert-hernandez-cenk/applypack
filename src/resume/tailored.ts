@@ -21,3 +21,12 @@ const slug = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').
 export function tailoredFileName(resumeName: string, jobTitle: string, ext: string): string {
   return `${[slug(resumeName), slug(jobTitle)].filter(Boolean).join('-') || 'resume'}.${ext}`;
 }
+
+/**
+ * A comparison of the base resume that predates the posting's saved copy: its text is the resume's, not
+ * the copy's, so the editor should open the copy's own comparison instead (ADR 0084). A draft, or a
+ * comparison made after the save, is the person's newer text and stays.
+ */
+export function staleBaseMatch(match: { tailoredId: number | null; draft: boolean; createdAt: Date }, copy: { updatedAt: Date } | null): boolean {
+  return copy !== null && match.tailoredId === null && !match.draft && match.createdAt < copy.updatedAt;
+}

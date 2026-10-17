@@ -12,6 +12,11 @@ All notable changes to this project are documented here. The format follows
   was chosen" after you had picked two pages.
 
 ### Changed
+- **The editor opens on your tailored copy.** With a copy saved for a posting,
+  the Open editor button and the other links opened the older comparison of the
+  base resume: cuts looked as if they changed the resume, and Save rebuilt the
+  copy from the resume's words. They now open the copy's own comparison (an
+  older run chosen from the history still opens as it was) (ADR 0084).
 - **Page count moved to the Condense panel.** The Compare form no longer asks
   for a length: a comparison does not use it any more. Pick it beside **Find
   cuts** in the Condense panel on the Tailor page; the length line follows the

@@ -2700,6 +2700,7 @@
   "target.save.button": "Save tailored copy",
   "target.save.barTitle": "Saves the text as a tailored copy for this posting and re-checks it; the resume itself is not changed (~1 min)",
   "target.copy.saved": "Tailored copy saved {date}",
+  "target.copy.opened": "Opened your tailored copy for this posting — that is the text you are editing.",
   "target.view": "View",
   "target.showMatched": "show matched highlights",
   "target.legend.have": "in your resume",

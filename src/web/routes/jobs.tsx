@@ -64,6 +64,7 @@ import { startComparison } from '../comparison-run';
 import { startSuggestionsRun } from '../suggestions-run';
 import { startCondenseRun } from '../condense-run';
 import { parsePageTarget } from '../../resume/length';
+import { staleBaseMatch } from '../../resume/tailored';
 import { readCondenseStage } from '../../resume/condense';
 import {
   getCoverLetter,
@@ -977,7 +978,7 @@ async function condenseTarget(id: number, matchId: number) {
   ]);
   if (!job || !match || match.jobId !== id) return null;
   const resume = await getResume(currentUser().id, match.resumeId);
-  return resume ? { job, match, resume, editor: `/jobs/${id}/target?match=${matchId}` } : null;
+  return resume ? { job, match, resume, editor: `/jobs/${id}/target?match=${matchId}${match.tailoredId === null ? '&base=1' : ''}` } : null;
 }
 
 /** The editor's text as the condense forms post it. */
@@ -1227,6 +1228,12 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   }
   const resume = await getResume(currentUser().id, match.resumeId);
   if (!resume) return c.text(t('http.notFound'), 404);
+  const copy = await getTailoredForJob(currentUser().id, resume.id, job.id);
+  // A base-resume comparison older than the saved copy shows (and Save would rebuild the copy from) words the copy no longer has (ADR 0077, 0084): open the copy's own comparison instead. A history chip of an older base run says `base=1` to look at it anyway; a draft or a comparison made after the save is the person's own newer text.
+  if (copy && staleBaseMatch(match, copy) && c.req.query('base') !== '1') {
+    const onCopy = matches.find((m) => m.tailoredId === copy.id);
+    if (onCopy) return flashRedirect(`/jobs/${id}/target?match=${onCopy.id}`, 'ok', t('target.copy.opened'));
+  }
   const jobInput = { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description };
   // What the posting itself carried (§17): with little to go on, the page says
   // so rather than letting inferred advice read like the employer's demands —
@@ -1236,7 +1243,6 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   const depth = postingDepth(storedBrief);
   const domain = domainNoticeMessage(domainMismatch(resume.industries, storedBrief));
   const file = await describeResumeFile(resume);
-  const copy = await getTailoredForJob(currentUser().id, resume.id, job.id);
   // A copy of a resume that came from a Reactive Resume 6 can go back there, once a connection is saved (ADR 0079).
   const reactiveSend = copy !== null && resume.remoteGeneration === 'v6' && (await getConnectionView(currentUser().id)) !== null;
   return c.html(

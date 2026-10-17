@@ -927,7 +927,7 @@ const RunChip: FC<{ m: MatchWithResume; currentId: number; jobId: number }> = ({
   jobId,
 }) => (
   <li>
-    <HistoryChip href={`/jobs/${jobId}/target?match=${m.id}`} current={m.id === currentId}>
+    <HistoryChip href={`/jobs/${jobId}/target?match=${m.id}${m.tailoredId === null ? '&base=1' : ''}`} current={m.id === currentId}>
       <FitBadge score={m.matchScore} label={t('match.scoreLabel')} />
       <span translate="no">{m.resume.name}</span>
       <span class="font-mono font-normal text-ink-faint">v{m.resumeVersion}</span>
