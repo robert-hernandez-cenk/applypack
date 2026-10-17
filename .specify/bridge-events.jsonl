@@ -226,3 +226,9 @@
 
 {"event":"artifact_drift_detected","timestamp":"2026-10-17T07:09:54.5928922Z","actor":"claude","feature_directory":"specs/051-jobs-default-new-tab","drifted_artifacts":[{"path":"tasks.md","old_sha256":"d14ae698f4b2c9524785e4ca0070d0bec2009fc41adbfcae3f942986a98fb1bd","new_sha256":"dc32d450db9c4cba9a0bf004e32ce733f3608f75108c5115037dfc71ada329bc"}]}
 
+{"timestamp":"2026-10-17T10:41:09.3312607Z","action":"guard","status":"allow","feature_directory":"specs/051-jobs-default-new-tab","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.plan"}
+
+{"timestamp":"2026-10-17T10:42:24.6034469Z","action":"guard","status":"allow","feature_directory":"specs/051-jobs-default-new-tab","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.tasks"}
+
+{"timestamp":"2026-10-17T10:43:06.6707307Z","action":"handoff","status":"ready","feature_directory":"specs/051-jobs-default-new-tab","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261017T1043066341440Z-ready"}
+
