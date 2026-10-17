@@ -216,6 +216,31 @@ export async function listTailoredForResume(userId: number, resumeId: number): P
   });
 }
 
+/** A copy with what sending it to Reactive Resume needs (ADR 0079): its text, where its resume came from, and the posting it is for. */
+export interface TailoredToSend {
+  id: number;
+  text: string;
+  resumeId: number;
+  jobId: number;
+  resume: { name: string; text: string; remoteId: string | null; remoteGeneration: string | null };
+  job: { title: string; employer: string | null; company: { name: string; atsType: string } };
+}
+
+/** Null when the copy is not this person's (a foreign id reads as gone). */
+export async function getTailoredToSend(userId: number, id: number): Promise<TailoredToSend | null> {
+  return prisma.tailoredResume.findFirst({
+    where: { id, resume: { userId } },
+    select: {
+      id: true,
+      text: true,
+      resumeId: true,
+      jobId: true,
+      resume: { select: { name: true, text: true, remoteId: true, remoteGeneration: true } },
+      job: { select: { title: true, employer: true, company: { select: { name: true, atsType: true } } } },
+    },
+  });
+}
+
 /** What was deleted, for the page to say; null when there was no such copy. Its comparisons go with it (ON DELETE CASCADE). */
 export async function deleteTailored(userId: number, id: number): Promise<{ resumeId: number; jobTitle: string } | null> {
   const row = await prisma.tailoredResume.findFirst({

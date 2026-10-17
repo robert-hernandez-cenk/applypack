@@ -118,6 +118,8 @@ export async function planWriteBack(input: { data: unknown; masterText: string; 
     if (op.op === 'change') {
       previous = op.a.i;
       if (!op.a.text.trim() && !op.b.text.trim()) return;
+      // The saved document draws its headings in capitals: the renderer's doing, not an edit.
+      if (op.a.text.startsWith(SECTION_MARK) && op.a.text.toLowerCase() === op.b.text.toLowerCase()) return;
       const src = mapped.lines[op.a.i] ?? null;
       const e = make('changed', op.b.text.trim(), src, op.a.i, 'after', op.b.text);
       if (op.a.text.startsWith(SECTION_MARK) || op.b.text.startsWith(SECTION_MARK)) refuse(e, 'newSection');

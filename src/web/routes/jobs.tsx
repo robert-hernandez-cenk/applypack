@@ -75,6 +75,7 @@ import {
   updateCoverLetterEdit,
   getResumeOriginal,
 } from '../../resume/store';
+import { getConnectionView } from '../../resume/reactive-connection-store';
 import { preselectAppliedResume, preselectResume } from '../../resume/pick';
 import { preselectNote, resumeOptionLabel } from '../resume-label';
 import { storedBriefFor } from '../../resume/brief';
@@ -1231,6 +1232,8 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   const domain = domainNoticeMessage(domainMismatch(resume.industries, storedBrief));
   const file = await describeResumeFile(resume);
   const copy = await getTailoredForJob(currentUser().id, resume.id, job.id);
+  // A copy of a resume that came from a Reactive Resume 6 can go back there, once a connection is saved (ADR 0079).
+  const reactiveSend = copy !== null && resume.remoteGeneration === 'v6' && (await getConnectionView(currentUser().id)) !== null;
   return c.html(
     <TargetPage
       job={{ id: job.id, title: job.title, companyName: companyForPage(job.employer, job.company), location: job.location, description: job.description }}
@@ -1248,6 +1251,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       fileVerdict={file.verdict}
       cleanHref={file.clean ? `/resumes/${resume.id}/render` : null}
       copy={copy}
+      reactiveSend={reactiveSend}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,

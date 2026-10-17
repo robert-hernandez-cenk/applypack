@@ -11,7 +11,7 @@ import { scanInBackground, scanResume } from '../../resume/scan';
 import type { ResumeScan } from '../../resume/prompts';
 import { matchResumeToJob } from '../../resume/match';
 import { prisma } from '../../db';
-import { postingForPrompt } from '../../employer';
+import { companyOnPage, postingForPrompt } from '../../employer';
 import {
   attachResumeOrigin,
   createResume,
@@ -39,6 +39,7 @@ import {
   replaceResumeBytes,
   deleteTailored,
   getTailoredForJob,
+  getTailoredToSend,
   getTailoredWithFile,
   promoteTailored,
   type TailoredSummary,
@@ -66,10 +67,18 @@ import { FormatComparePage } from '../pages/format-compare';
 import { compareFormats, formatSides } from '../format-compare';
 import { loadLineDiff } from '../../resume/line-diff';
 import { ReactivePickPage, ResumesPage } from '../pages/resumes';
+import { ReactiveSendPage, type SendOutcome } from '../pages/reactive-send';
 import { ResumeTextError } from '../../resume/docx-text';
 import { markdownResume, reactiveResumeText } from '../../resume/resume-text';
-import { getInstanceResume, InstanceError, listInstanceResumes } from '../../resume/reactive-resume-api';
-import { reachable } from '../../resume/reactive-resume-url';
+import {
+  duplicateInstanceResume,
+  getInstanceResume,
+  InstanceError,
+  listInstanceResumes,
+  patchInstanceResume,
+} from '../../resume/reactive-resume-api';
+import { reactiveWriteBack, writeBackName } from '../../resume/reactive-resume-writeback';
+import { builderUrl, reachable } from '../../resume/reactive-resume-url';
 import { readInstanceKey, getConnectionView } from '../../resume/reactive-connection-store';
 import { REACH_FAILURE, SAVED_INSTANCE_FAILURE } from '../reactive-failures';
 import { stashPull, takePull, type PullTarget } from '../pull-stash';
@@ -370,6 +379,75 @@ resumesRoute.post('/tailored/:id/promote', async (c) => {
   scanInBackground(resume);
   return flashRedirect(`/resumes/${resume.id}`, 'ok', t('resume.tailored.promoted', { name: resume.name, version: resume.version }));
 });
+
+/**
+ * A tailored copy sent to the person's Reactive Resume as a NEW resume (ADR
+ * 0079). The result is this response's own page — it lists the edits that could
+ * not be placed and links to the new resume, more than a flash can carry. The
+ * original on the instance is only read. The key is read from the store for
+ * this request and is in no page, log field or error.
+ */
+resumesRoute.post(
+  '/tailored/:id/reactive-send',
+  onceGuard(
+    () => `resumes:reactive-send:${currentUser().id}`,
+    () => '/resumes',
+  ),
+  async (c) => {
+    const id = idParam(c.req.param('id'));
+    if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+    const user = currentUser();
+    const copy = await getTailoredToSend(user.id, id);
+    if (!copy) return flashRedirect('/resumes', 'err', t('resume.tailored.gone'));
+    const form = await c.req.parseBody();
+    // Only the two pages that carry the button; anything else goes to the resume.
+    const fromTarget = formText(form.back) === 'target';
+    const back = fromTarget
+      ? { href: `/jobs/${copy.jobId}/target`, label: t('reactive.send.backToTailoring') }
+      : { href: `/resumes/${copy.resumeId}#tailored`, label: copy.resume.name, labelIsData: true };
+    const { resume, job } = copy;
+    if (!resume.remoteId || !resume.remoteGeneration) return flashRedirect(back.href, 'err', t('reactive.send.fail.noOrigin'));
+    const saved = await readInstanceKey(user.id);
+    if (!saved) return flashRedirect(back.href, 'err', t('reactive.fail.noConnection'));
+    const base = new URL(saved.base);
+    const reach = await reachable(base, { privileged: mayReachInward() });
+    if (!reach.ok) return flashRedirect(back.href, 'err', t(REACH_FAILURE[reach.code]));
+
+    const { key } = saved;
+    const newName = writeBackName(resume.name, companyOnPage(job.employer, job.company).name, job.title);
+    const result = await reactiveWriteBack(
+      {
+        getResume: (rid) => getInstanceResume(base, key, rid),
+        duplicate: (rid, name) => duplicateInstanceResume(base, key, rid, name),
+        patch: (rid, patch) => patchInstanceResume(base, key, rid, patch),
+      },
+      {
+        remoteId: resume.remoteId,
+        generation: resume.remoteGeneration,
+        storedText: resume.text,
+        copyText: copy.text,
+        name: newName,
+      },
+    );
+    // Counts and codes only: never the key, the address or a line of the resume.
+    logger.info(
+      result.ok
+        ? { copy: id, host: base.host, applied: result.applied, notApplied: result.notApplied.length }
+        : { copy: id, host: base.host, code: result.code, left: result.createdRemoteId !== undefined },
+      'resume: tailored copy sent to Reactive Resume',
+    );
+    const named = (remoteId: string, name: string) => ({ name, openHref: builderUrl(base, remoteId) });
+    const outcome: SendOutcome = result.ok
+      ? { ok: true, sent: named(result.remoteId, result.name), applied: result.applied, notApplied: result.notApplied }
+      : {
+          ok: false,
+          code: result.code,
+          ...(result.createdRemoteId === undefined ? {} : { created: named(result.createdRemoteId, newName) }),
+          ...(result.notApplied ? { notApplied: result.notApplied } : {}),
+        };
+    return c.html(<ReactiveSendPage outcome={outcome} jobTitle={job.title} back={back} />);
+  },
+);
 
 resumesRoute.post('/resumes/:id/draft', async (c) => {
   const id = idParam(c.req.param('id'));

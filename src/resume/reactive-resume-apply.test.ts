@@ -263,3 +263,25 @@ describe('planWriteBack — what it will not guess', () => {
     for (const e of p.edits) assert.ok(e.line.length > 0);
   });
 });
+
+describe('planWriteBack — what the saved copy does to a text the person did not edit', () => {
+  it('headings the document drew in capitals are not edits', async () => {
+    const { data } = live();
+    const { master } = rows(data);
+    const drawn = master
+      .split('\n')
+      .map((l) => (l.startsWith('## ') ? l.toUpperCase() : l))
+      .join('\n');
+    const p = await plan(data, master, drawn);
+    assert.deepEqual(p.edits, []);
+    assert.deepEqual(p.operations, []);
+  });
+
+  it('a heading reworded in more than its case is still an edit that is refused', async () => {
+    const { data } = live();
+    const { master, rows: rs } = rows(data);
+    const heading = rs.find((r) => r.text.startsWith('## '))!;
+    const p = await plan(data, master, edited(master, { [heading.i]: '## SOMETHING ELSE' }));
+    assert.equal(p.edits[0]?.reason, 'newSection');
+  });
+});

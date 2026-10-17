@@ -41,6 +41,7 @@ import { jobHref } from '../job-tabs';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
+import { ReactiveSendButton } from './reactive-send';
 
 /*
  * Resume match (targeted resume): job description with keyword highlights on
@@ -85,6 +86,8 @@ export interface TargetPageProps {
   cleanHref?: string | null;
   /** The tailored copy saved for this posting, when there is one (ADR 0077). */
   copy?: { id: number; updatedAt: Date } | null;
+  /** The copy can be sent to the person's Reactive Resume: its resume came from one (v6) and a connection is saved (ADR 0079). */
+  reactiveSend?: boolean;
 }
 
 /* Side by side is first and default (user pref); Suggestions keeps its
@@ -145,6 +148,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   fileVerdict,
   cleanHref,
   copy = null,
+  reactiveSend = false,
   flash,
 }) => {
   // The panes, the chips and the live score work from the effective list: the
@@ -509,6 +513,11 @@ export const TargetPage: FC<TargetPageProps> = ({
                       {t('resume.tailored.download')}
                     </a>
                   </Hint>
+                )}
+                {copy && reactiveSend && (
+                  <div class="mt-2">
+                    <ReactiveSendButton copyId={copy.id} jobTitle={job.title} back="target" />
+                  </div>
                 )}
               </div>
             </details>

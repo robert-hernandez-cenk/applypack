@@ -40,6 +40,11 @@ export function apiUrl(base: URL, path: string): string {
   return `${base.origin}${base.pathname.replace(/\/+$/, '')}${API_PREFIX}${path}`;
 }
 
+/** Where a resume opens in the instance's own app (ADR 0079), keeping a path prefix the instance sits behind. */
+export function builderUrl(base: URL, id: string): string {
+  return `${base.origin}${base.pathname.replace(/\/+$/, '')}/builder/${encodeURIComponent(id)}`;
+}
+
 export type Reach = { ok: true } | { ok: false; code: 'privateAddress' | 'noHost' };
 
 /**
