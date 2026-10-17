@@ -6,15 +6,18 @@
  * wherever the page is scrolled and moves nothing. It adds a close button,
  * closes a plain success after a time that grows with its length, and keeps a
  * warning, an error or a message that offers something to do until it is
- * closed. The banner's own role (status / alert) is the one announcement;
- * nothing here takes focus. Dependency-free ES module served as-is; the
- * decision is pure and tested from src/web/toast.test.ts, the DOM glue in a
- * browser.
+ * closed. An error's role=alert is its announcement; a status message that
+ * arrives by an in-place post is spoken through the page's one polite live
+ * region (copy.mjs), because a status element inserted already filled is not
+ * reliably read. Nothing here takes focus. Dependency-free ES module served
+ * as-is; the decision is pure and tested from src/web/toast.test.ts, the DOM
+ * glue in a browser.
  *
  * Contract: specs/054-toast-flash-messages/contracts/toast.md.
  */
 
 import { t } from './i18n.mjs';
+import { announce } from './copy.mjs';
 
 /** A success is read in 4 s at least and 12 s at most; between, it gets 40 ms a character. */
 export const TOAST_MS = { base: 4000, perChar: 40, min: 4000, max: 12000 };
@@ -43,15 +46,17 @@ export function toastPlan({ kind, textLength, hasAction }) {
 
 /** The open toast's state: one slot, so one message at a time. */
 let open = null;
+/** The leave of a closed toast still running; a newer message cancels it so it cannot wipe that message. */
+let leaving = null;
 
+/** The banner carries its tone as `data-kind` (ui.tsx `Flash`, and inline-post.mjs's failure line). */
 function bannerOf(slot) {
-  return slot.querySelector('[role="status"], [role="alert"]');
+  return slot.querySelector('[data-kind]');
 }
 
-/** The tone, from the role the server gave the banner and the class it was styled with. */
 function kindOf(banner) {
-  if (banner.getAttribute('role') === 'alert') return 'err';
-  return banner.className.includes('text-warn') ? 'warn' : 'ok';
+  const kind = banner.getAttribute('data-kind');
+  return kind === 'warn' || kind === 'err' ? kind : 'ok';
 }
 
 function hasAction(banner) {
@@ -76,6 +81,11 @@ function releaseFields() {
 
 /** Forget the open toast: its timer and listeners. The slot itself is left as it is. */
 function release() {
+  if (leaving) {
+    clearTimeout(leaving.timer);
+    leaving.slot.removeAttribute('data-leaving');
+    leaving = null;
+  }
   if (!open) return;
   clearTimeout(open.timer);
   open.abort.abort();
@@ -88,6 +98,7 @@ function close() {
   const { slot } = open;
   release();
   const finish = () => {
+    leaving = null;
     slot.replaceChildren();
     slot.removeAttribute('data-toast');
     slot.removeAttribute('data-leaving');
@@ -96,7 +107,7 @@ function close() {
   if (reducedMotion()) finish();
   else {
     slot.setAttribute('data-leaving', '');
-    setTimeout(finish, LEAVE_MS);
+    leaving = { slot, timer: setTimeout(finish, LEAVE_MS) };
   }
 }
 
@@ -113,9 +124,11 @@ function closeButton() {
  * Make the message in `#flash-slot` a toast. Run after the page loads and
  * after a region swap or a failure line replaced the slot (inline-post.mjs).
  * Safe to run twice; a newer message takes over from an older one. A slot
- * with no message is left as the empty, hidden thing it is.
+ * with no message is left as the empty thing it is. `spoken` is for a message
+ * that arrived after the page did: a status banner then hands its announcing
+ * to the page's polite live region (an error keeps role=alert).
  */
-export function enhanceFlash(slot = document.getElementById(FLASH_SLOT)) {
+export function enhanceFlash(slot = document.getElementById(FLASH_SLOT), { spoken = false } = {}) {
   release();
   if (!slot) return;
   const banner = bannerOf(slot);
@@ -124,10 +137,15 @@ export function enhanceFlash(slot = document.getElementById(FLASH_SLOT)) {
     return;
   }
   banner.querySelector('[data-toast-close]')?.remove();
-  const plan = toastPlan({ kind: kindOf(banner), textLength: (banner.textContent ?? '').trim().length, hasAction: hasAction(banner) });
+  const text = (banner.textContent ?? '').trim();
+  const kind = kindOf(banner);
+  const plan = toastPlan({ kind, textLength: text.length, hasAction: hasAction(banner) });
+  if (spoken && banner.getAttribute('role') === 'status') {
+    banner.removeAttribute('role');
+    announce(text);
+  }
   const button = closeButton();
   banner.appendChild(button);
-  slot.removeAttribute('data-leaving');
   slot.setAttribute('data-toast', '');
 
   const abort = new AbortController();
@@ -140,11 +158,14 @@ export function enhanceFlash(slot = document.getElementById(FLASH_SLOT)) {
   const disarm = () => clearTimeout(state.timer);
   const { signal } = abort;
   button.addEventListener('click', close, { signal });
-  // Read at leisure: the time stops while the pointer is on the message or focus is inside it.
+  // Read at leisure: the time stops while the pointer is on the message or focus is inside it,
+  // and starts again only when neither is.
   slot.addEventListener('pointerenter', disarm, { signal });
-  slot.addEventListener('pointerleave', arm, { signal });
+  slot.addEventListener('pointerleave', () => { if (!slot.matches(':focus-within')) arm(); }, { signal });
   slot.addEventListener('focusin', disarm, { signal });
-  slot.addEventListener('focusout', arm, { signal });
+  slot.addEventListener('focusout', (event) => {
+    if (!slot.contains(event.relatedTarget) && !slot.matches(':hover')) arm();
+  }, { signal });
   arm();
 }
 

@@ -130,6 +130,7 @@ function showFailure() {
   if (!slot) return;
   const line = document.createElement('div');
   line.setAttribute('role', 'alert');
+  line.setAttribute('data-kind', 'err');
   line.className = FAILURE_CLASS;
   const text = document.createElement('span');
   text.className = 'min-w-0 flex-1';
@@ -137,7 +138,7 @@ function showFailure() {
   line.appendChild(text);
   slot.replaceChildren(line);
   // The line's own role=alert is the announcement.
-  enhanceFlash(slot);
+  enhanceFlash(slot, { spoken: true });
 }
 
 /** Replace the regions with the returned page's, keep focus, scroll and folds, tell the page. */
@@ -160,8 +161,8 @@ function swapRegions(incomingDoc) {
     pickFocus(candidates, wanted)?.el.focus({ preventScroll: true });
   }
   window.scrollTo(scrollX, scrollY);
-  // The swapped-in message is a toast, and its banner's role is what announces it.
-  enhanceFlash();
+  // The swapped-in message is a toast; a status one is spoken through the page's polite live region.
+  enhanceFlash(undefined, { spoken: true });
   document.dispatchEvent(new CustomEvent('inline:swapped', { detail: { doc: incomingDoc } }));
 }
 

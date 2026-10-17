@@ -165,6 +165,7 @@ export const Flash: FC<PropsWithChildren<{ flash?: FlashMessage | null }>> = ({ 
     <>
     <div
       role={flash.kind === 'err' ? 'alert' : 'status'}
+      data-kind={flash.kind}
       data-sticky={offersAction(flash, children) ? '' : undefined}
       class={`mb-4 flex items-start gap-2.5 rounded-md border px-3.5 py-2.5 text-sm ${FLASH_TONE[flash.kind]}`}
     >

@@ -152,12 +152,12 @@ const TOKENS_CSS = `
     box-shadow: 0 0 8px rgb(var(--accent) / 0.55);
   }
   #page-progress[hidden] { display: none; }
-  /* Result messages as toasts (public/toast.mjs, ADR 0082). Without the script the slot is the banner in
-     the page flow; with it the slot is pinned to the corner of the screen: bottom, so it does not cover the
+  /* Result messages as toasts (public/toast.mjs, ADR 0082). Without script the slot is the banner in
+     the page flow; with it (html[data-js], set in the head, so there is no jump when toast.mjs loads) the slot is pinned to the corner of the screen: bottom, so it does not cover the
      header buttons that cause most messages, and above the mobile menu (40) but under the progress bar (60).
      The raised surface sits behind the tinted banner, whose own ground is translucent. Motion is flattened
      by the reduced-motion rule below. */
-  #flash-slot[data-toast] {
+  html[data-js] #flash-slot:not(:empty), #flash-slot[data-toast] {
     position: fixed; z-index: 50; bottom: 1rem; left: 1rem; right: 1rem;
     max-height: calc(100dvh - 2rem); overflow: auto;
     border-radius: 0.375rem; background-color: rgb(var(--surface-raised));
@@ -166,10 +166,10 @@ const TOKENS_CSS = `
     transition: opacity 160ms ease-in, transform 160ms ease-in;
   }
   @media (min-width: 640px) {
-    #flash-slot[data-toast] { left: auto; width: 28rem; max-width: calc(100vw - 2rem); }
+    html[data-js] #flash-slot:not(:empty), #flash-slot[data-toast] { left: auto; width: 28rem; max-width: calc(100vw - 2rem); }
   }
-  #flash-slot[data-toast][data-leaving] { opacity: 0; transform: translateY(0.5rem); }
-  #flash-slot[data-toast] > [role] { margin: 0; }
+  html[data-js] #flash-slot[data-leaving], #flash-slot[data-toast][data-leaving] { opacity: 0; transform: translateY(0.5rem); }
+  html[data-js] #flash-slot > [data-kind], #flash-slot[data-toast] > [data-kind] { margin: 0; }
   [data-toast-close] {
     display: grid; flex-shrink: 0; place-items: center; width: 2rem; height: 2rem; margin: -0.5rem -0.625rem -0.5rem 0;
     border-radius: 0.375rem; color: inherit; opacity: 0.75; cursor: pointer;
@@ -269,6 +269,8 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
           a class a release added would otherwise have no rule until its cache let go. */}
       <link rel="stylesheet" href={`/static/tailwind.css?v=${APP_VERSION}`} />
       <style dangerouslySetInnerHTML={{ __html: TOKENS_CSS }} />
+      {/* Script runs here: the message's popup place is its place from the first paint, with no jump when toast.mjs loads. */}
+      <script dangerouslySetInnerHTML={{ __html: "document.documentElement.setAttribute('data-js','')" }} />
       <BrowserMessages />
     </head>
     <body class="bg-surface font-sans text-sm text-ink antialiased">

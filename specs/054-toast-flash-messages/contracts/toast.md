@@ -5,7 +5,7 @@
 `Flash` always renders `<div id="flash-slot" data-region class="empty:hidden">`. When a message exists it holds one banner:
 
 ```html
-<div role="status|alert" data-sticky?>   <!-- alert for kind err; data-sticky when it has an action -->
+<div role="status|alert" data-kind="ok|warn|err" data-sticky?>   <!-- alert for kind err; data-sticky when it has an action -->
   <svg aria-hidden>…</svg>
   <span id="flash-text">text</span>
   <a href="…download">…</a>?  {children}?
@@ -24,18 +24,21 @@ Pure exports (tested from node):
 
 DOM exports:
 
-- `enhanceFlash(slot = document.getElementById('flash-slot'))`: if the slot holds a banner — set `data-toast` on the slot, add the close button (`aria-label` = `t('browser.toast.dismiss')`) as the banner's last
+- `enhanceFlash(slot = document.getElementById('flash-slot'), { spoken = false })`: if the slot holds a banner — set `data-toast` on the slot, add the close button (`aria-label` = `t('browser.toast.dismiss')`) as the banner's last
   child, drop any earlier timer/listeners, arm the timer per `toastPlan`, pause on pointer/focus. If it holds no
   banner, remove `data-toast` and do nothing else. Idempotent: running twice adds one button.
 - boot: on module load, call `enhanceFlash()` once and add the Escape listener.
 
 ## Contract with `inline-post.mjs`
 
-After `swapRegions()` replaced the slot, and after `showFailure()` filled it, `enhanceFlash()` is called. `inline-post.mjs`
-no longer calls `announce()` for the slot's text. The `inline:swapped` event is unchanged.
+After `swapRegions()` replaced the slot, and after `showFailure()` filled it, `enhanceFlash(slot, { spoken: true })` is called.
+With `spoken`, a `role="status"` banner loses its role and its text goes through `copy.mjs`'s persistent polite live region
+(a status element inserted already filled is not reliably read); a `role="alert"` banner keeps its role. The banner's tone is
+read from `data-kind`, never from its classes. The `inline:swapped` event is unchanged.
 
 ## CSS (layout.tsx), selectors
 
+`html[data-js] #flash-slot:not(:empty)` (script runs; set in the head, so the popup place is right from first paint) and
 `#flash-slot[data-toast]` — fixed, bottom/right (≥ 640 px) or bottom with 16 px gutters (< 640 px), solid raised
 surface, `z-index` between the sidebar (40) and the progress bar (60), `max-width: 28rem`,
 `max-height: calc(100dvh - 2rem)`, `overflow: auto`, entrance animation; its banner has no bottom margin.

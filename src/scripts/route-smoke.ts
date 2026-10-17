@@ -1013,19 +1013,21 @@ async function main(): Promise<void> {
   // ADR 0082 (#54): the message is the banner in the slot (what a browser without script shows) and the
   // module that makes it a toast is on the page and served. An error is an alert; a plain success is a status
   // that closes by itself; one that offers something to do is marked to stay.
-  const slotOf = async (message: Record<string, unknown> | null): Promise<string> => {
+  const slotOf = async (message: Record<string, unknown> | null, path = `/jobs/${f.jobId}?tab=match`): Promise<string> => {
     const headers: Record<string, string> = { ...ORIGIN };
     if (message) headers.Cookie = `flash=${Buffer.from(JSON.stringify(message), 'utf8').toString('base64url')}`;
-    const res = await app.request(`/jobs/${f.jobId}?tab=match`, { headers });
+    const res = await app.request(path, { headers });
     const html = await res.text();
     const at = html.indexOf('id="flash-slot"');
-    return `${res.status}|${at < 0 ? '' : html.slice(at, at + 1800)}|${html.includes("import '/static/toast.mjs'") ? 'boots' : 'no-boot'}`;
+    return `${res.status}|${at < 0 ? '' : html.slice(at, at + 6000)}|${html.includes("import '/static/toast.mjs'") ? 'boots' : 'no-boot'}`;
   };
   const noFlash = await slotOf(null);
   const okFlash = await slotOf({ kind: 'ok', text: 'Saved.' });
   const warnFlash = await slotOf({ kind: 'warn', text: 'Careful.' });
   const errFlash = await slotOf({ kind: 'err', text: 'Refused.' });
   const actionFlash = await slotOf({ kind: 'ok', text: 'Written.', download: '/resumes/1/download' });
+  // The tailor page offers "Re-run anyway" (the message's `children`) when the flash says the result is a stored one.
+  const rerunFlash = await slotOf({ kind: 'ok', text: 'Stored.', rerun: true, mode: 'tailor' }, `/jobs/${f.jobId}/target?match=1`);
   const bannerOf = (slot: string): string => slot.split('|')[1]!.split('</div>')[0]!;
   const toastChecks: [string, boolean][] = [
     ['no message leaves an empty slot', /^200\|id="flash-slot" data-region(="true")? class="empty:hidden"><\/div>/.test(noFlash)],
@@ -1033,6 +1035,8 @@ async function main(): Promise<void> {
     ['a warning is a status', bannerOf(warnFlash).includes('role="status"')],
     ['an error is an alert', bannerOf(errFlash).includes('role="alert"') && !bannerOf(errFlash).includes('role="status"')],
     ['a message with a download is marked to stay', bannerOf(actionFlash).includes('data-sticky')],
+    ['a message with a button of its own is marked to stay', bannerOf(rerunFlash).includes('data-sticky')],
+    ['the banner says its tone', bannerOf(errFlash).includes('data-kind="err"') && bannerOf(okFlash).includes('data-kind="ok"')],
     ['every page boots the toast module', okFlash.endsWith('|boots')],
   ];
   for (const [what, ok] of toastChecks) rows.push({ route: `GET /jobs/:id?tab=match with a flash: ${what}`, url: `/jobs/${f.jobId}?tab=match`, status: 200, ok });

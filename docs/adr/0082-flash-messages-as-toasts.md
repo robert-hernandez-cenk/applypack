@@ -16,16 +16,19 @@ scrolled where it was and the message appeared where nobody was looking.
 - **One component, progressive enhancement.** `Flash` still renders the banner into `#flash-slot`; that is exactly
   what a browser without script shows. `public/toast.mjs` (loaded by the layout on every page) marks the slot
   `data-toast`; layout CSS then makes the slot `position: fixed` at the bottom of the viewport: bottom-right at 28 rem
-  on wide screens, full width with 1 rem gutters on narrow ones. No server-side script detection, no second rendering.
+  on wide screens, full width with 1 rem gutters on narrow ones. A one-line script in the head sets `html[data-js]` so the
+  popup place applies from first paint (no jump when the module loads). No server-side script detection, no second rendering.
 - **Bottom, on a raised surface.** The header buttons that cause most messages are at the top. The tones are
   translucent, so the slot carries a solid `surface-raised` ground, a radius and a shadow; the same tokens serve both looks.
 - **When a message leaves.** `toastPlan({ kind, textLength, hasAction })`: a warning, an error, or any message that
   offers something to do (`data-sticky`, or a control inside it) stays until closed; a plain success closes after
   `clamp(4000 + 40 ms × characters, 4 s, 12 s)`. The timer stops while the pointer is on the message or focus is
   inside it. Every message has a close button (label `browser.toast.dismiss`) and Escape closes it. Nothing takes focus.
-- **One announcement.** The banner's own role is the announcer: `alert` for errors (it was `status` for all),
-  `status` otherwise. `inline-post.mjs` no longer calls `announce()` for the slot (it spoke every message twice once the
-  role existed), and calls `enhanceFlash()` after a region swap and after writing its "not saved" line.
+- **One announcement.** An error is `role="alert"` (it was `status` for all). A message that arrives by an in-place post
+  is spoken once through the page's persistent polite live region and its banner drops `role="status"`, because a status
+  element inserted already filled is not reliably read and keeping both spoke it twice. `inline-post.mjs` calls
+  `enhanceFlash(slot, { spoken: true })` after a region swap and after writing its "not saved" line. The tone is `data-kind`
+  on the banner, not its classes.
 - **One message at a time.** The slot is single: a newer message replaces the one on screen; no queue, no history.
 - **Reduced motion.** The entrance and leave animations fall under the global `prefers-reduced-motion` rule, and the
   leave delay is skipped.
