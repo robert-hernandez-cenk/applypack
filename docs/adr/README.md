@@ -94,6 +94,7 @@ gets a dated addendum at the end of the ADR.
 - [0079 — A tailored copy goes back to Reactive Resume as a new resume](./0079-reactive-resume-write-back.md) *(builds on 0073, 0075, 0077: the resume keeps its source id and format, not its JSON; a send duplicates the source on the instance and patches only words inside fields; what cannot be placed is reported, never guessed)*
 - [0080 — Consider and Applying before Applied; Expired and one No Offer column after](./0080-consider-applying-expired-no-offer.md) *(amends 0025: three fixed entry stages and three fixed end states; No Offer is a column over the end states, not a stage; one rule, `hasApplied`, decides "applied")*
 - [0081 — A form can change part of a page in place: the post follows its redirect, named regions are swapped](./0081-inline-keyword-edits.md) *(builds on 0061: `data-inline` forms, `data-region` ids, `inline-post.mjs`, a `refresh()` for the tailor page's live scorer; no new endpoint)*
+- [0082 — A result message is a toast: the server keeps rendering the banner, one browser module pins it to the corner](./0082-flash-messages-as-toasts.md) *(builds on 0081, 0061: `public/toast.mjs`, `data-toast` on the flash slot, sticky for warnings, errors and messages with an action; no second rendering)*
 
 ## When to write a new one
 

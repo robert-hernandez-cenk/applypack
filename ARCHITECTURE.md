@@ -676,6 +676,7 @@ src/
       countries.mjs             ← country picker: search over /countries.json + the suggestion list (tested via import())
       select-commit.mjs         ← a self-saving select that saves once, not once per arrowed option
       inline-post.mjs           ← `form[data-inline]` posts with fetch, follows the redirect, swaps the `[data-region]`s (ADR 0081)
+      toast.mjs                 ← the flash slot as a toast: fixed corner, close button, closes a plain success by itself; `toastPlan` is pure (ADR 0082)
       chart.mjs                 ← a chart's hover: the guide, the dot, the card; arrow keys walk the points
       settings-models.mjs       ← the per-engine model pickers save themselves
       progress.mjs              ← the navigation progress bar

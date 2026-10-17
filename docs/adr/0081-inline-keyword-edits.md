@@ -52,7 +52,7 @@ asked to keep it that way (a browser without script must still work) and to keep
 ❌ Parts of the page that are not regions (the confirm-fact lists, the Suggestions block) keep what they showed
 until the next load; a keyword edit does not change the Suggestions, and the confirm lists may still ask about a
 keyword the person has just ignored.
-❌ The message appears in the flash slot at the top of the page; a person far down the list sees the row change
+❌ (Resolved by [0082](./0082-flash-messages-as-toasts.md).) The message appears in the flash slot at the top of the page; a person far down the list sees the row change
 and hears the message announced, but does not see it (a toast is tracked separately).
 
 ## When to revisit
