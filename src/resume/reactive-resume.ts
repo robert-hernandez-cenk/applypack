@@ -24,13 +24,46 @@ export type ReactiveResumeRead =
   | { ok: true; generation: Generation; name: string; markdown: string }
   | { ok: false; code: 'notReactiveResume' | 'empty' };
 
+/** What a field holds: rich text (HTML), one plain string, or a list of words written as `Name: a, b, c`. */
+export type SourceKind = 'html' | 'text' | 'keywords';
+
+/**
+ * Where a line of the Markdown came from (ADR 0079): the JSON Pointer of the
+ * field, the item's own id, and `label` — the English noun a report names it by
+ * ("Experience · Acme"). A line made from several fields has none.
+ */
+export interface LineSource {
+  pointer: string;
+  id: string;
+  field: string;
+  kind: SourceKind;
+  label: string;
+}
+
+/** `lines[i]` is the source of `markdown.split('\n')[i]`. */
+export type ReactiveResumeMapped =
+  | { ok: true; generation: Generation; name: string; markdown: string; lines: Array<LineSource | null> }
+  | { ok: false; code: 'notReactiveResume' | 'empty' };
+
 type Rec = Record<string, unknown>;
 
 const RecSchema = z.record(z.string(), z.unknown());
 const isRec = (x: unknown): x is Rec => RecSchema.safeParse(x).success && !Array.isArray(x);
 const rec = (x: unknown): Rec => (isRec(x) ? x : {});
 const list = (x: unknown): unknown[] => (Array.isArray(x) ? x : []);
-const text = (x: unknown): string => (typeof x === 'string' ? x.trim() : '');
+
+/*
+ * A line's source rides at its end as MARK_OPEN + index + MARK_CLOSE while the
+ * text is built, and is cut off again in one place at the end. The two control
+ * characters are taken out of everything read from the file, so a resume cannot
+ * forge a tag.
+ */
+const MARK_OPEN = '\u0001';
+const MARK_CLOSE = '\u0002';
+const MARK_CHARS = /[\u0001\u0002]/g;
+const MARK_AT_END = /\u0001(\d+)\u0002$/;
+
+const text = (x: unknown): string => (typeof x === 'string' ? x.replace(MARK_CHARS, '').trim() : '');
 /** The first of `keys` that holds text. */
 const pick = (r: Rec, ...keys: string[]): string => {
   for (const k of keys) {
@@ -174,52 +207,83 @@ const websiteOf = (item: Rec): string => linkOf(item.website) || linkOf(item.url
 
 type Block = string[];
 
+/** Where an item (or one role of it) sits, so the lines made from its fields can say so. */
+interface Scope {
+  marks: LineSource[];
+  pointer: string;
+  id: string;
+  label: string;
+}
+
+/** The tag for a field of `scope`, to be put at the end of each of its lines. */
+function mark(scope: Scope, field: string, kind: SourceKind): string {
+  scope.marks.push({ pointer: `${scope.pointer}/${field}`, id: scope.id, field, kind, label: scope.label });
+  return `${MARK_OPEN}${scope.marks.length - 1}${MARK_CLOSE}`;
+}
+
+/** `s` with `tag` at the end of each of its lines that says something. */
+const tagged = (s: string, tag: string): string =>
+  s
+    .split('\n')
+    .map((l) => (l.trim() ? l + tag : l))
+    .join('\n');
+
 /** One section's items → lines. */
 interface SectionKind {
   key: string;
   title: string;
   /** An item is a line or two and its text; never a heading. */
-  item: (item: Rec) => Block;
+  item: (item: Rec, scope: Scope) => Block;
 }
 
+/** Fields that are not mapped: their lines carry no source. */
 const body = (...parts: unknown[]): Block => parts.map(plain).filter(Boolean);
 
-function experience(item: Rec): Block {
+/** The rich-text fields of an item, each tagged with where it came from. */
+const fieldBody = (scope: Scope, item: Rec, ...fields: string[]): Block =>
+  fields.map((f) => {
+    const lines = plain(item[f]);
+    return lines ? tagged(lines, mark(scope, f, 'html')) : '';
+  }).filter(Boolean);
+
+function experience(item: Rec, scope: Scope): Block {
   const company = entry(pick(item, 'company'), pick(item, 'location'));
   const position = pick(item, 'position');
-  const roles = list(item.roles).map(rec).filter((r) => !hiddenItem(r));
-  const text = bulleted(body(item.description, item.summary));
+  // The index is the place in the file, hidden roles included: a patch addresses it.
+  const roles = list(item.roles).map((r, at) => ({ role: rec(r), at })).filter(({ role }) => !hiddenItem(role));
+  const text = bulleted(fieldBody(scope, item, 'description', 'summary'));
   // An employer that holds several positions has none of its own: each position is a job, the company line repeated above it.
-  const held = roles.flatMap((r, i) =>
-    job(company, pick(r, 'position'), when(r), [...(i === 0 && !position ? text : []), ...bulleted(body(r.description, r.summary))]),
-  );
+  const held = roles.flatMap(({ role, at }, i) => {
+    const own: Scope = { ...scope, pointer: `${scope.pointer}/roles/${at}`, id: pick(role, 'id') || scope.id };
+    return job(company, pick(role, 'position'), when(role), [...(i === 0 && !position ? text : []), ...bulleted(fieldBody(own, role, 'description', 'summary'))]);
+  });
   return position || roles.length === 0 ? [...job(company, position, when(item), text), ...held] : held;
 }
 
 /** The school first, because that is where the reader looks for it. */
-function education(item: Rec): Block {
+function education(item: Rec, scope: Scope): Block {
   const degree = pick(item, 'degree', 'studyType');
   const area = pick(item, 'area');
   const what = degree && area ? `${degree} in ${area}` : degree || area;
   const grade = pick(item, 'grade', 'score');
   const main = pick(item, 'school', 'institution') || what;
-  return [entry(main, main === what ? '' : what, pick(item, 'location'), when(item), grade ? `Grade ${grade}` : ''), ...body(item.description, item.summary)];
+  return [entry(main, main === what ? '' : what, pick(item, 'location'), when(item), grade ? `Grade ${grade}` : ''), ...fieldBody(scope, item, 'description', 'summary')];
 }
 
-function skills(item: Rec): Block {
+function skills(item: Rec, scope: Scope): Block {
   const name = pick(item, 'name');
   const words = list(item.keywords).map(text).filter(Boolean);
-  if (words.length > 0) return [name ? `${name}: ${words.join(', ')}` : words.join(', ')];
+  if (words.length > 0) return [(name ? `${name}: ${words.join(', ')}` : words.join(', ')) + mark(scope, 'keywords', 'keywords')];
   const note = pick(item, 'proficiency', 'description');
   return [name && note ? `${name} — ${note}` : name];
 }
 
-function project(item: Rec): Block {
+function project(item: Rec, scope: Scope): Block {
   const words = list(item.keywords).map(text).filter(Boolean);
   const link = websiteOf(item);
   return [
     entry(pick(item, 'name'), when(item)),
-    ...body(item.description, item.summary),
+    ...fieldBody(scope, item, 'description', 'summary'),
     ...(words.length > 0 ? [`Keywords: ${words.join(', ')}`] : []),
     ...(link ? [link] : []),
   ];
@@ -233,15 +297,15 @@ function language(item: Rec): Block {
 }
 
 /** Certifications, awards and publications: a title, who gave it, when. */
-const titled = (by: string[]) => (item: Rec): Block => {
+const titled = (by: string[]) => (item: Rec, scope: Scope): Block => {
   const title = pick(item, 'title', 'name');
   const giver = pick(item, ...by);
-  return [entry(title && giver ? `${title} — ${giver}` : title || giver, when(item)), ...body(item.description, item.summary)];
+  return [entry(title && giver ? `${title} — ${giver}` : title || giver, when(item)), ...fieldBody(scope, item, 'description', 'summary')];
 };
 
 /** Written like a job — people retitle this section "Volunteer Experience", and the reader then reads it as work. */
-function volunteer(item: Rec): Block {
-  return job(entry(pick(item, 'organization', 'company'), pick(item, 'location')), pick(item, 'position'), when(item), bulleted(body(item.description, item.summary)));
+function volunteer(item: Rec, scope: Scope): Block {
+  return job(entry(pick(item, 'organization', 'company'), pick(item, 'location')), pick(item, 'position'), when(item), bulleted(fieldBody(scope, item, 'description', 'summary')));
 }
 
 function interest(item: Rec): Block {
@@ -267,10 +331,10 @@ function profileEntries(sections: Rec): string[] {
     });
 }
 
-function reference(item: Rec): Block {
+function reference(item: Rec, scope: Scope): Block {
   const name = pick(item, 'name');
   const role = pick(item, 'position');
-  return [name && role ? `${name} — ${role}` : name || role, ...body(item.description, item.summary)];
+  return [name && role ? `${name} — ${role}` : name || role, ...fieldBody(scope, item, 'description', 'summary')];
 }
 
 /** The order a resume reads in. */
@@ -288,11 +352,12 @@ const SECTIONS: SectionKind[] = [
   { key: 'references', title: 'References', item: reference },
 ];
 
-/** v6 and v5 hold `summary` at the top; v4 inside `sections`. */
-function summaryOf(root: Rec, sections: Rec): { title: string; content: string } | null {
-  const s = isRec(root.summary) ? root.summary : isRec(sections.summary) ? sections.summary : null;
+/** v6 and v5 hold `summary` at the top; v4 inside `sections`. `pointer` is the section's, whichever. */
+function summaryOf(root: Rec, sections: Rec): { title: string; content: string; pointer: string } | null {
+  const top = isRec(root.summary);
+  const s = top ? rec(root.summary) : isRec(sections.summary) ? rec(sections.summary) : null;
   if (!s || hiddenItem(s) || s.hidden === true) return null;
-  return { title: pick(s, 'title', 'name'), content: plain(s.content) };
+  return { title: pick(s, 'title', 'name'), content: plain(s.content), pointer: top ? '/summary' : '/sections/summary' };
 }
 
 function generationOf(root: Rec, sections: Rec): Generation {
@@ -329,10 +394,24 @@ function customSection(sec: Rec): { title: string; lines: Block } | null {
   return lines.length > 0 ? { title: pick(sec, 'title', 'name') || pick(sec, 'type') || 'Notes', lines } : null;
 }
 
-export function readReactiveResume(json: unknown): ReactiveResumeRead {
+/** The words that name an item in a report: its employer, school, title… */
+const itemName = (item: Rec): string => pick(item, 'company', 'school', 'institution', 'organization', 'name', 'title', 'issuer');
+
+/** `Section · Name`, or the section alone. */
+const labelOf = (section: string, item: Rec): string => {
+  const who = itemName(item);
+  return who ? `${section} · ${who}` : section;
+};
+
+/**
+ * The resume as Markdown, and for each line the field it came from (ADR 0079).
+ * `readReactiveResume` is this function's text, so the two cannot differ.
+ */
+export function readReactiveResumeMapped(json: unknown): ReactiveResumeMapped {
   if (!isRec(json) || !isRec(json.basics) || !isRec(json.sections)) return { ok: false, code: 'notReactiveResume' };
   const basics = json.basics;
   const sections = json.sections;
+  const marks: LineSource[] = [];
   const out: string[] = [];
   const name = pick(basics, 'name');
   const headline = pick(basics, 'headline');
@@ -340,13 +419,20 @@ export function readReactiveResume(json: unknown): ReactiveResumeRead {
 
   const blocks: string[][] = [];
   const summary = summaryOf(json, sections);
-  if (summary && summary.content) blocks.push([sectionHeading(summary.title || 'Summary'), summary.content]);
+  if (summary && summary.content) {
+    const scope: Scope = { marks, pointer: summary.pointer, id: 'summary', label: 'Summary' };
+    blocks.push([sectionHeading(summary.title || 'Summary'), tagged(summary.content, mark(scope, 'content', 'html'))]);
+  }
   for (const kind of SECTIONS) {
     const sec = rec(sections[kind.key]);
     if (sec.hidden === true || sec.visible === false) continue;
-    const items = list(sec.items).map(rec).filter((i) => !hiddenItem(i));
-    const lines = items.flatMap((i) => kind.item(i)).filter(Boolean);
-    if (lines.length > 0) blocks.push([sectionHeading(pick(sec, 'title', 'name') || kind.title), ...lines]);
+    const heading = pick(sec, 'title', 'name') || kind.title;
+    // The index is the place in the file, hidden items included: a patch addresses it.
+    const items = list(sec.items).map((it, at) => ({ item: rec(it), at })).filter(({ item }) => !hiddenItem(item));
+    const lines = items
+      .flatMap(({ item, at }) => kind.item(item, { marks, pointer: `/sections/${kind.key}/items/${at}`, id: pick(item, 'id'), label: labelOf(heading, item) }))
+      .filter(Boolean);
+    if (lines.length > 0) blocks.push([sectionHeading(heading), ...lines]);
   }
   // v5 and v6 keep them in `customSections`, v4 in `sections.custom`, an object keyed by id.
   for (const c of [...list(json.customSections), ...Object.values(rec(sections.custom))]) {
@@ -356,9 +442,23 @@ export function readReactiveResume(json: unknown): ReactiveResumeRead {
   if (blocks.length === 0) return { ok: false, code: 'empty' };
 
   if (name) out.push(name);
-  if (headline) out.push(headline);
+  if (headline) out.push(headline + mark({ marks, pointer: '/basics', id: 'basics', label: 'Headline' }, 'headline', 'text'));
   if (contact) out.push(contact);
   const head = out.join('\n');
-  const markdown = [head, ...blocks.map((b) => b.join('\n'))].filter(Boolean).join('\n\n');
-  return { ok: true, generation: generationOf(json, sections), name, markdown };
+  const tagless = [head, ...blocks.map((b) => b.join('\n'))].filter(Boolean).join('\n\n');
+  const lines: Array<LineSource | null> = [];
+  const markdown = tagless
+    .split('\n')
+    .map((l) => {
+      const at = MARK_AT_END.exec(l);
+      lines.push(at ? (marks[Number(at[1])] ?? null) : null);
+      return at ? l.slice(0, at.index) : l;
+    })
+    .join('\n');
+  return { ok: true, generation: generationOf(json, sections), name, markdown, lines };
+}
+
+export function readReactiveResume(json: unknown): ReactiveResumeRead {
+  const got = readReactiveResumeMapped(json);
+  return got.ok ? { ok: true, generation: got.generation, name: got.name, markdown: got.markdown } : got;
 }

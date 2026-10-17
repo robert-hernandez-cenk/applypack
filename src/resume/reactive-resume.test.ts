@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { readReactiveResume } from './reactive-resume';
+import { readReactiveResume, readReactiveResumeMapped } from './reactive-resume';
 import { structureFromText } from './structure-from-text';
 import { parsedView } from '../web/parsed-view';
 
@@ -497,4 +497,131 @@ test('an education line with a date range in the middle of it reads as school, d
     { school: 'MIT', degree: 'BSc', area: 'CS', location: 'Boston, MA', dates: { start: '2010', end: '2014', present: false } },
   ]);
   assert.deepEqual(r.education.map((e) => [e.institution, e.area, e.startDate, e.endDate]), [['MIT', 'BSc in CS · Boston, MA', '2010', '2014']]);
+});
+
+/* ---------- provenance: which field each line came from (#50, ADR 0079) ---------- */
+
+const liveData = (): unknown => (fixture('v6-live-response') as { data: unknown }).data;
+
+function mapped(json: unknown) {
+  const got = readReactiveResumeMapped(json);
+  assert.ok(got.ok, 'should be read');
+  return got;
+}
+
+const ALL_SHAPES: Array<[string, () => unknown]> = [
+  ['v4', () => fixture('v4')],
+  ['v5', () => fixture('v5')],
+  ['v6', () => fixture('v6')],
+  ['v6-live-shape', () => fixture('v6-live-shape')],
+  ['hidden-and-html', () => fixture('hidden-and-html')],
+  ['v6-live-response', liveData],
+];
+
+for (const [name, load] of ALL_SHAPES) {
+  test(`mapped read of ${name}: same markdown as the plain read, one source slot per line`, () => {
+    const json = load();
+    const plainRead = readReactiveResume(json);
+    assert.ok(plainRead.ok);
+    const got = mapped(json);
+    assert.equal(got.markdown, plainRead.markdown);
+    assert.equal(got.generation, plainRead.generation);
+    assert.equal(got.lines.length, got.markdown.split('\n').length);
+    assert.ok(!got.markdown.includes('\u0001') && !got.markdown.includes('\u0002'));
+  });
+}
+
+test('mapped read: a notReactiveResume file answers the same as the plain read', () => {
+  assert.deepEqual(readReactiveResumeMapped(fixture('not-rr')), readReactiveResume(fixture('not-rr')));
+});
+
+test('mapped read: the headline, the summary, a job bullet and a skills line name their fields', () => {
+  const got = mapped(liveData());
+  const rows = got.markdown.split('\n').map((text, i) => ({ text, src: got.lines[i] }));
+
+  const headline = rows[1];
+  assert.deepEqual(headline?.src && { pointer: headline.src.pointer, kind: headline.src.kind }, { pointer: '/basics/headline', kind: 'text' });
+
+  const summary = rows.find((r) => r.src?.pointer === '/summary/content');
+  assert.ok(summary && summary.src?.kind === 'html' && summary.src.label === 'Summary');
+
+  const job = rows.find((r) => r.src?.pointer === '/sections/experience/items/0/description');
+  assert.ok(job, 'the first job text is sourced');
+  assert.equal(job.src?.id, 'e1');
+  assert.equal(job.src?.kind, 'html');
+  assert.match(job.src?.label ?? '', /^Professional Experience · Example Org 1$/);
+
+  const skill = rows.find((r) => r.src?.pointer === '/sections/skills/items/0/keywords');
+  assert.ok(skill && skill.src?.kind === 'keywords');
+  assert.match(skill.text, /^Skill group \d+: Term\d+1, Term\d+2/);
+});
+
+test('mapped read: lines assembled from several fields, headings and blank lines have no source', () => {
+  const got = mapped(liveData());
+  const rows = got.markdown.split('\n').map((text, i) => ({ text, src: got.lines[i] }));
+  assert.equal(rows[0]?.src, null, 'the name line');
+  assert.equal(rows[2]?.src, null, 'the contact line');
+  for (const r of rows) {
+    if (r.text === '' || r.text.startsWith('## ')) assert.equal(r.src, null, `"${r.text}"`);
+  }
+  // A company line and a `Position · Dates` line are made of several fields.
+  const dated = rows.find((r) => / · Dec 2025 – Sep 2026$/.test(r.text));
+  assert.ok(dated);
+  assert.equal(dated.src, null);
+});
+
+test('mapped read: a hidden item does not shift the pointer of the one after it', () => {
+  const json = {
+    basics: { name: 'Pat Doe', headline: 'Engineer' },
+    summary: { hidden: true, content: '' },
+    sections: {
+      experience: {
+        items: [
+          { id: 'a', hidden: true, company: 'Gone Ltd', position: 'Ghost', description: '<p>never shown</p>' },
+          { id: 'b', hidden: false, company: 'Shown Ltd', position: 'Dev', dates: { start: '2020-01', present: true }, description: '<ul><li><p>Built the thing</p></li></ul>' },
+        ],
+      },
+    },
+  };
+  const got = mapped(json);
+  const rows = got.markdown.split('\n').map((text, i) => ({ text, src: got.lines[i] }));
+  const bullet = rows.find((r) => r.text.startsWith('- Built the thing'));
+  assert.equal(bullet?.src?.pointer, '/sections/experience/items/1/description');
+  assert.equal(bullet?.src?.id, 'b');
+});
+
+test('mapped read: roles keep their own pointers under the employer', () => {
+  const json = {
+    basics: { name: 'Pat Doe' },
+    summary: {},
+    sections: {
+      experience: {
+        items: [
+          {
+            id: 'x', company: 'Multi Co',
+            roles: [
+              { id: 'r1', position: 'Junior', dates: { start: '2018-01', end: '2019-01' }, description: '<ul><li><p>First role work</p></li></ul>' },
+              { id: 'r2', position: 'Senior', dates: { start: '2019-02', present: true }, description: '<ul><li><p>Second role work</p></li></ul>' },
+            ],
+          },
+        ],
+      },
+    },
+  };
+  const got = mapped(json);
+  const rows = got.markdown.split('\n').map((text, i) => ({ text, src: got.lines[i] }));
+  assert.equal(rows.find((r) => r.text.includes('First role work'))?.src?.pointer, '/sections/experience/items/0/roles/0/description');
+  assert.equal(rows.find((r) => r.text.includes('Second role work'))?.src?.pointer, '/sections/experience/items/0/roles/1/description');
+});
+
+test('mapped read: marker characters in the resume cannot forge a source or leak into the text', () => {
+  const json = {
+    basics: { name: 'Pat Doe', headline: 'Eng\u00010\u0002ineer' },
+    summary: { content: '<p>Line with \u00010\u0002 marks</p>' },
+    sections: { experience: { items: [{ id: 'a', company: 'Co', position: 'Dev', description: '<ul><li><p>Did \u0001999\u0002 things</p></li></ul>' }] } },
+  };
+  const got = mapped(json);
+  assert.ok(!got.markdown.includes('\u0001') && !got.markdown.includes('\u0002'));
+  assert.equal(got.lines.length, got.markdown.split('\n').length);
+  assert.ok(got.lines.every((l) => l === null || l.pointer.startsWith('/')));
 });

@@ -1,0 +1,614 @@
+{
+  "id": "00000000-0000-7000-8000-000000000001",
+  "name": "Example Person",
+  "slug": "example-person",
+  "tags": [],
+  "isPublic": false,
+  "showDownloadButtons": true,
+  "isLocked": false,
+  "data": {
+    "picture": {
+      "hidden": false,
+      "fit": "cover",
+      "url": "",
+      "size": 80,
+      "rotation": 0,
+      "aspectRatio": 1,
+      "borderRadius": 0,
+      "borderColor": "rgba(0, 0, 0, 0.5)",
+      "borderWidth": 0,
+      "shadowColor": "rgba(0, 0, 0, 0.5)",
+      "shadowWidth": 0
+    },
+    "basics": {
+      "name": "Example Person",
+      "headline": "Example Engineering Leader",
+      "email": "person@example.com",
+      "phone": "(555) 010-0100",
+      "location": "Springfield, ST",
+      "website": {
+        "url": "https://example.com",
+        "label": "Website"
+      },
+      "customFields": [
+        {
+          "id": "cf1",
+          "icon": "linkedin-logo",
+          "text": "LinkedIn",
+          "link": "https://example.com/profile1"
+        },
+        {
+          "id": "cf2",
+          "icon": "github-logo",
+          "text": "Github",
+          "link": "https://example.com/profile2"
+        },
+        {
+          "id": "cf3",
+          "icon": "flag-banner",
+          "text": "Citizen",
+          "link": ""
+        }
+      ]
+    },
+    "summary": {
+      "title": "Summary",
+      "icon": "article",
+      "columns": 1,
+      "hidden": false,
+      "showHeading": true,
+      "keepTogether": false,
+      "startOnNewPage": false,
+      "content": "Alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz rid."
+    },
+    "sections": {
+      "profiles": {
+        "title": "Profiles",
+        "icon": "messenger-logo",
+        "columns": 1,
+        "hidden": false,
+        "showHeading": true,
+        "keepTogether": false,
+        "startOnNewPage": false,
+        "items": []
+      },
+      "experience": {
+        "title": "Professional Experience",
+        "icon": "briefcase",
+        "columns": 1,
+        "hidden": false,
+        "showHeading": true,
+        "keepTogether": false,
+        "startOnNewPage": false,
+        "items": [
+          {
+            "id": "e1",
+            "hidden": false,
+            "company": "Example Org 1",
+            "position": "Example Role 1",
+            "location": "",
+            "period": "Dec 2025 – Sep 2026",
+            "dates": {
+              "start": "2025-12",
+              "end": "2026-09",
+              "present": false
+            },
+            "website": {
+              "url": "",
+              "label": "",
+              "inlineLink": false
+            },
+            "description": "<p>Summit tundra umber</p><ul><li><p>Valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley wi.</p></li><li><p>Yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor.</p></li><li><p data-resume-whitespace=\"preserve\">Indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tun.</p></li></ul><ul><li><p>Umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow n.</p></li><li><p>Orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garne.</p></li><li><p data-resume-whitespace=\"preserve\">Harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet ha.</p></li></ul><p></p>",
+            "roles": []
+          },
+          {
+            "id": "e2",
+            "hidden": false,
+            "company": "Example Org 2",
+            "position": "Example Role 2",
+            "location": "",
+            "period": "Jan 2022 – Sep 2025",
+            "dates": {
+              "start": "2022-01",
+              "end": "2025-09",
+              "present": false
+            },
+            "website": {
+              "url": "",
+              "label": "",
+              "inlineLink": false
+            },
+            "description": "<p>Indigo juniper kestr</p><ul><li><p>Lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow.</p></li><li><p>Orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alp.</p></li><li><p>Bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra.</p></li><li><p>Valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie qua.</p></li><li><p>Ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo junip.</p></li><li><p>Kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember.</p></li><li><p>Fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge s.</p></li><li><p>Tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarr.</p></li><li><p data-resume-whitespace=\"preserve\">Zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo.</p></li></ul><p></p>",
+            "roles": []
+          },
+          {
+            "id": "e3",
+            "hidden": false,
+            "company": "Example Org 3",
+            "position": "Example Role 3",
+            "location": "",
+            "period": "Jun 2015 – Jan 2022",
+            "dates": {
+              "start": "2015-06",
+              "end": "2022-01",
+              "present": false
+            },
+            "website": {
+              "url": "",
+              "label": "",
+              "inlineLink": false
+            },
+            "description": "<p><strong>Cobalt delta ember fjord garnet harbor i</strong></p><ul><li><p>Juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard p.</p></li><li><p>Quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern mea.</p></li><li><p>Nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember.</p></li><li><p>Garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta em.</p></li><li><p>Fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow.</p></li><li><p>Alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meado.</p></li><li><p data-resume-whitespace=\"preserve\">Nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit.</p></li></ul><p><strong>Tundra umber valley willow yarrow zephyr alph</strong></p><ul><li><p>Bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delt.</p></li><li><p>Ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard pra.</p></li><li><p>Quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meado.</p></li><li><p>Nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bra.</p></li><li><p>Cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quar.</p></li></ul><p><strong>Ridge summit tundra umber valley willow</strong></p><ul><li><p>Yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz.</p></li><li><p>Summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge su.</p></li><li><p>Tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow.</p></li><li><p>Orchard prairie quartz ridge summit tundra umber valley willow yarro.</p></li><li><p>Zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber va.</p></li><li><p>Willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern.</p></li></ul><p></p>",
+            "roles": []
+          },
+          {
+            "id": "e4",
+            "hidden": false,
+            "company": "Example Org 4",
+            "position": "Example Role 4",
+            "location": "",
+            "period": "Feb 2015 – May 2015",
+            "dates": {
+              "start": "2015-02",
+              "end": "2015-05",
+              "present": false
+            },
+            "website": {
+              "url": "",
+              "label": "",
+              "inlineLink": false
+            },
+            "description": "<ul><li>Meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra u.</li><li>Valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor.</li><li>Indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow.</li></ul>",
+            "roles": []
+          },
+          {
+            "id": "e5",
+            "hidden": false,
+            "company": "Example Org 5",
+            "position": "Example Role 5",
+            "location": "",
+            "period": "Jun 2010 – Feb 2015",
+            "dates": {
+              "start": "2010-06",
+              "end": "2015-02",
+              "present": false
+            },
+            "website": {
+              "url": "",
+              "label": "",
+              "inlineLink": false
+            },
+            "description": "<ul><li>Alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbo.</li><li>Indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lant.</li><li>Meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet har.</li><li>Indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestre.</li><li>Lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor i.</li><li>Juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber.</li><li>Valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor.</li><li>Juniper kestrel lantern meadow nimbus orchard pra.</li><li>Quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern m.</li><li>Nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley.</li><li>Yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestre.</li><li>Lantern meadow nimbus orchard prairie quartz ridge summit tundra umbe.</li></ul>",
+            "roles": []
+          },
+          {
+            "id": "e6",
+            "hidden": false,
+            "company": "Example Org 6",
+            "position": "Example Role 6",
+            "location": "",
+            "period": "May 2006 – Jun 2010",
+            "dates": {
+              "start": "2006-05",
+              "end": "2010-06",
+              "present": false
+            },
+            "website": {
+              "url": "",
+              "label": "",
+              "inlineLink": false
+            },
+            "description": "<p><strong>Valley willow yarr</strong></p><ul><li>Zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo.</li><li>Juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber va.</li><li>Willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestre.</li><li>Lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow z.</li><li>Alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prai.</li><li>Quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchar.</li></ul><p><strong>Prairie quartz rid</strong></p><ul><li>Summit tundra umber valley willow yarrow zephyr alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr.</li><li>Bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zephyr alpha bravo coba.</li></ul><p><strong>Delta ember fjord garnet harbor indigo jun</strong></p><ul><li>Kestrel lantern meadow nimbus orchard prairie quartz ridge summit tundra umber valley willow yarrow zep.</li><li>Alpha bravo cobalt delta ember fjord garnet harbor indigo juniper kestrel lantern meadow nimbus orcha.</li></ul>",
+            "roles": []
+          }
+        ]
+      },
+      "education": {
+        "title": "Education",
+        "icon": "graduation-cap",
+        "columns": 1,
+        "hidden": false,
+        "showHeading": true,
+        "keepTogether": false,
+        "startOnNewPage": false,
+        "items": [
+          {
+            "id": "ed1",
+            "hidden": false,
+            "school": "Example Org 7",
+            "degree": "Example Role 7",
+            "area": "Example Field",
+            "grade": "",
+            "location": "Springfield, ST",
+            "period": "2006",
+            "dates": {
+              "start": "2006",
+              "end": null,
+              "present": false
+            },
+            "website": {
+              "url": "",
+              "label": "",
+              "inlineLink": false
+            },
+            "description": ""
+          },
+          {
+            "id": "ed2",
+            "hidden": false,
+            "school": "Example Org 8",
+            "degree": "Example Role 8",
+            "area": "Example Field",
+            "grade": "",
+            "location": "Springfield, ST",
+            "period": "2007",
+            "dates": {
+              "start": "2007",
+              "end": null,
+              "present": false
+            },
+            "website": {
+              "url": "",
+              "label": "",
+              "inlineLink": false
+            },
+            "description": ""
+          },
+          {
+            "id": "ed3",
+            "hidden": false,
+            "school": "Example Org 9",
+            "degree": "Example Role 9",
+            "area": "Example Field",
+            "grade": "",
+            "location": "Springfield, ST",
+            "period": "2007",
+            "dates": {
+              "start": "2007",
+              "end": null,
+              "present": false
+            },
+            "website": {
+              "url": "",
+              "label": "",
+              "inlineLink": false
+            },
+            "description": ""
+          }
+        ]
+      },
+      "projects": {
+        "title": "Projects",
+        "icon": "code-simple",
+        "columns": 1,
+        "hidden": true,
+        "showHeading": true,
+        "keepTogether": false,
+        "startOnNewPage": false,
+        "items": []
+      },
+      "skills": {
+        "title": "Skills",
+        "icon": "compass-tool",
+        "columns": 1,
+        "hidden": false,
+        "showHeading": true,
+        "keepTogether": false,
+        "startOnNewPage": false,
+        "items": [
+          {
+            "id": "sk1",
+            "hidden": false,
+            "icon": "",
+            "iconColor": "",
+            "name": "Skill group 10",
+            "proficiency": "",
+            "level": 0,
+            "keywords": [
+              "Term101",
+              "Term102",
+              "Term103",
+              "Term104",
+              "Term105",
+              "Term106"
+            ]
+          },
+          {
+            "id": "sk2",
+            "hidden": false,
+            "icon": "",
+            "iconColor": "",
+            "name": "Skill group 11",
+            "proficiency": "",
+            "level": 0,
+            "keywords": [
+              "Term111",
+              "Term112",
+              "Term113",
+              "Term114",
+              "Term115",
+              "Term116"
+            ]
+          },
+          {
+            "id": "sk3",
+            "hidden": false,
+            "icon": "",
+            "iconColor": "",
+            "name": "Skill group 12",
+            "proficiency": "",
+            "level": 0,
+            "keywords": [
+              "Term121",
+              "Term122",
+              "Term123",
+              "Term124",
+              "Term125",
+              "Term126"
+            ]
+          },
+          {
+            "id": "sk4",
+            "hidden": false,
+            "icon": "",
+            "iconColor": "",
+            "name": "Skill group 13",
+            "proficiency": "",
+            "level": 0,
+            "keywords": [
+              "Term131",
+              "Term132",
+              "Term133",
+              "Term134",
+              "Term135",
+              "Term136"
+            ]
+          },
+          {
+            "id": "sk5",
+            "hidden": false,
+            "icon": "",
+            "iconColor": "",
+            "name": "Skill group 14",
+            "proficiency": "",
+            "level": 0,
+            "keywords": [
+              "Term141",
+              "Term142",
+              "Term143",
+              "Term144",
+              "Term145",
+              "Term146"
+            ]
+          },
+          {
+            "id": "sk6",
+            "hidden": false,
+            "icon": "",
+            "iconColor": "",
+            "name": "Skill group 15",
+            "proficiency": "",
+            "level": 0,
+            "keywords": [
+              "Term151",
+              "Term152",
+              "Term153",
+              "Term154",
+              "Term155",
+              "Term156"
+            ]
+          },
+          {
+            "id": "sk7",
+            "hidden": false,
+            "icon": "",
+            "iconColor": "",
+            "name": "Skill group 16",
+            "proficiency": "",
+            "level": 0,
+            "keywords": [
+              "Term161",
+              "Term162",
+              "Term163",
+              "Term164",
+              "Term165",
+              "Term166"
+            ]
+          },
+          {
+            "id": "sk8",
+            "hidden": false,
+            "icon": "",
+            "iconColor": "",
+            "name": "Skill group 17",
+            "proficiency": "",
+            "level": 0,
+            "keywords": [
+              "Term171",
+              "Term172",
+              "Term173"
+            ]
+          },
+          {
+            "id": "sk9",
+            "hidden": false,
+            "icon": "",
+            "iconColor": "",
+            "name": "Skill group 18",
+            "proficiency": "",
+            "level": 0,
+            "keywords": [
+              "Term181",
+              "Term182",
+              "Term183",
+              "Term184"
+            ]
+          },
+          {
+            "id": "sk10",
+            "hidden": false,
+            "icon": "",
+            "iconColor": "",
+            "name": "Skill group 19",
+            "proficiency": "",
+            "level": 0,
+            "keywords": [
+              "Term191",
+              "Term192",
+              "Term193"
+            ]
+          }
+        ],
+        "keywordLayout": "inline",
+        "layout": "default"
+      },
+      "languages": {
+        "title": "Languages",
+        "icon": "translate",
+        "columns": 1,
+        "hidden": true,
+        "showHeading": true,
+        "keepTogether": false,
+        "startOnNewPage": false,
+        "items": []
+      },
+      "interests": {
+        "title": "Interests",
+        "icon": "football",
+        "columns": 1,
+        "hidden": true,
+        "showHeading": true,
+        "keepTogether": false,
+        "startOnNewPage": false,
+        "items": []
+      },
+      "awards": {
+        "title": "Awards",
+        "icon": "trophy",
+        "columns": 1,
+        "hidden": true,
+        "showHeading": true,
+        "keepTogether": false,
+        "startOnNewPage": false,
+        "items": []
+      },
+      "certifications": {
+        "title": "Certifications",
+        "icon": "certificate",
+        "columns": 1,
+        "hidden": true,
+        "showHeading": true,
+        "keepTogether": false,
+        "startOnNewPage": false,
+        "items": []
+      },
+      "publications": {
+        "title": "Publications",
+        "icon": "books",
+        "columns": 1,
+        "hidden": true,
+        "showHeading": true,
+        "keepTogether": false,
+        "startOnNewPage": false,
+        "items": []
+      },
+      "volunteer": {
+        "title": "Volunteer",
+        "icon": "hand-heart",
+        "columns": 1,
+        "hidden": true,
+        "showHeading": true,
+        "keepTogether": false,
+        "startOnNewPage": false,
+        "items": []
+      },
+      "references": {
+        "title": "References",
+        "icon": "phone",
+        "columns": 1,
+        "hidden": true,
+        "showHeading": true,
+        "keepTogether": false,
+        "startOnNewPage": false,
+        "items": []
+      }
+    },
+    "customSections": [],
+    "metadata": {
+      "template": "onyx",
+      "layout": {
+        "sidebarWidth": 35,
+        "pages": [
+          {
+            "fullWidth": false,
+            "main": [
+              "profiles",
+              "summary",
+              "skills",
+              "experience",
+              "education",
+              "projects",
+              "volunteer",
+              "references"
+            ],
+            "sidebar": [
+              "certifications",
+              "awards",
+              "languages",
+              "interests",
+              "publications"
+            ]
+          }
+        ]
+      },
+      "page": {
+        "gapX": 4,
+        "gapY": 6,
+        "marginX": 14,
+        "marginY": 12,
+        "format": "a4",
+        "locale": "en-US",
+        "dateFormat": "short",
+        "hideLinkUnderline": false,
+        "hideIcons": false,
+        "hideSectionIcons": true
+      },
+      "design": {
+        "level": {
+          "icon": "star",
+          "type": "circle"
+        },
+        "colors": {
+          "primary": "rgba(220, 38, 38, 1)",
+          "text": "rgba(0, 0, 0, 1)",
+          "background": "rgba(255, 255, 255, 1)"
+        }
+      },
+      "typography": {
+        "body": {
+          "fontFamily": "IBM Plex Serif",
+          "fontWeights": [
+            "400",
+            "500"
+          ],
+          "fontSize": 10,
+          "lineHeight": 1.5
+        },
+        "heading": {
+          "fontFamily": "IBM Plex Serif",
+          "fontWeights": [
+            "600"
+          ],
+          "fontSize": 14,
+          "lineHeight": 1.5
+        }
+      },
+      "notes": "",
+      "styleRules": []
+    }
+  },
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-02T00:00:00.000Z",
+  "hasPassword": false,
+  "applicationId": null
+}
