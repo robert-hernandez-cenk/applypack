@@ -264,3 +264,11 @@ export function buildCondensePrompt(resumeText: string, job: MatchJobInput, inpu
     ].join('\n'),
   };
 }
+
+/**
+ * The cuts that still apply after a save: the ones the person accepted are out of the text and drop away
+ * here, the ones left alone still quote words it holds, so the next comparison keeps offering them (#64).
+ */
+export function cutsStillApplicable(removals: MatchRemoval[], text: string): MatchRemoval[] {
+  return removals.filter((r) => r.quote !== null && r.quote.trim() !== '' && text.includes(r.quote.trim()));
+}

@@ -63,12 +63,15 @@ import { runFailure } from '../run-failure';
 import { startComparison } from '../comparison-run';
 import { startSuggestionsRun } from '../suggestions-run';
 import { startCondenseRun } from '../condense-run';
+import { parsePageTarget } from '../../resume/length';
+import { editorHistory, workingMatch } from '../../resume/tailored';
 import { readCondenseStage } from '../../resume/condense';
 import {
   getCoverLetter,
   getLatestCompanySnapshot,
   getMatch,
   getResume,
+  deleteTailored,
   getTailoredForJob,
   listCoverLettersForJob,
   listFacts,
@@ -76,6 +79,7 @@ import {
   listResumes,
   replaceResumeFile,
   updateCoverLetterEdit,
+  updateMatchPages,
   getResumeOriginal,
 } from '../../resume/store';
 import { getConnectionView } from '../../resume/reactive-connection-store';
@@ -86,7 +90,6 @@ import { postingDepth } from '../../resume/brief-depth';
 import { domainMismatch, domainNoticeMessage } from '../../resume/domain';
 import { postingOrientation } from '../../resume/posting-orientation';
 import { rewriteAction } from '../../resume/rewrite';
-import { parsePageTarget, readPageTarget } from '../../resume/length';
 import { parseMatchMode, readMatchMode } from '../../resume/match-mode';
 import { generateCoverLetter } from '../../resume/cover-letter';
 import {
@@ -907,12 +910,9 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
   const resumeId = idParam(form.resumeId);
   if (!Number.isFinite(resumeId)) return c.text(t('http.badResumeId'), 400);
 
-  const baseId = idParam(form.matchId);
-  // `base` is the comparison a re-run starts from (the editor's form and Rebuild keywords send it).
-  const [job, resume, base] = await Promise.all([
+  const [job, resume] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     getResume(currentUser().id, resumeId),
-    Number.isFinite(baseId) ? getMatch(currentUser().id, baseId) : null,
   ]);
   if (!job || !resume) return c.text(t('http.notFound'), 404);
 
@@ -928,8 +928,6 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     text,
     // The quick check unless the form asked for the full report (ADR 0029).
     mode: parseMatchMode(form.mode),
-    // A re-check of the editor's draft aims at the pages the comparison it came from was made for; "Re-run anyway" names them in the form (ADR 0074).
-    pages: base && base.jobId === id ? readPageTarget(base.breakdown) : parsePageTarget(form.pages),
     // "Rebuild keywords": read the terms out of the posting again instead of
     // inheriting the frame this posting has been carrying (issue #79).
     rebuild: form.rebuild === '1',
@@ -997,9 +995,11 @@ jobsRoute.post('/jobs/:id/matches/:matchId/condense/:step', async (c) => {
   if (step !== 'cuts' && step !== 'words' && step !== 'refresh') return c.text(t('http.notFound'), 404);
   const target = await condenseTarget(id, matchId);
   if (!target) return c.text(t('http.notFound'), 404);
-  const { job, match, resume, editor } = target;
+  const { job, resume, editor } = target;
   const form = await c.req.parseBody();
   const text = editorText(form.text);
+  // The page target is chosen beside Find cuts and kept on the comparison; the step then reads it back from the row.
+  const match = step === 'cuts' && form.pages !== undefined ? await updateMatchPages(target.match.id, parsePageTarget(form.pages)) : target.match;
   const input = { userId: currentUser().id, match, job: postingForPrompt(job), resumeName: resume.name, resultUrl: editor };
   if (step === 'cuts') return c.redirect(startCondenseRun('cuts', input), 303);
   if (step === 'words') {
@@ -1223,12 +1223,15 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   ]);
   if (!job) return c.text(t('http.notFound'), 404);
   const requested = idParam(c.req.query('match'));
-  const match = matches.find((m) => m.id === requested) ?? matches[0];
-  if (!match) {
+  const asked = matches.find((m) => m.id === requested) ?? matches[0];
+  if (!asked) {
     return flashRedirect(jobHref(id, 'match', {}, 'resume-match'), 'err', t('jobRoute.target.needsComparison'));
   }
-  const resume = await getResume(currentUser().id, match.resumeId);
+  const resume = await getResume(currentUser().id, asked.resumeId);
   if (!resume) return c.text(t('http.notFound'), 404);
+  const copy = await getTailoredForJob(currentUser().id, resume.id, job.id);
+  // One working resume per job: the copy once it exists, whichever comparison was asked for (#64).
+  const match = workingMatch(matches, requested, copy) ?? asked;
   const jobInput = { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description };
   // What the posting itself carried (§17): with little to go on, the page says
   // so rather than letting inferred advice read like the employer's demands —
@@ -1238,7 +1241,6 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   const depth = postingDepth(storedBrief);
   const domain = domainNoticeMessage(domainMismatch(resume.industries, storedBrief));
   const file = await describeResumeFile(resume);
-  const copy = await getTailoredForJob(currentUser().id, resume.id, job.id);
   // A copy of a resume that came from a Reactive Resume 6 can go back there, once a connection is saved (ADR 0079).
   const reactiveSend = copy !== null && resume.remoteGeneration === 'v6' && (await getConnectionView(currentUser().id)) !== null;
   return c.html(
@@ -1247,9 +1249,9 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       resume={{ id: resume.id, name: match.resume.name, version: resume.version }}
       match={match}
       keywords={await orderedKeywords(match, job.description)}
-      matches={matches}
+      matches={editorHistory(matches, copy)}
       previous={previousFor(match, matches)}
-      resumeText={match.resumeText || resume.text}
+      resumeText={copy && match.tailoredId === null && !match.draft ? copy.text : match.resumeText || resume.text}
       postingNotice={depth.notice}
       domainNotice={domain}
       orientation={postingOrientation(storedBrief)}
@@ -1266,17 +1268,28 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   );
 });
 
+/** "Start over from master" (#64): the copy goes, so the editor opens on the resume's own text again. */
+jobsRoute.post('/jobs/:id/target/restart', async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  const form = await c.req.parseBody();
+  const copyId = idParam(form.copyId);
+  if (!Number.isFinite(copyId)) return c.text(t('http.badId'), 400);
+  const ofJob = await prisma.tailoredResume.findFirst({ where: { id: copyId, jobId: id, resume: { userId: currentUser().id } }, select: { id: true } });
+  const gone = ofJob ? await deleteTailored(currentUser().id, copyId) : null;
+  if (!gone) return flashRedirect(`/jobs/${id}/target`, 'err', t('resume.tailored.gone'));
+  return flashRedirect(`/jobs/${id}/target`, 'ok', t('target.copy.restarted'));
+});
+
 jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit(`/jobs/${c.req.param('id')}/target`)(c, next), async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const form = await c.req.parseBody();
   const resumeId = idParam(form.resumeId);
   if (!Number.isFinite(resumeId)) return c.text(t('http.badResumeId'), 400);
-  const baseId = idParam(form.matchId);
-  const [job, resume, base] = await Promise.all([
+  const [job, resume] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     getResume(currentUser().id, resumeId),
-    Number.isFinite(baseId) ? getMatch(currentUser().id, baseId) : null,
   ]);
   if (!job || !resume) return c.text(t('http.notFound'), 404);
   const upload = await readResumeUpload(form);
@@ -1299,8 +1312,6 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
     // for "the same check without the advice" only ever raised the question of
     // which one to press.
     mode: 'full',
-    // Another file for the same target (ADR 0074).
-    pages: base && base.jobId === id ? readPageTarget(base.breakdown) : 'keep',
     rebuild: false,
     force: false,
     resultUrl: (matchId) => `/jobs/${id}/target?match=${matchId}`,

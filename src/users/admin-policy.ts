@@ -44,6 +44,7 @@ export const PERSONAL_ROUTES = [
   'GET /jobs/:id/cover/:letterId/file/:fmt',
   'POST /jobs/:id/cover/:letterId',
   'GET /jobs/:id/target',
+  'POST /jobs/:id/target/restart',
   'POST /jobs/:id/target/reupload',
   'POST /jobs/:id/pack',
   'POST /jobs/:id/pack/cancel',

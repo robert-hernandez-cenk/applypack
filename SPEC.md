@@ -696,6 +696,18 @@ the clean file would drop a line. The document
 properties of a downloaded template (its author's name) are fixed on click
 only, bytes only, current values shown.
 
+**One working resume per job (#64).** The editor edits the posting's saved
+copy once there is one, and the resume's own text before that; which past
+comparison was clicked does not change it. A comparison of the resume's own
+words is a report once a copy exists: opening one lands on the copy's newest
+comparison, and the editor's history lists the copy's runs and drafts only (a
+draft, a file just brought in, stays as asked). The page target is set in the
+Condense panel and kept by the next comparison of the same posting and resume.
+A Save overwrites the copy and never the resume, and the cuts found but not
+accepted (a quote still in the saved text) follow it to the copy's next
+comparison. **Start over from master** (confirmed) deletes the copy and its
+comparisons; it is the only way the edits are discarded.
+
 A file a Save cannot write into gets **Clean version in your typeface**
 (`/resumes/:id/render`, ADR 0039) — the way a PDF enters the loop at all, and
 three of the four resumes in a live database are PDFs. A call of its own

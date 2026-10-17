@@ -38,11 +38,13 @@ import {
   setDefaultResume,
   replaceResumeBytes,
   deleteTailored,
+  getMatch,
   getTailoredForJob,
   getTailoredToSend,
   getTailoredWithFile,
   promoteTailored,
   type TailoredSummary,
+  updateMatchCuts,
   upsertTailored,
 } from '../../resume/store';
 import { readAnswers, unansweredAsks } from '../../resume/answers';
@@ -52,10 +54,11 @@ import { readProps, withProps, type DocxProps } from '../../resume/docx-props';
 import { DOCX_MIME } from '../../resume/docx-write';
 import { cleanDocx } from '../../resume/draft-document';
 import { patchSource, tailoredFileName } from '../../resume/tailored';
+import { cutsStillApplicable } from '../../resume/condense';
 import { knobsFrom } from '../../resume/render/knobs';
 import { resumeStyle } from '../resume-style';
 import { deltaSentence, reviewDelta, type ReviewDelta, type ReviewSnapshot } from '../../resume/review-delta';
-import { readReviewAdvice, readReviewGrades } from '../../resume/prompts';
+import { readRemovals, readReviewAdvice, readReviewGrades } from '../../resume/prompts';
 import { coverage, MIN_POSTINGS } from '../../resume/coverage';
 import { loadKeywordMatcher } from '../../resume/keyword-matcher';
 import { readReviewPromptVersion } from '../../resume/review-score';
@@ -484,6 +487,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   // save is the clean version (ADR 0059).
   const baseText = typeof form.baseText === 'string' ? form.baseText.replace(/\r\n/g, '\n').trim() : '';
   const jobId = idParam(form.jobId);
+  const fromMatchId = idParam(form.matchId);
   // A tailored copy is written for one posting (ADR 0077); the target page is
   // the only caller and always names it.
   const job = Number.isFinite(jobId)
@@ -523,6 +527,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
     // The resume is not scanned: the copy is not the resume (ADR 0077). The
     // comparison judges the copy's words under the resume's identity.
     const match = await matchResumeToJob({ ...current, text: copy.text }, postingForPrompt(job), { tailoredId: copy.id, onError: noteReason });
+    if (match && Number.isFinite(fromMatchId)) await carryCuts(fromMatchId, match.id, job.id, copy.text);
     updateRun(run.id, match
       ? {
           stage: 'done',
@@ -537,6 +542,13 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
 });
+
+/** The cuts found on the comparison the person was editing and not accepted follow them to the copy's next one (#64). */
+async function carryCuts(fromId: number, toId: number, jobId: number, text: string): Promise<void> {
+  const from = await getMatch(currentUser().id, fromId);
+  const cuts = from && from.jobId === jobId ? cutsStillApplicable(readRemovals(from.removals), text) : [];
+  if (cuts.length > 0) await updateMatchCuts(toId, cuts);
+}
 
 function isDocx(filename: string): boolean {
   return /\.docx$/i.test(filename);

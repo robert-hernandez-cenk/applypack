@@ -21,3 +21,22 @@ const slug = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').
 export function tailoredFileName(resumeName: string, jobTitle: string, ext: string): string {
   return `${[slug(resumeName), slug(jobTitle)].filter(Boolean).join('-') || 'resume'}.${ext}`;
 }
+
+type Row = { id: number; tailoredId: number | null; draft: boolean };
+
+/**
+ * The comparison the editor opens on. A job has one working resume: the saved copy when there is one, else
+ * the resume itself. A comparison of the resume's own words (not a draft) is only a report once a copy
+ * exists, so the editor shows the copy's newest comparison instead; a draft is a text the person just
+ * brought and stays. `matches` is newest first.
+ */
+export function workingMatch<T extends Row>(matches: T[], requestedId: number, copy: { id: number } | null): T | undefined {
+  const asked = matches.find((m) => m.id === requestedId) ?? matches[0];
+  if (!asked || !copy || asked.tailoredId !== null || asked.draft) return asked;
+  return matches.find((m) => m.tailoredId === copy.id) ?? asked;
+}
+
+/** The history the editor lists: with a copy saved, the resume's own non-draft runs are reports, not texts to edit. */
+export function editorHistory<T extends Row>(matches: T[], copy: { id: number } | null): T[] {
+  return copy === null ? matches : matches.filter((m) => m.tailoredId !== null || m.draft);
+}

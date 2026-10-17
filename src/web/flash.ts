@@ -26,8 +26,6 @@ export interface FlashMessage {
   rerun?: boolean;
   /** Which comparison the user asked for, so "Re-run anyway" repeats THAT one (ADR 0029). */
   mode?: string;
-  /** The page target it was made for, so "Re-run anyway" keeps it (ADR 0074). */
-  pages?: string;
   /** The editor for the comparison just made — the flash offers "Tailor resume →" (#164). */
   tailor?: string;
   /** A file the action just wrote — the flash offers to download it (TASKS R25). */
@@ -44,12 +42,12 @@ export function flashRedirect(
   location: string,
   kind: FlashMessage['kind'],
   text: string,
-  opts: { rerun?: boolean; mode?: string; pages?: string; tailor?: string; download?: string; field?: RefusedField } = {},
+  opts: { rerun?: boolean; mode?: string; tailor?: string; download?: string; field?: RefusedField } = {},
 ): Response {
   const value = encodeFlash({
     kind,
     text,
-    ...(opts.rerun ? { rerun: true, mode: opts.mode, pages: opts.pages } : {}),
+    ...(opts.rerun ? { rerun: true, mode: opts.mode } : {}),
     ...(opts.tailor ? { tailor: opts.tailor } : {}),
     ...(opts.download ? { download: opts.download } : {}),
     ...(opts.field ? { field: opts.field } : {}),
@@ -93,7 +91,6 @@ export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage
           ? {
               rerun: true,
               ...(typeof parsed.mode === 'string' ? { mode: parsed.mode } : {}),
-              ...(typeof parsed.pages === 'string' ? { pages: parsed.pages } : {}),
             }
           : {}),
         // A path of ours only — a cookie is the browser's to edit.

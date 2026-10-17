@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.59.18] — 2026-10-17
+
+### Fixed
+- **The page count you pick is kept.** It was dropped whenever the comparison
+  was a quick check (the usual one), so the editor opened with "no page target
+  was chosen" after you had picked two pages.
+
+### Changed
+- **One working resume per job.** With a copy saved for a posting, the Open
+  editor button and the other links opened the older comparison of the base
+  resume: cuts looked as if they changed the resume, and Save rebuilt the copy
+  from the resume's words. The editor now always opens on the copy, whichever
+  comparison was clicked; the history lists the copy's runs; Save keeps the
+  cuts you had not accepted; and **Start over from master** (with a
+  confirmation) is the one way to discard the edits (#64).
+- **Page count moved to the Condense panel.** The Compare form no longer asks
+  for a length: a comparison does not use it any more. Pick it beside **Find
+  cuts** in the Condense panel on the Tailor page; the length line follows the
+  choice at once, and the cuts are sized to it. A later comparison of the same
+  posting and resume keeps it (ADR 0083).
+
 ## [2.59.17] — 2026-10-17
 
 ### Changed

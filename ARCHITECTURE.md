@@ -792,7 +792,7 @@ user's schedule, read in the schedule's own time zone.
 | `POST /resumes`                  | web     | extract text → async run: `scanResume` on the progress page (about half a minute) |
 | `POST /jobs/:id/match`           | web     | async run (`comparison-run.ts:startComparison`): brief → `matchResumeToJob` (`mode` = fast \| full; every Compare button posts full); a stored quick check + `mode=full` starts the suggestions run instead; `matchId` names the comparison a re-check aims at; redirects to `/target/runs/:id` |
 | `POST /jobs/:id/matches/:matchId/suggestions` | web | async run: `suggestForMatch` — actions/strengths/cautions onto the stored row, score and cuts untouched |
-| `POST /jobs/:id/matches/:matchId/condense/:step` | web | `cuts` (`findCuts` → `removals`), `words` (`tightenWording` over the posted editor text → `condense`; refused before `cuts`), `refresh` (`suggestForMatch` over the posted text); each an async run back to the editor (ADR 0078) |
+| `POST /jobs/:id/matches/:matchId/condense/:step` | web | `cuts` (the posted `pages` is stored first, `updateMatchPages`; `findCuts` → `removals`), `words` (`tightenWording` over the posted editor text → `condense`; refused before `cuts`), `refresh` (`suggestForMatch` over the posted text); each an async run back to the editor (ADR 0078) |
 | `POST /jobs/:id/verify`          | web     | async run on the progress page: `checkLiveness` (free rungs, seconds) → stop on a verdict; else, or with `deep=1`, `verifyJob` with web tools (2-4 min) → `JobVerification` |
 | `POST /jobs/new`                 | web     | MANUAL company upsert + Job + `classifyExistingJob` |
 | `POST /jobs/import`              | web     | read the uploaded rows (`datasets/rows.ts`), detect the mapping, keep them in memory → the preview; `POST /jobs/import/:token` upserts the IMPORT source and starts an async run: `runImportJob` → `processNormalizedJobs` under the fetch lock, recorded as an `import` run; redirects to `/target/runs/:id` |
@@ -800,6 +800,7 @@ user's schedule, read in the schedule's own time zone.
 | `GET /target/runs/:id`           | web     | progress page; `public/target-run.mjs` polls `GET /target/runs/:id/state` every 2 s; done → flash + redirect into the result |
 | `POST /resumes/:id/replace`      | web     | new file → `version`+1 → async run: `scanResume` |
 | `POST /resumes/:id/render/shape` | web     | async run: `structureResume` → `Resume.structure` (the render page's "Read the shape with AI") |
+| `POST /jobs/:id/target/restart` | web     | "Start over from master": deletes the posting's tailored copy (and its comparisons); the editor opens on the resume's own text again (#64) |
 | `POST /jobs/:id/target/reupload` | web     | async run (`startComparison`) on the uploaded file's text, full report; the resume row is untouched and nothing is scanned |
 | `POST /jobs/:id/cover`           | web     | async run: `generateCoverLetter` (fact-gated; blocked twice → error, no row); redirects to `/target/runs/:id`. The card form also saves the angle prefills; a Regenerate POST reuses them |
 | `POST /jobs/:id/cover/:letterId` | web     | save a manual edit; re-runs the gate warn-only, updates `gateVerdict`/`gateNotes` |

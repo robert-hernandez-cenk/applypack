@@ -353,7 +353,6 @@ async function fixtures(): Promise<Fixtures> {
     frame: 'first-run',
     verificationId: null,
     evidence: 'own',
-    pages: 'keep',
   });
   // A tailored copy of that resume for that posting, and the comparison that
   // judged it — which the resume's own count and best score must not see.
@@ -392,7 +391,6 @@ async function fixtures(): Promise<Fixtures> {
     frame: 'first-run',
     verificationId: null,
     evidence: 'own',
-    pages: 'keep',
   });
   const browserPage = await prisma.company.create({
     data: { name: 'Smoke Page', atsType: 'BROWSER_PAGE', atsToken: 'https://smoke.example/careers', watched: true, active: false },
@@ -605,8 +603,9 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 404,
     },
     {
-      name: 'POST /jobs/:id/matches/:matchId/condense/cuts (a run starts)',
-      init: form({}),
+      // The page target rides with the click and is stored on the comparison first (ADR 0083).
+      name: 'POST /jobs/:id/matches/:matchId/condense/cuts with a page target (a run starts)',
+      init: form({ pages: '2' }),
       expect: (res) => res.status === 303 && (res.headers.get('location') ?? '').startsWith('/target/runs/'),
     },
     {
@@ -901,9 +900,9 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 400,
     },
     {
-      // #55, the one front door: a saved resume against a stored job, with a page target no stored comparison has.
-      name: 'POST /jobs/:id/match (a saved resume, one page: a run starts)',
-      init: form({ resumeId: String(f.resumeId), mode: 'full', pages: '1' }),
+      // #55, the one front door: a saved resume against a stored job; force skips the stored comparison of the same text.
+      name: 'POST /jobs/:id/match (a saved resume, forced: a run starts)',
+      init: form({ resumeId: String(f.resumeId), mode: 'full', force: '1' }),
       expect: (res) => res.status === 303 && (res.headers.get('location') ?? '').startsWith('/target/runs/'),
     },
     {
@@ -1010,6 +1009,13 @@ async function main(): Promise<void> {
     const missing = [...inlineRegions, ...extra].filter((marker) => !html.includes(marker));
     rows.push({ route: `GET ${url} carries the inline regions${missing.length ? ` (missing ${missing.join(', ')})` : ''}`, url, status: res.status, ok: res.status === 200 && missing.length === 0 });
   }
+  // #64: one working resume per job. The copy exists, so asking for the resume's own comparison shows the
+  // copy's: the save form names the comparison it was made on, and the Start-over form is there.
+  const workUrl = `/jobs/${f.jobId}/target?match=1`;
+  const work = await app.request(workUrl, { headers: ORIGIN });
+  const workHtml = await work.text();
+  const onCopy = workHtml.includes('name="matchId" value="') && !workHtml.includes('name="matchId" value="1"');
+  rows.push({ route: `GET ${workUrl} (a comparison of the resume itself opens the copy's)`, url: workUrl, status: work.status, ok: work.status === 200 && onCopy && workHtml.includes(`/jobs/${f.jobId}/target/restart`) });
   // ADR 0082 (#54): the message is the banner in the slot (what a browser without script shows) and the
   // module that makes it a toast is on the page and served. An error is an alert; a plain success is a status
   // that closes by itself; one that offers something to do is marked to stay.

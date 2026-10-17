@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { Badge, Button, Card, FitBadge, Flash, Hint, HistoryChip, inEnglish, More, SUBMIT_ONCE, TONE_TEXT, When } from '../ui';
+import { Badge, Button, Card, ConfirmAction, FitBadge, Flash, Hint, HistoryChip, inEnglish, More, SUBMIT_ONCE, TONE_TEXT, When } from '../ui';
 import type { FlashMessage } from '../flash';
 import { FIT_OK_FLOOR, fitTone, formatDate } from '../format';
 import type { MatchWithResume } from '../../resume/store';
@@ -441,7 +441,6 @@ export const TargetPage: FC<TargetPageProps> = ({
                   onsubmit={SUBMIT_ONCE}
                 >
                   <input type="hidden" name="resumeId" value={resume.id} />
-                  <input type="hidden" name="matchId" value={match.id} />
                   <input
                     type="file"
                     name="file"
@@ -477,7 +476,6 @@ export const TargetPage: FC<TargetPageProps> = ({
                     tell me what to change", which is the full one. */}
                 <form method="post" action={`/jobs/${job.id}/match`} id="reanalyze-form" onsubmit={SUBMIT_ONCE}>
                   <input type="hidden" name="resumeId" value={resume.id} />
-                  <input type="hidden" name="matchId" value={match.id} />
                   <input type="hidden" name="draftText" id="reanalyze-text" value="" />
                   <input type="hidden" name="next" value="target" />
                   <input type="hidden" name="mode" value="full" />
@@ -499,6 +497,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                 >
                   <input type="hidden" name="text" id="save-text" value="" />
                   <input type="hidden" name="jobId" value={job.id} />
+                  <input type="hidden" name="matchId" value={match.id} />
                   {/* The text the edits started from: the patcher diffs against it (ADR 0038). */}
                   <input type="hidden" name="baseText" value={resumeText} />
                   <Button
@@ -518,6 +517,16 @@ export const TargetPage: FC<TargetPageProps> = ({
                       {t('resume.tailored.download')}
                     </a>
                   </Hint>
+                )}
+                {copy && (
+                  <ConfirmAction
+                    action={`/jobs/${job.id}/target/restart`}
+                    label={t('target.copy.restart')}
+                    confirm={t('target.copy.restartConfirm')}
+                    hidden={{ copyId: copy.id }}
+                    variant="secondary"
+                    class="mt-2"
+                  />
                 )}
                 {copy && reactiveSend && (
                   <div class="mt-2">
