@@ -7,7 +7,7 @@ description: "Tasks for result messages as toasts (#54)"
 
 **Input**: `specs/054-toast-flash-messages/` (spec.md, plan.md, research.md, data-model.md, contracts/toast.md, quickstart.md)
 
-**Tests**: TDD for the pure parts (`toastPlan` in `src/web/toast.test.ts`, the `Flash` markup in `src/web/flash-markup.test.ts`); the route smoke for pages; the DOM glue and the layout are verified in a real browser (T016). Env for unit tests: `DATABASE_URL=postgresql://ci:ci@localhost:5432/ci ANTHROPIC_API_KEY=sk-ci-dummy`. All paths relative to the worktree.
+**Tests**: TDD for the pure parts (`toastPlan` in `src/web/toast.test.ts`); the route smoke for the `Flash` markup (the repo's unit tests do not compile JSX); the DOM glue and the layout are verified in a real browser (T016). Env for unit tests: `DATABASE_URL=postgresql://ci:ci@localhost:5432/ci ANTHROPIC_API_KEY=sk-ci-dummy`. All paths relative to the worktree.
 
 ## Phase 1: Setup
 
@@ -18,7 +18,7 @@ description: "Tasks for result messages as toasts (#54)"
 - [ ] T002 Write failing tests in `src/web/toast.test.ts` (import `./public/toast.mjs` the way `inline-post.test.ts` imports its module): `toastPlan({ kind, textLength, hasAction })` returns `{ sticky: true }` for `warn`, `err`, and for any kind with `hasAction`; for `ok` without an action returns `{ sticky: false, ms }` with `ms = clamp(4000 + 40 × textLength, 4000, 12000)` (length 0 → 4000, 100 → 8000, 1000 → 12000)
 - [ ] T003 Create `src/web/public/toast.mjs`: header comment in the style of `inline-post.mjs`; named constants `TOAST_MS = { base: 4000, perChar: 40, min: 4000, max: 12000 }`; pure `toastPlan`; `enhanceFlash(slot)` per `contracts/toast.md` (no-op and `data-toast` removed when the slot has no banner; idempotent close button labelled `t('browser.toast.dismiss')`; replaces the earlier timer and listeners; pointer-enter/focus-in pause and pointer-leave/focus-out restart; a banner counts as an action when it has `data-sticky` or any `a, button, input` other than its close button; closing sets `data-leaving`, then empties the slot after the transition and removes `aria-invalid`/`aria-describedby` added for a refused field; never calls `.focus()`); boot: `enhanceFlash()` once and one `document` keydown listener that closes the toast on Escape unless `event.defaultPrevented`. T002 passes
 - [ ] T004 [P] Catalog: add `browser.toast.dismiss` ("Dismiss message") to `src/i18n/catalog/{en,es,fr,uk}.json`, then `npm run i18n:browser` to regenerate `src/web/public/i18n-en.mjs`; `src/i18n/catalog.test.ts` and `src/web/i18n-browser.test.ts` pass
-- [ ] T005 [P] Write failing tests in `src/web/flash-markup.test.ts` rendering `<Flash>` (see how other `*.test.ts` render JSX, e.g. `src/web/delete-confirm.test.ts` / `held-line.test.ts`): no flash → an empty `#flash-slot[data-region]`; `kind: 'err'` → `role="alert"`; `ok`/`warn` → `role="status"`; `download`, `tailor` or `children` → the banner has `data-sticky`; a plain `ok` has none; the refused-field script still follows the banner
+- [ ] T005 [P] Add the `Flash` markup assertions to `src/scripts/route-smoke.ts` (see T012) — the unit-test runner does not compile JSX, so markup is asserted through real pages: an empty `#flash-slot[data-region]` on a page with no message; `role="alert"` on an error flash, `role="status"` on ok/warn; `data-sticky` on a message with an action, none on a plain ok
 - [ ] T006 `src/web/ui.tsx` `Flash`: `role` by kind (`alert` for `err`, else `status`); `data-sticky` on the banner when `children`, `flash.download` or `flash.tailor` is set; markup otherwise unchanged. T005 passes
 
 **Checkpoint**: module and markup exist and are tested; nothing wired yet; every page still shows the banner.
@@ -59,7 +59,7 @@ description: "Tasks for result messages as toasts (#54)"
 
 ## Phase 7: Polish & cross-cutting
 
-- [ ] T015 [P] Docs: ADR `docs/adr/0082-flash-messages-as-toasts.md` (Context / Decision / Alternatives / Consequences, as 0081) + index row in `docs/adr/README.md`; `SPEC.md` (result messages), `ARCHITECTURE.md` file map (`public/toast.mjs`, `toast.test.ts`, `flash-markup.test.ts`), `DESIGN.md` if it describes the flash/banner, `CHANGELOG.md` `## [2.59.17] — 2026-10-17` ("Changed: result messages appear as a popup…"), `package.json`/`package-lock.json` version 2.59.17 (patch only), and any README/docs line that says a message "appears at the top"
+- [ ] T015 [P] Docs: ADR `docs/adr/0082-flash-messages-as-toasts.md` (Context / Decision / Alternatives / Consequences, as 0081) + index row in `docs/adr/README.md`; `SPEC.md` (result messages), `ARCHITECTURE.md` file map (`public/toast.mjs`, `toast.test.ts`), `DESIGN.md` if it describes the flash/banner, `CHANGELOG.md` `## [2.59.17] — 2026-10-17` ("Changed: result messages appear as a popup…"), `package.json`/`package-lock.json` version 2.59.17 (patch only), and any README/docs line that says a message "appears at the top"
 - [ ] T016 Full verification (superpowers:verification-before-completion): `npm run lint:types`, `npm test`, `npm run exports:audit`, `npm run i18n:browser` (no diff), `npm run build`, route smoke on a throwaway Postgres, browser check at 1280×800 and 390×844 in light and dark; mark the quickstart steps and these tasks complete
 
 ## Dependencies

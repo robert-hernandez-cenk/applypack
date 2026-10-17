@@ -68,7 +68,6 @@ src/web/
 │   ├── inline-post.mjs        # calls enhanceFlash after a swap and in showFailure; stops double-announcing
 │   └── i18n-en.mjs            # regenerated (npm run i18n:browser)
 ├── toast.test.ts              # NEW: toastPlan
-└── flash-markup.test.ts       # NEW: Flash markup (role by kind, sticky marker, slot always present)
 src/i18n/catalog/{en,es,fr,uk}.json   # browser.toast.dismiss
 src/scripts/route-smoke.ts     # asserts the slot, role=alert on an error, the toast module is served
 docs/adr/0082-flash-messages-as-toasts.md (+ README index)

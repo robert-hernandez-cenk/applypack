@@ -3184,6 +3184,7 @@
   "browser.editor.shrink": "reducir el editor",
   "browser.editor.expand": "ampliar el editor",
   "browser.inline.failed": "Su cambio no se guardó. Compruebe la conexión e inténtelo de nuevo.",
+  "browser.toast.dismiss": "Cerrar mensaje",
   "browser.card.applied": "Aplicada",
   "browser.card.removed": "Quitada",
   "browser.card.skipped": "Omitida",
