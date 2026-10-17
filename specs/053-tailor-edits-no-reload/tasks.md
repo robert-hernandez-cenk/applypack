@@ -42,9 +42,9 @@ description: "Tasks for keyword edits that keep the page in place (#53)"
 
 **Independent test**: type in the editor, change a keyword level: text and unsaved bar survive; ring/chips/highlights match.
 
-- [ ] T011 [US2] Write failing test in `src/web/target-page.test.ts` (extend if it exists, else create): `readData(doc)` returns the parsed JSON of `#target-data` from a fake `doc` (`getElementById(...).textContent`) and `null` when absent
-- [ ] T012 [US2] `src/web/public/target-page.mjs`: export `readData(doc)`; make `init(data)` return `{ refresh(fresh) }` that does `Object.assign(data, fresh)` then `render()` and does nothing when `fresh` is null (the file's existing reads of `data` are live; do not cache any); T011 passes
-- [ ] T013 [US2] `src/web/pages/target.tsx` `TARGET_BOOT`: keep the `init(...)` return, `document.addEventListener('inline:swapped', (e) => page.refresh(readData(e.detail.doc)))`; ensure the order is init first, then `wireInlinePosts`
+- [x] T011 [US2] Write failing test in `src/web/target-page.test.ts` (extend if it exists, else create): `readData(doc)` returns the parsed JSON of `#target-data` from a fake `doc` (`getElementById(...).textContent`) and `null` when absent
+- [x] T012 [US2] `src/web/public/target-page.mjs`: export `readData(doc)`; make `init(data)` return `{ refresh(fresh) }` that does `Object.assign(data, fresh)` then `render()` and does nothing when `fresh` is null (the file's existing reads of `data` are live; do not cache any); T011 passes
+- [x] T013 [US2] `src/web/pages/target.tsx` `TARGET_BOOT`: keep the `init(...)` return, `document.addEventListener('inline:swapped', (e) => page.refresh(readData(e.detail.doc)))`; ensure the order is init first, then `wireInlinePosts`
 
 **Checkpoint**: US2 verified in a browser with unsaved text.
 
@@ -54,7 +54,7 @@ description: "Tasks for keyword edits that keep the page in place (#53)"
 
 **Independent test**: scripts off → normal post; server stopped → error line; session-ended answer → navigates.
 
-- [ ] T014 [US3] Review `inline-post.mjs` against FR-008–FR-010: a form without `data-inline` or a browser without `fetch` is never intercepted; the error banner uses the same classes as `Flash`'s error tone and a `role="status"`/live region so it is announced; busy state is always cleared (`finally`). Add tests to `src/web/inline-post.test.ts` for the queue continuing after a failed job and for `planSwap` navigating on a login-page answer (different path)
+- [x] T014 [US3] Review `inline-post.mjs` against FR-008–FR-010: a form without `data-inline` or a browser without `fetch` is never intercepted; the error banner uses the same classes as `Flash`'s error tone and a `role="status"`/live region so it is announced; busy state is always cleared (`finally`). Add tests to `src/web/inline-post.test.ts` for the queue continuing after a failed job and for `planSwap` navigating on a login-page answer (different path)
 
 ## Phase 6: Polish & cross-cutting
 

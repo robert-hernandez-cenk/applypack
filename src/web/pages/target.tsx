@@ -1052,10 +1052,12 @@ const TARGET_CSS = `
 /* The page logic lives in /static/target-page.mjs so it is served, cached and
  * importable from node:test; this inline snippet only boots it with the data. */
 const TARGET_BOOT = `
-import { init } from '/static/target-page.mjs';
+import { init, readData } from '/static/target-page.mjs';
 import { wireSelectCommits } from '/static/select-commit.mjs';
 import { wireInlinePosts } from '/static/inline-post.mjs';
-init(JSON.parse(document.getElementById('target-data').textContent));
+const page = init(JSON.parse(document.getElementById('target-data').textContent));
 wireSelectCommits(document);
+// A keyword edit posts in place (#53): the regions are already swapped, the live scorer takes the new levels.
+document.addEventListener('inline:swapped', (event) => page.refresh(readData(event.detail.doc)));
 wireInlinePosts(document);
 `;

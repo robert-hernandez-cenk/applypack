@@ -496,3 +496,14 @@ test('what a skills line takes unasked is decided the same way on the page and i
   // Methodology and process (3) and domain (4) are phrases for a sentence; a required skill and a term the person added are not.
   assert.deepEqual([1, 2, 3, 4].map((priority) => namedSkill({ priority })), [true, true, false, false]);
 });
+
+test('readData takes the live scorer\'s data from a page a keyword edit came back with (#53)', async () => {
+  // @ts-expect-error — plain JS with no declaration file.
+  const { readData } = (await import('./public/target-page.mjs')) as {
+    readData: (doc: { getElementById: (id: string) => { textContent: string } | null }) => unknown;
+  };
+  const doc = (text: string | null) => ({ getElementById: (id: string) => (id === 'target-data' && text !== null ? { textContent: text } : null) });
+  assert.deepEqual(readData(doc('{"matchId":3,"keywords":[{"term":"Go"}]}')), { matchId: 3, keywords: [{ term: 'Go' }] });
+  assert.equal(readData(doc(null)), null);
+  assert.equal(readData(doc('not json')), null);
+});
