@@ -2058,6 +2058,8 @@
   "resume.resumeName": "Nom du CV",
   "resume.rename": "Renommer",
   "resume.default": "par défaut",
+  "resume.reactive.origin": "Reactive Resume {generation}",
+  "resume.reactive.originReadOnly": "Reactive Resume {generation} · lecture seule",
   "resume.years": "{n} ans",
   "resume.headline": "Titre :",
   "resume.scannedWhen": "analysé <when/>",

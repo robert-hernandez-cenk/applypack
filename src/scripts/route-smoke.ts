@@ -995,6 +995,21 @@ async function main(): Promise<void> {
       status: imported.status,
       ok: imported.status === 303 && (imported.headers.get('location') ?? '').startsWith('/target/runs/'),
     });
+    // ADR 0079: a pulled resume remembers which one it was and the format it was read as; a file never does.
+    const pulled = await prisma.resume.findFirst({ where: { remoteId: 'r1' }, select: { id: true, remoteGeneration: true } });
+    rows.push({
+      route: 'POST /resumes/reactive/import records the instance resume id and format on the new resume',
+      url: '/resumes/reactive/import',
+      status: imported.status,
+      ok: pulled !== null && /^v[456]$/.test(pulled.remoteGeneration ?? '') && (await prisma.resume.count({ where: { id: f.resumeId, remoteId: { not: null } } })) === 0,
+    });
+    const pulledPage = pulled ? await app.request(`/resumes/${pulled.id}`, { headers: ORIGIN }) : null;
+    rows.push({
+      route: 'GET /resumes/:id of a pulled resume (names where it came from)',
+      url: pulled ? `/resumes/${pulled.id}` : '/resumes/?',
+      status: pulledPage?.status ?? 0,
+      ok: pulledPage?.status === 200 && (await pulledPage.text()).includes(`Reactive Resume ${pulled?.remoteGeneration ?? '?'}`),
+    });
     const again = await app.request('/resumes/reactive/import', form({ pull, id: 'r1' }));
     rows.push({
       route: 'POST /resumes/reactive/import with the same pull (used up: asked for again)',

@@ -2058,6 +2058,8 @@
   "resume.resumeName": "Resume name",
   "resume.rename": "Rename",
   "resume.default": "default",
+  "resume.reactive.origin": "Reactive Resume {generation}",
+  "resume.reactive.originReadOnly": "Reactive Resume {generation} · read only",
   "resume.years": "{n} yrs",
   "resume.headline": "Headline:",
   "resume.scannedWhen": "scanned <when/>",

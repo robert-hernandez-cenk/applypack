@@ -148,6 +148,12 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
             {resume.sourceFilename}
           </span>
           <Badge tone="info">v{resume.version}</Badge>
+          {/* Where its text was imported from (ADR 0079); only a v6 resume can be sent back. */}
+          {resume.remoteId !== null && resume.remoteGeneration !== null && (
+            <Badge tone="neutral">
+              {t(resume.remoteGeneration === 'v6' ? 'resume.reactive.origin' : 'resume.reactive.originReadOnly', { generation: resume.remoteGeneration })}
+            </Badge>
+          )}
           {resume.isDefault && <Badge tone="ok">{t('resume.default')}</Badge>}
           {/* The scan's own word for the level. */}
           {resume.seniority && (

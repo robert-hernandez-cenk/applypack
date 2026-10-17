@@ -2058,6 +2058,8 @@
   "resume.resumeName": "Nombre del currículum",
   "resume.rename": "Renombrar",
   "resume.default": "predeterminado",
+  "resume.reactive.origin": "Reactive Resume {generation}",
+  "resume.reactive.originReadOnly": "Reactive Resume {generation} · solo lectura",
   "resume.years": "{n} años",
   "resume.headline": "Titular:",
   "resume.scannedWhen": "analizado <when/>",

@@ -2058,6 +2058,8 @@
   "resume.resumeName": "Назва резюме",
   "resume.rename": "Перейменувати",
   "resume.default": "типове",
+  "resume.reactive.origin": "Reactive Resume {generation}",
+  "resume.reactive.originReadOnly": "Reactive Resume {generation} · лише читання",
   "resume.years": "{n} р. досвіду",
   "resume.headline": "Заголовок:",
   "resume.scannedWhen": "скановано <when/>",

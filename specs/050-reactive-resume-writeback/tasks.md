@@ -32,9 +32,9 @@ description: "Task list for writing tailored edits back to Reactive Resume (#50)
 
 **Independent test**: import one resume from Reactive Resume and one from a file; the first shows "From Reactive Resume (v6)" and stores `remoteId` + `remoteGeneration`, the second shows nothing and stores `NULL`s; a new version from a file clears them; a new version pulled from RR sets them.
 
-- [ ] T010 [US2] In `src/web/routes/resumes.tsx` `POST /resumes/reactive/import`: pass `{ remoteId: id, generation: read.generation }` from the `reactiveResumeText` result (extend `src/resume/resume-text.ts:reactiveResumeText` to return the generation) through `saveNewVersion` / `saveUploaded` into `replaceResumeFile` / `createResume`; `POST /resumes/:id/replace` and plain uploads pass `null`
-- [ ] T011 [US2] Show the origin on the resume page in `src/web/pages/resume-detail.tsx` under the name: a `data-ui="hint"` line "From Reactive Resume (v6)" only when `remoteId` is set, plus a one-line note when the generation is not v6 that sending back is not available; words via `t()`, generation shown as data
-- [ ] T012 [US2] Add the origin to the `route-smoke` first-run fixtures in `src/scripts/route-smoke.ts` (a resume with `remoteId`/`remoteGeneration` set, one without) so the line renders in both states
+- [x] T010 [US2] In `src/web/routes/resumes.tsx` `POST /resumes/reactive/import`: pass `{ remoteId: id, generation: read.generation }` from the `reactiveResumeText` result (extend `src/resume/resume-text.ts:reactiveResumeText` to return the generation) through `saveNewVersion` / `saveUploaded` into `replaceResumeFile` / `createResume`; `POST /resumes/:id/replace` and plain uploads pass `null`
+- [x] T011 [US2] Show the origin on the resume page in `src/web/pages/resume-detail.tsx` under the name: a `data-ui="hint"` line "From Reactive Resume (v6)" only when `remoteId` is set, plus a one-line note when the generation is not v6 that sending back is not available; words via `t()`, generation shown as data
+- [x] T012 [US2] Add the origin to the `route-smoke` first-run fixtures in `src/scripts/route-smoke.ts` (a resume with `remoteId`/`remoteGeneration` set, one without) so the line renders in both states
 
 ## Phase 4: User Story 1 — Send a tailored copy back as a new Reactive Resume resume (P1) 🎯 MVP
 

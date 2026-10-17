@@ -13,6 +13,7 @@ import { matchResumeToJob } from '../../resume/match';
 import { prisma } from '../../db';
 import { postingForPrompt } from '../../employer';
 import {
+  attachResumeOrigin,
   createResume,
   findResumeWithText,
   deleteImpact,
@@ -30,6 +31,7 @@ import {
   matchStatsByResume,
   renameResume,
   replaceResumeFile,
+  type ResumeOrigin,
   type ResumeSummary,
   saveReviewAnswer,
   saveResumeTextVersion,
@@ -127,13 +129,15 @@ resumesRoute.post('/resumes', resumeUploadLimit('/resumes'), onceGuard(() => 're
 });
 
 /** A new resume from an upload, or the one it repeats; its scan runs behind the page. */
-async function saveUploaded(c: Context, upload: UploadedResumeFile, name: string): Promise<Response> {
+async function saveUploaded(c: Context, upload: UploadedResumeFile, name: string, origin: ResumeOrigin | null = null): Promise<Response> {
   // R16: the same text again is not a second resume, and not a second scan to pay for.
   const same = await findResumeWithText(currentUser().id, upload.text);
   if (same) {
+    // A pull of the text already held still tells where it came from (ADR 0079).
+    if (origin) await attachResumeOrigin(currentUser().id, same.id, origin);
     return flashRedirect(`/resumes/${same.id}`, 'warn', t('resume.flash.sameAsExisting', { name: same.name, version: same.version }));
   }
-  const resume = await createResume(currentUser().id, { name, ...upload });
+  const resume = await createResume(currentUser().id, { name, ...upload, origin });
   return startScanRun(c, resume, {
     subtitle: t('resume.run.scanSubtitle', { name }),
     onScanned: () => t('resume.flash.uploaded', { name }),
@@ -217,7 +221,8 @@ resumesRoute.post('/resumes/reactive/import', pullGuard, async (c) => {
     const read = reactiveResumeText(got.data);
     const name = (got.name || read.name || t('upload.defaultName')).slice(0, MAX_RESUME_NAME_CHARS);
     const upload = markdownResume(name, read.text);
-    return current ? await saveNewVersion(c, current, upload) : await saveUploaded(c, upload, name);
+    const origin: ResumeOrigin = { remoteId: id, generation: read.generation };
+    return current ? await saveNewVersion(c, current, upload, origin) : await saveUploaded(c, upload, name, origin);
   } catch (err) {
     if (err instanceof InstanceError) return flashRedirect(back, 'err', t(SAVED_INSTANCE_FAILURE[err.code]));
     if (err instanceof ResumeTextError) return flashRedirect(back, 'err', err.reason());
@@ -226,12 +231,13 @@ resumesRoute.post('/resumes/reactive/import', pullGuard, async (c) => {
 });
 
 /** The next version of a resume from an upload or a pull — one path, so both read alike. */
-async function saveNewVersion(c: Context, current: ResumeSummary, upload: UploadedResumeFile): Promise<Response> {
+async function saveNewVersion(c: Context, current: ResumeSummary, upload: UploadedResumeFile, origin: ResumeOrigin | null = null): Promise<Response> {
   // R16: a new version that reads like the one in place changes nothing, and would pay for a scan of it.
   if (sameTextAs(upload.text, [current])) {
+    if (origin) await attachResumeOrigin(currentUser().id, current.id, origin);
     return flashRedirect(`/resumes/${current.id}`, 'warn', t('resume.flash.sameAsCurrent', { version: current.version }));
   }
-  const resume = await replaceResumeFile(currentUser().id, current.id, upload);
+  const resume = await replaceResumeFile(currentUser().id, current.id, { ...upload, origin });
   return startScanRun(c, resume, {
     subtitle: t('resume.run.rescanSubtitle', { name: resume.name, version: resume.version }),
     onScanned: () => t('resume.flash.versionUploaded', { version: resume.version }),

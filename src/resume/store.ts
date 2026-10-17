@@ -131,6 +131,16 @@ export async function replaceResumeFile(
   return row;
 }
 
+/**
+ * A pull whose text equals the stored one changes nothing but where it came
+ * from: record that, so a resume imported before the origin existed can be
+ * sent back after one more pull. The caller has checked the text is the same.
+ */
+export async function attachResumeOrigin(userId: number, id: number, origin: ResumeOrigin): Promise<void> {
+  await prisma.resume.updateMany({ where: { id, userId }, data: originColumns(origin) });
+  logger.info({ id, generation: origin.generation }, 'resume: origin recorded');
+}
+
 /** Renames a resume; null when the row is gone (deleted in another tab). */
 export async function renameResume(userId: number, id: number, name: string): Promise<ResumeSummary | null> {
   return prisma.resume
