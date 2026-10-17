@@ -542,6 +542,14 @@ person's own instance is stored as the Markdown it is written out to
 a saved per-person setting (Settings → Job search, ADR 0075), checked when saved
 and never shown again; with one saved, `/resumes` imports a new resume from the
 instance and a resume's "Upload a new version" can take its next version from it.
+A resume pulled from an instance remembers which one it was and its format
+(`Resume.remoteId`, `remoteGeneration`, ADR 0079; never the JSON). From a
+tailored copy of a format-6 one, **Send to Reactive Resume** makes a NEW resume
+on the instance, named `<Resume> - <Company> - <Role>`, with the copy's edits
+applied to a duplicate of the source: the original is only read, layout and
+design stay, and each edit that cannot be placed (a line made of several
+fields, a heading) is listed as not applied with why. Refused when the source
+no longer reads like the stored text.
 
 `ResumeMatch` is one comparison of a resume against a job, triggered from
 `/jobs/:id` → "Resume match" → Compare. The dropdown preselects a resume in

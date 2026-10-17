@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { apiUrl, parseInstanceUrl, reachable } from './reactive-resume-url';
+import { apiUrl, builderUrl, parseInstanceUrl, reachable } from './reactive-resume-url';
 
 function base(raw: string): URL {
   const got = parseInstanceUrl(raw);
@@ -101,4 +101,9 @@ test('an administrator or the local install may reach private addresses, with no
   for (const raw of ['http://localhost:3000', 'http://10.0.0.5', 'http://intranet', 'https://rr.example.com']) {
     assert.deepEqual(await reachable(base(raw), { privileged: true }, never), { ok: true }, raw);
   }
+});
+
+test('builderUrl is where the resume opens in the instance, under a path prefix too', () => {
+  assert.equal(builderUrl(base('https://rxresu.me'), 'abc-123'), 'https://rxresu.me/builder/abc-123');
+  assert.equal(builderUrl(base('https://host.example/rr/'), 'a/b'), 'https://host.example/rr/builder/a%2Fb');
 });

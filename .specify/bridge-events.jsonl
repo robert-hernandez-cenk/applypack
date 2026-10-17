@@ -201,3 +201,15 @@
 
 {"timestamp":"2026-10-16T19:48:41.1993295Z","action":"guard","status":"allow","feature_directory":"specs/049-condense-two-phase","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
 
+{"timestamp":"2026-10-17T00:57:28.4400109Z","action":"guard","status":"allow","feature_directory":"specs/049-condense-two-phase","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.plan"}
+
+{"timestamp":"2026-10-17T00:59:30.4560842Z","action":"guard","status":"allow","feature_directory":"specs/049-condense-two-phase","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.tasks"}
+
+{"timestamp":"2026-10-17T01:00:23.4244476Z","action":"handoff","status":"ready","feature_directory":"specs/049-condense-two-phase","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261017T0100233890386Z-ready"}
+
+{"timestamp":"2026-10-17T01:00:30.4283342Z","action":"handoff","status":"ready","feature_directory":"specs/050-reactive-resume-writeback","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261017T0100304053217Z-ready"}
+
+{"timestamp":"2026-10-17T01:00:40.2836180Z","action":"handoff","status":"executing","feature_directory":"specs/050-reactive-resume-writeback","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261017T0100402514799Z-executing"}
+
+{"timestamp":"2026-10-17T01:00:40.9176382Z","action":"guard","status":"allow","feature_directory":"specs/050-reactive-resume-writeback","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
+

@@ -787,6 +787,12 @@ model Resume {
   // answer is a fact about this document and has to outlive the run that
   // asked (ADR 0030 phase 3).
   answers         Json             @default("[]")
+  // The Reactive Resume resume this text was imported from, its format
+  // generation (v4 | v5 | v6) and the instance host: all set or all NULL
+  // (ADR 0079). Never the JSON itself — a write-back re-reads the source.
+  remoteId         String?
+  remoteGeneration String?
+  remoteHost       String?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   matches         ResumeMatch[]

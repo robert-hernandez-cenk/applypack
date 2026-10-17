@@ -1,5 +1,7 @@
 import type { MessageKey } from '../i18n/catalog';
 import type { InstanceFailure } from '../resume/reactive-resume-api';
+import type { EditReason, EditReport } from '../resume/reactive-resume-apply';
+import type { SendFailure } from '../resume/reactive-resume-writeback';
 import type { InstanceUrlFailure, Reach } from '../resume/reactive-resume-url';
 import type { KeyFailure } from '../resume/reactive-connection';
 
@@ -33,6 +35,9 @@ export const INSTANCE_FAILURE = {
   tooLarge: 'resumes.reactive.fail.tooLarge',
   timeout: 'resumes.reactive.fail.timeout',
   unreachable: 'resumes.reactive.fail.unreachable',
+  locked: 'reactive.send.fail.locked',
+  conflict: 'reactive.send.fail.conflict',
+  badPatch: 'reactive.send.fail.badPatch',
 } as const satisfies Record<InstanceFailure, MessageKey>;
 
 /** A saved key the instance refuses is fixed in Settings, not by typing it again. */
@@ -40,3 +45,27 @@ export const SAVED_INSTANCE_FAILURE: Record<InstanceFailure, MessageKey> = {
   ...INSTANCE_FAILURE,
   unauthorized: 'reactive.fail.unauthorizedSaved',
 };
+
+/** Why a send did not happen (ADR 0079): the instance's own words, and the ones only a send has. The saved key is the one in use. */
+export const SEND_FAILURE: Record<SendFailure, MessageKey> = {
+  ...SAVED_INSTANCE_FAILURE,
+  generation: 'reactive.send.fail.generation',
+  stale: 'reactive.send.fail.stale',
+  notFound: 'reactive.send.fail.notFound',
+  nothingApplied: 'reactive.send.fail.nothingApplied',
+};
+
+/** Why one edit was not written into the copy on the instance. */
+export const EDIT_REASON = {
+  noField: 'reactive.send.reason.noField',
+  assembled: 'reactive.send.reason.assembled',
+  misaligned: 'reactive.send.reason.misaligned',
+  newSection: 'reactive.send.reason.newSection',
+  labelChanged: 'reactive.send.reason.labelChanged',
+} as const satisfies Record<EditReason, MessageKey>;
+
+export const EDIT_KIND = {
+  changed: 'reactive.send.kind.changed',
+  added: 'reactive.send.kind.added',
+  removed: 'reactive.send.kind.removed',
+} as const satisfies Record<EditReport['kind'], MessageKey>;

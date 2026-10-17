@@ -46,6 +46,7 @@ import type { ProfileDraft } from '../../resume/profile-draft';
 import type { Coverage, CoverageKind } from '../../resume/coverage';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
+import { ReactiveSendButton } from './reactive-send';
 import { tRich } from '../rich';
 import { ReactiveSource } from './reactive-card';
 
@@ -148,6 +149,12 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
             {resume.sourceFilename}
           </span>
           <Badge tone="info">v{resume.version}</Badge>
+          {/* Where its text was imported from (ADR 0079); only a v6 resume can be sent back. */}
+          {resume.remoteId !== null && resume.remoteGeneration !== null && (
+            <Badge tone="neutral">
+              {t(resume.remoteGeneration === 'v6' ? 'resume.reactive.origin' : 'resume.reactive.originReadOnly', { generation: resume.remoteGeneration })}
+            </Badge>
+          )}
           {resume.isDefault && <Badge tone="ok">{t('resume.default')}</Badge>}
           {/* The scan's own word for the level. */}
           {resume.seniority && (
@@ -347,7 +354,14 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
         )}
       </Card>
 
-      {tailored.length > 0 && <TailoredCard resumeName={resume.name} tailored={tailored} />}
+      {tailored.length > 0 && (
+        <TailoredCard
+          resumeName={resume.name}
+          tailored={tailored}
+          sendable={resume.remoteGeneration === 'v6' && reactiveConnected}
+          needsConnection={resume.remoteGeneration === 'v6' && !reactiveConnected}
+        />
+      )}
 
       {coverage && <CoverageCard coverage={coverage} />}
 
@@ -649,11 +663,17 @@ const CoverageMove: FC<{ kind: CoverageKind }> = ({ kind }) =>
  * The copies written for single postings (ADR 0077). They are listed, never
  * read: the scan, the hints and the coverage below this card do not see them.
  */
-const TailoredCard: FC<{ resumeName: string; tailored: TailoredListed[] }> = ({ resumeName, tailored }) => (
+const TailoredCard: FC<{ resumeName: string; tailored: TailoredListed[]; sendable: boolean; needsConnection: boolean }> = ({
+  resumeName,
+  tailored,
+  sendable,
+  needsConnection,
+}) => (
   <Card class="mt-4" flush id="tailored">
     <div class="border-b border-line px-5 py-3">
       <div class="text-entity text-ink">{t('resume.tailored.heading')}</div>
       <Hint class="mt-0.5">{t('resume.tailored.hint')}</Hint>
+      {needsConnection && <Hint class="mt-0.5">{t('resume.tailored.reactiveNeedsConnection')}</Hint>}
     </div>
     <Table
       columns={[
@@ -686,6 +706,7 @@ const TailoredCard: FC<{ resumeName: string; tailored: TailoredListed[] }> = ({ 
               <Button variant="secondary" size="sm" href={`/tailored/${copy.id}/download`}>
                 {t('resume.tailored.download')}
               </Button>
+              {sendable && <ReactiveSendButton copyId={copy.id} jobTitle={copy.job.title} back="resume" />}
               <ConfirmAction
                 action={`/tailored/${copy.id}/promote`}
                 label={t('resume.tailored.promote')}

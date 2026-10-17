@@ -409,6 +409,10 @@ src/
       knobs.ts                 ← pure: RenderKnobs, prefilled from the file and read from the form
       drawable.ts              ← pure: folds what the bundled face cannot draw
     store.ts                   ← Resume / ResumeMatch / ResumeReview / CandidateFact / CoverLetter / PostingBrief (Prisma)
+    reactive-resume.ts         ← pure: a Reactive Resume export → Markdown (ADR 0073); readReactiveResumeMapped also says which field each line came from (ADR 0079)
+    reactive-resume-apply.ts   ← pure: a copy's edits → JSON Patch replace operations on the instance's data, every edit reported applied or not (ADR 0079)
+    reactive-resume-writeback.ts ← read → refuse if stale → duplicate → read the copy → patch; I/O injected, one request each (ADR 0079)
+    reactive-resume-api.ts     ← the ONLY file that calls the instance: list, get, duplicate, patch (x-api-key, no redirect, no retry)
     zip-write.ts               ← minimal STORED zip writer (docx container), pure
     docx-write.ts              ← letter → .docx, round-trip-tested against zip.ts + docx-text.ts, pure
     pdf-write.ts               ← letter → minimal Helvetica PDF, pure
@@ -801,6 +805,7 @@ user's schedule, read in the schedule's own time zone.
 | `POST /letter`                   | web     | stored job + saved resume → async run [match? → verify?] → gated letter. Everything slow is a run step; the POST only shape-checks (§6.2) |
 | `POST /resumes/:id/draft`        | web     | async run (requires a `jobId`): `saveTailored` writes the edits into the user's .docx — or into the posting's own copy when the editor started from it (`src/resume/tailored.ts:patchSource`) — when the template check allows it (else the clean .docx, else a `.md`), as the `TailoredResume` for (resume, posting); then `matchResumeToJob` judges the copy with `tailoredId` set. The resume is never written and not scanned (ADR 0077). It passes no `mode`, so the saved text is re-scored as a quick check (`fast`) |
 | `GET /tailored/:id/download`, `POST /tailored/:id/delete`, `POST /tailored/:id/promote` | web | a copy's file; remove it (its comparisons go with it); make it the resume's next version (`replaceResumeFile`, then a scan) |
+| `POST /tailored/:id/reactive-send` | web | a tailored copy of a resume pulled from a format-6 Reactive Resume becomes a NEW resume there: `reactiveWriteBack` (read the source, refuse if its text is not the stored one, duplicate, patch the copy); the response is the result page, listing each edit that could not be placed (ADR 0079) |
 | a request under `/static/`       | web     | `src/web/public`, served as-is (`serveStatic` in `src/web/app.ts`) |
 | `POST /discovery/:id/promote`    | web     | transactional Company upsert             |
 | `POST /discovery/probe-now`      | web     | spawns `runDiscoveryJob` async (lock)    |

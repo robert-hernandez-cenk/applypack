@@ -11,6 +11,7 @@ import { loadKeywordMatcher } from './keyword-matcher';
 import { withEvidence } from './evidence';
 import { effectiveKeywords } from './keyword-overrides';
 import type { JsonResume } from './json-resume';
+import type { Generation } from './reactive-resume';
 import { readCondense, withCondenseStage } from './condense';
 import { readPageTarget, type PageTarget } from './length';
 import { readMatchEvidence, readMatchMode, storedBreakdown, type MatchEvidence, withSuggestionsMode, type MatchMode } from './match-mode';
@@ -64,13 +65,33 @@ export async function findResumeWithText(userId: number, text: string): Promise<
   return hit ? { id: hit.id, name: hit.name, version: hit.version } : null;
 }
 
+/**
+ * The Reactive Resume resume a text was imported from (ADR 0079). Written with
+ * the text and never apart from it: any new text without an origin of its own
+ * clears it, because the instance's resume no longer reads like the stored one.
+ */
+export interface ResumeOrigin {
+  remoteId: string;
+  generation: Generation;
+  /** The instance's host (with its port): the id means nothing on another one. */
+  host: string;
+}
+
+const originColumns = (origin: ResumeOrigin | null | undefined) => ({
+  remoteId: origin?.remoteId ?? null,
+  remoteGeneration: origin?.generation ?? null,
+  remoteHost: origin?.host ?? null,
+});
+
 export async function createResume(userId: number, input: {
   name: string;
   sourceFilename: string;
   mimeType: string;
   original: Buffer;
   text: string;
+  origin?: ResumeOrigin | null;
 }): Promise<ResumeSummary> {
+  const { origin, ...file } = input;
   // The first upload becomes the default so the job page has a preselection.
   // Counting and then creating is check-then-act — two first uploads at once
   // both counted 0 and both became the default, so the count and the
@@ -79,7 +100,7 @@ export async function createResume(userId: number, input: {
     const isDefault = (await tx.resume.count({ where: { userId } })) === 0;
     return tx.resume.create({
       // Prisma 6 types Bytes as Uint8Array<ArrayBuffer>; a Buffer's backing store may be shared.
-      data: { ...input, userId, original: new Uint8Array(input.original), isDefault },
+      data: { ...file, ...originColumns(origin), userId, original: new Uint8Array(input.original), isDefault },
       omit: WITHOUT_ORIGINAL,
     });
   });
@@ -87,16 +108,18 @@ export async function createResume(userId: number, input: {
   return row;
 }
 
-/** "Upload new version": swap the file + text, bump version, clear the scan. */
+/** "Upload new version": swap the file + text, bump version, clear the scan — and the origin unless this text has one. */
 export async function replaceResumeFile(
   userId: number,
   id: number,
-  input: { sourceFilename: string; mimeType: string; original: Buffer; text: string },
+  input: { sourceFilename: string; mimeType: string; original: Buffer; text: string; origin?: ResumeOrigin | null },
 ): Promise<ResumeSummary> {
+  const { origin, ...file } = input;
   const row = await prisma.resume.update({
     where: { id, userId },
     data: {
-      ...input,
+      ...file,
+      ...originColumns(origin),
       original: new Uint8Array(input.original),
       version: { increment: 1 },
       scannedAt: null,
@@ -109,6 +132,19 @@ export async function replaceResumeFile(
   });
   logger.info({ id, version: row.version, chars: input.text.length }, 'resume: new version');
   return row;
+}
+
+/**
+ * A pull whose text is the stored text, byte for byte, changes nothing but
+ * where it came from: record that, so a resume imported before the origin
+ * existed can be sent back after one more pull. The match is made by the
+ * database on the text itself — "reads like" (the duplicate check's
+ * normalised key) is not enough, because a send compares exactly.
+ */
+export async function attachResumeOrigin(userId: number, id: number, text: string, origin: ResumeOrigin): Promise<boolean> {
+  const { count } = await prisma.resume.updateMany({ where: { id, userId, text }, data: originColumns(origin) });
+  if (count > 0) logger.info({ id, generation: origin.generation }, 'resume: origin recorded');
+  return count > 0;
 }
 
 /** Renames a resume; null when the row is gone (deleted in another tab). */
@@ -183,6 +219,31 @@ export async function listTailoredForResume(userId: number, resumeId: number): P
     omit: { original: true, text: true },
     include: { job: { select: { id: true, title: true, employer: true, company: { select: { name: true, atsType: true } } } } },
     orderBy: { updatedAt: 'desc' },
+  });
+}
+
+/** A copy with what sending it to Reactive Resume needs (ADR 0079): its text, where its resume came from, and the posting it is for. */
+export interface TailoredToSend {
+  id: number;
+  text: string;
+  resumeId: number;
+  jobId: number;
+  resume: { name: string; text: string; remoteId: string | null; remoteGeneration: string | null; remoteHost: string | null };
+  job: { title: string; employer: string | null; company: { name: string; atsType: string } };
+}
+
+/** Null when the copy is not this person's (a foreign id reads as gone). */
+export async function getTailoredToSend(userId: number, id: number): Promise<TailoredToSend | null> {
+  return prisma.tailoredResume.findFirst({
+    where: { id, resume: { userId } },
+    select: {
+      id: true,
+      text: true,
+      resumeId: true,
+      jobId: true,
+      resume: { select: { name: true, text: true, remoteId: true, remoteGeneration: true, remoteHost: true } },
+      job: { select: { title: true, employer: true, company: { select: { name: true, atsType: true } } } },
+    },
   });
 }
 

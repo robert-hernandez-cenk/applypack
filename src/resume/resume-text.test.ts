@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { extractResumeText, ACCEPTED_EXTENSIONS, markdownResume, reactiveResumeFromBytes } from './resume-text';
+import { extractResumeText, ACCEPTED_EXTENSIONS, markdownResume, reactiveResumeFromBytes, reactiveResumeText } from './resume-text';
 import { ResumeTextError } from './docx-text';
 import { buildZip } from './zip-write';
 
@@ -121,5 +121,15 @@ describe('markdownResume', () => {
 
   it('falls back to a default name', () => {
     assert.equal(markdownResume('  ', 'x').sourceFilename, 'Resume.md');
+  });
+});
+
+describe('reactiveResumeText — a pull remembers the format it read (ADR 0079)', () => {
+  const data = (name: string): unknown => JSON.parse(readFileSync(join(__dirname, 'fixtures', 'reactive-resume', `${name}.json`), 'utf8'));
+
+  it('says which generation the text came from', () => {
+    assert.equal(reactiveResumeText(data('v6')).generation, 'v6');
+    assert.equal(reactiveResumeText(data('v5')).generation, 'v5');
+    assert.equal(reactiveResumeText(data('v4')).generation, 'v4');
   });
 });
