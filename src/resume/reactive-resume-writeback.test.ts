@@ -146,10 +146,10 @@ describe('reactiveWriteBack', () => {
     assert.equal(f.patched.length, 0);
   });
 
-  it('a failed copy creates nothing to name', async () => {
+  it('a copy request that timed out is flagged as possibly made', async () => {
     const s = setup();
     const f = fake({ duplicate: fails('timeout') });
-    assert.deepEqual(await reactiveWriteBack(f.io, input(s)), { ok: false, code: 'timeout' });
+    assert.deepEqual(await reactiveWriteBack(f.io, input(s)), { ok: false, code: 'timeout', maybeCreated: true });
   });
 
   it('nothing is called twice, however a call ends', async () => {
@@ -191,5 +191,36 @@ describe('writeBackName', () => {
   });
   it('stays under the length limit', () => {
     assert.ok(writeBackName('M'.repeat(150), 'C'.repeat(150), 'R'.repeat(150)).length <= 200);
+  });
+});
+
+describe('reactiveWriteBack — outcomes the first pass got wrong', () => {
+  it('a copy request that ended without an answer may have made a copy: the result says so', async () => {
+    const s = setup();
+    for (const code of ['timeout', 'unreachable'] as const) {
+      const f = fake({ duplicate: fails(code) });
+      assert.deepEqual(await reactiveWriteBack(f.io, input(s)), { ok: false, code, maybeCreated: true });
+    }
+    const f = fake({ duplicate: fails('unauthorized') });
+    assert.deepEqual(await reactiveWriteBack(f.io, input(s)), { ok: false, code: 'unauthorized' });
+  });
+
+  it('a copy on which no edit can be placed is named, not reported as sent', async () => {
+    const s = setup();
+    let reads = 0;
+    const f = fake({
+      getResume: async () => {
+        reads += 1;
+        const d = structuredClone(s.data) as { sections: { experience: { items: Array<{ description: string }> } } };
+        // The copy has the first job's text in a shape the planner will not edit.
+        if (reads === 2) d.sections.experience.items[0]!.description = '<table><tr><td>x</td></tr></table>';
+        return { name: 'Main', data: d, updatedAt: 'x', locked: false };
+      },
+    });
+    const got = await reactiveWriteBack(f.io, input(s));
+    assert.equal(got.ok, false);
+    if (got.ok) return;
+    assert.ok(got.code === 'stale' || got.code === 'nothingApplied');
+    assert.equal(got.createdRemoteId, 'clone-1');
   });
 });

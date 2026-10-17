@@ -149,7 +149,8 @@ function withLinkTargets(html: string): string {
  */
 function plain(html: unknown): string {
   const s = text(html);
-  return s ? stripHtml(withLinkTargets(s)).replace(/^•\s*/gm, '- ').replace(/^(- .*)\n\n(?=- )/gm, '$1\n') : '';
+  // The marker characters come out again after the entities are decoded: `&#1;` is one.
+  return s ? stripHtml(withLinkTargets(s)).replace(MARK_CHARS, '').replace(/^•\s*/gm, '- ').replace(/^(- .*)\n\n(?=- )/gm, '$1\n') : '';
 }
 
 /** `plain`, for the write-back (ADR 0079): what a piece of a field reads as, in the reader's own words. */

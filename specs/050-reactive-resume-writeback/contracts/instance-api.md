@@ -12,7 +12,7 @@ Reachability (`reachable`) is checked by the caller first.
 | 3 | `PATCH /resumes/{id}` | `{ "expectedUpdatedAt": "<clone.updatedAt>", "operations": [ {op,path,value}… ] }` | `200` resume | the edits |
 
 Status mapping (extends `refusalOf`): 401/403 without a `RESUME_LOCKED` code → `unauthorized`; 403 + code
-`RESUME_LOCKED` → `locked`; 409 → `conflict`; 400 + `INVALID_PATCH_OPERATIONS` → `badPatch`; 404/405/410 →
+`RESUME_LOCKED` → `locked`; 409 → `conflict`; 400 + `INVALID_PATCH_OPERATIONS` → `badPatch`; any other 400 on a write is `badPatch` too (the words say "the request", not "the edits"); 404/405/410 →
 `notApi` (a missing id is `notFound` for call 1 on a known-good instance: the client returns `notApi`; the route
 words it "not found there"); other non-2xx → `unreachable`; abort → `timeout`; body past the cap → `tooLarge`.
 

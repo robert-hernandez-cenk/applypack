@@ -19,12 +19,15 @@ timeout.
 
 ## Decision
 
-- **The resume remembers its source.** `Resume.remoteId` and `Resume.remoteGeneration` (`v4`/`v5`/`v6`),
-  both set or both `NULL`, written with the text and never apart from it: `createResume` and
+- **The resume remembers its source.** `Resume.remoteId`, `Resume.remoteGeneration` (`v4`/`v5`/`v6`) and
+  `Resume.remoteHost` (the instance's host and port), all set or all `NULL`, written with the text and never apart from it: `createResume` and
   `replaceResumeFile` take an `origin` and **clear it when the new text has none**, so a file upload, a promoted
   copy or a saved text version cannot keep an origin its text no longer matches. A pull whose text equals the
-  stored one records the origin without a new version (`attachResumeOrigin`), which is how a resume imported
-  before this change gets one. No backfill.
+  stored one **byte for byte** (the database matches on the text itself; the duplicate check's looser "reads like"
+  is not enough, because a send compares exactly) records the origin without a new version (`attachResumeOrigin`),
+  which is how a resume imported before this change gets one. No backfill. A send is refused before any request when
+  the saved connection's host is not the one the resume came from: an id means nothing on another instance, and the
+  only thing left to stop a write against the wrong account would be the text comparison.
 - **The JSON is not stored.** At send time the source is read again and read with `readReactiveResumeMapped`,
   which gives the same Markdown as `readReactiveResume` plus, per line, the field it came from (a JSON Pointer, the
   item's id, a kind: rich text, plain, keyword list). The send is refused as *stale* when that Markdown differs from
@@ -45,11 +48,13 @@ timeout.
   edit. When edits exist and none can be placed nothing is created (*nothingApplied*).
 - **One request each, never repeated.** The client is the only file that calls the instance; a mutation that
   times out may have happened, so nothing is retried. A failure after the copy exists names the copy on the result
-  page, because it is still on the instance; ApplyPack does not delete it.
+  page, because it is still on the instance; ApplyPack does not delete it. A request for the copy that ended without
+  an answer (a timeout) may have made one that cannot be named: the page says so and asks the person to look first.
 - **Only v6 is written** (the only generation whose write path was checked). Older generations still import and
   read; a send is declined with the reason.
-- **The result is a page, not a flash.** The POST renders the outcome itself: the cookie cannot carry a per-edit
-  report or a link.
+- **The result is a page, not a flash — reached by a redirect.** The cookie cannot carry a per-edit report or a
+  link, so the outcome is kept in memory for ten minutes (`src/web/send-stash.ts`, its owner's alone) and the POST
+  answers 303 to a GET that shows it: a reload or a back button repeats a read, never the write.
 
 ## Alternatives considered
 

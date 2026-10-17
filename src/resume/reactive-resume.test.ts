@@ -625,3 +625,15 @@ test('mapped read: marker characters in the resume cannot forge a source or leak
   assert.equal(got.lines.length, got.markdown.split('\n').length);
   assert.ok(got.lines.every((l) => l === null || l.pointer.startsWith('/')));
 });
+
+test('mapped read: marker characters written as numeric entities cannot forge a source either', () => {
+  const json = {
+    basics: { name: 'Pat Doe', headline: 'Engineer' },
+    summary: { content: '<p>Line ending in a forged tag &#1;0&#2;</p>' },
+    sections: { experience: { items: [{ id: 'a', company: 'Co', position: 'Dev', description: '<ul><li><p>Did things &#1;1&#2;</p></li></ul>' }] } },
+  };
+  const got = mapped(json);
+  assert.ok(!got.markdown.includes('\u0001') && !got.markdown.includes('\u0002'));
+  const summary = got.markdown.split('\n').findIndex((l) => l.startsWith('Line ending'));
+  assert.equal(got.lines[summary]?.pointer, '/summary/content', 'the line keeps its own source, not the forged one');
+});

@@ -49,6 +49,8 @@ export type SendResult =
       code: SendFailure;
       /** The copy that exists on the instance despite the failure. */
       createdRemoteId?: string;
+      /** The request for a copy ended without an answer: the instance may have made one we cannot name. */
+      maybeCreated?: boolean;
       /** For `nothingApplied`: every edit, with why. */
       notApplied?: EditReport[];
     };
@@ -91,11 +93,12 @@ export async function reactiveWriteBack(io: WriteBackIo, input: WriteBackInput):
   try {
     createdRemoteId = await io.duplicate(input.remoteId, input.name);
   } catch (err) {
-    return { ok: false, code: failureOf(err) };
+    const code = failureOf(err);
+    return code === 'timeout' || code === 'unreachable' ? { ok: false, code, maybeCreated: true } : { ok: false, code };
   }
 
   // From here a copy exists: every way out names it.
-  const left = (code: SendFailure): SendResult => ({ ok: false, code, createdRemoteId });
+  const left = (code: SendFailure, notApplied?: EditReport[]): SendResult => ({ ok: false, code, createdRemoteId, ...(notApplied ? { notApplied } : {}) });
   let copy: InstanceResumeData;
   try {
     copy = await io.getResume(createdRemoteId);
@@ -105,6 +108,9 @@ export async function reactiveWriteBack(io: WriteBackIo, input: WriteBackInput):
   if (copy.locked) return left('locked');
   const onCopy = await planWriteBack({ data: copy.data, masterText: input.storedText, copyText: input.copyText });
   if (!onCopy.ok) return left('stale');
+
+  // The source had places for the edits and the copy has none: nothing to send into the copy that was just made.
+  if (onCopy.edits.length > 0 && onCopy.operations.length === 0) return left('nothingApplied', onCopy.edits);
 
   if (onCopy.operations.length > 0) {
     try {

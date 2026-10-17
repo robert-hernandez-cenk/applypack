@@ -18,6 +18,8 @@ import { EDIT_KIND, EDIT_REASON, SEND_FAILURE } from '../reactive-failures';
 export interface SendBack {
   href: string;
   label: string;
+  /** The label is a name of the person's own (a resume's), not words to translate. */
+  labelIsData?: boolean;
 }
 
 /** A resume that exists on the instance, by the name it was given and the address that opens it. */
@@ -28,12 +30,18 @@ export interface SentResume {
 
 export type SendOutcome =
   | { ok: true; sent: SentResume; applied: number; notApplied: EditReport[] }
-  | { ok: false; code: SendFailure; created?: SentResume; notApplied?: EditReport[] };
+  | { ok: false; code: SendFailure; created?: SentResume; maybeCreated?: boolean; notApplied?: EditReport[] };
 
-/** Press to send a tailored copy as a new resume; `back` says which page it was pressed on. */
-export const ReactiveSendButton: FC<{ copyId: number; jobTitle: string; back: 'resume' | 'target' }> = ({ copyId, jobTitle, back }) => (
+/** Press to send a tailored copy as a new resume; `back` says which page it was pressed on, and `matchId` which comparison to come back to. */
+export const ReactiveSendButton: FC<{ copyId: number; jobTitle: string; back: 'resume' | 'target'; matchId?: number }> = ({
+  copyId,
+  jobTitle,
+  back,
+  matchId,
+}) => (
   <form method="post" action={`/tailored/${copyId}/reactive-send`} onsubmit={SUBMIT_ONCE} class="inline">
     <input type="hidden" name="back" value={back} />
+    {matchId !== undefined && <input type="hidden" name="match" value={String(matchId)} />}
     <Button variant="secondary" size="sm" aria-label={t('reactive.send.aria', { job: jobTitle })}>
       {t('reactive.send.button')}
     </Button>
@@ -97,6 +105,7 @@ export const ReactiveSendPage: FC<{ outcome: SendOutcome; jobTitle: string; back
       <>
         <Card>
           <p class="text-sm text-ink">{t(SEND_FAILURE[outcome.code])}</p>
+          {outcome.maybeCreated && <Hint class="mt-3">{t('reactive.send.mayHaveCreated')}</Hint>}
           {outcome.created && (
             <div class="mt-3">
               <Hint>{t('reactive.send.createdLeft')}</Hint>
@@ -107,5 +116,15 @@ export const ReactiveSendPage: FC<{ outcome: SendOutcome; jobTitle: string; back
         {outcome.notApplied && outcome.notApplied.length > 0 && <NotAppliedTable edits={outcome.notApplied} />}
       </>
     )}
+  </Layout>
+);
+
+/** A result asked for after it was forgotten (a day-old link, another person's): said so, with the way on. */
+export const ReactiveSentGonePage: FC = () => (
+  <Layout title={t('reactive.send.titleFail')} active="resumes">
+    <PageHeader title={t('reactive.send.titleFail')} back={{ href: '/resumes', label: t('nav.resumes') }} />
+    <Card>
+      <p class="text-sm text-ink">{t('reactive.send.expired')}</p>
+    </Card>
   </Layout>
 );

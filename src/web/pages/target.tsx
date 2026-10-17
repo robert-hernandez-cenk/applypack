@@ -516,7 +516,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                 )}
                 {copy && reactiveSend && (
                   <div class="mt-2">
-                    <ReactiveSendButton copyId={copy.id} jobTitle={job.title} back="target" />
+                    <ReactiveSendButton copyId={copy.id} jobTitle={job.title} back="target" matchId={match.id} />
                   </div>
                 )}
               </div>

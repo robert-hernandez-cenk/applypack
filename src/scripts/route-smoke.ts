@@ -1123,17 +1123,22 @@ async function main(): Promise<void> {
         ok: source.remoteGeneration === 'v6' && detail.includes(`/tailored/${sendCopy.id}/reactive-send`),
       });
       const before = writable.requests.length;
+      // The POST only writes and redirects; the result is a GET, which a reload may repeat (ADR 0079).
       const sent = await app.request(`/tailored/${sendCopy.id}/reactive-send`, form({ back: 'resume' }));
-      const sentHtml = await sent.text();
+      const resultAt = sent.headers.get('location') ?? '';
+      const landed = await app.request(resultAt || '/', { headers: ORIGIN });
+      const sentHtml = await landed.text();
       const mine = writable.requests.slice(before);
       const patch = mine.find((r) => r.method === 'PATCH');
       const operations = patch ? (JSON.parse(patch.body) as { operations: Array<{ path: string; value: string }> }).operations : [];
       rows.push({
         route: 'POST /tailored/:id/reactive-send (a copy, edited, becomes a new resume; the original is only read)',
         url: `/tailored/${sendCopy.id}/reactive-send`,
-        status: sent.status,
+        status: landed.status,
         ok:
-          sent.status === 200 &&
+          sent.status === 303 &&
+          resultAt.startsWith(`/tailored/${sendCopy.id}/reactive-sent?r=`) &&
+          landed.status === 200 &&
           sentHtml.includes(`${writable.url}/builder/copy-1`) &&
           !sentHtml.includes(KEY) &&
           mine.some((r) => r.method === 'POST' && r.url === '/api/openapi/resumes/w1/duplicate') &&
@@ -1142,14 +1147,33 @@ async function main(): Promise<void> {
           operations[0]!.value.includes('cut p95 latency by 40%') &&
           mine.filter((r) => r.method !== 'GET').every((r) => !/\/resumes\/w1$/.test(r.url)),
       });
-      // A copy of the other resume, read as an older format, is declined before the instance hears of it.
+      // Reloading the result is a GET: no second copy is asked for.
+      const afterSend = writable.requests.length;
+      const reloaded = await app.request(resultAt || '/', { headers: ORIGIN });
+      rows.push({
+        route: 'GET /tailored/:id/reactive-sent reloaded (the same result, no second copy)',
+        url: resultAt,
+        status: reloaded.status,
+        ok: reloaded.status === 200 && (await reloaded.text()).includes(`${writable.url}/builder/copy-1`) && writable.requests.length === afterSend,
+      });
+      // The other resume came from the first stand-in: the connection now saved is another instance, so nothing is asked of it.
       const declinedBefore = writable.requests.length;
+      const elsewhere = await app.request(`/tailored/${f.tailoredId}/reactive-send`, form({ back: 'resume' }));
+      rows.push({
+        route: 'POST /tailored/:id/reactive-send for a resume from a different instance (refused, nothing sent)',
+        url: `/tailored/${f.tailoredId}/reactive-send`,
+        status: elsewhere.status,
+        ok: elsewhere.status === 303 && flashOf(elsewhere).includes('different Reactive Resume') && writable.requests.length === declinedBefore,
+      });
+      // Pointed at this instance, the same resume read as an older format is declined before the instance hears of it.
+      await prisma.resume.update({ where: { id: f.resumeId }, data: { remoteHost: new URL(writable.url).host } });
       const declined = await app.request(`/tailored/${f.tailoredId}/reactive-send`, form({ back: 'resume' }));
+      const declinedPage = await app.request(declined.headers.get('location') ?? '/', { headers: ORIGIN });
       rows.push({
         route: 'POST /tailored/:id/reactive-send for a resume read as an older format (declined, nothing sent)',
         url: `/tailored/${f.tailoredId}/reactive-send`,
-        status: declined.status,
-        ok: declined.status === 200 && (await declined.text()).includes('Only resumes from Reactive Resume 6') && writable.requests.length === declinedBefore,
+        status: declinedPage.status,
+        ok: declined.status === 303 && declinedPage.status === 200 && (await declinedPage.text()).includes('Only resumes from Reactive Resume 6') && writable.requests.length === declinedBefore,
       });
       const crossOrigin = await app.request(`/tailored/${sendCopy.id}/reactive-send`, {
         ...form({ back: 'resume' }),

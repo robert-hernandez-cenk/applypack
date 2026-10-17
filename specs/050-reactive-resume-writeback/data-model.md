@@ -2,18 +2,19 @@
 
 ## Stored
 
-### Resume (existing table `resume`) — two columns added
+### Resume (existing table `resume`) — three columns added
 
 | Column | Type | Rule |
 | --- | --- | --- |
 | `remoteId` | `String?` | The resume's id on the person's Reactive Resume instance. Set when a resume is created from, or given a new version from, a Reactive Resume import; `NULL` for every other source. Not backfilled. |
 | `remoteGeneration` | `String?` | `v4`, `v5` or `v6` as read at import. `NULL` with `remoteId`. |
+| `remoteHost` | `String?` | The instance's host with its port (`new URL(base).host`) at import. A send is refused when the saved connection's host differs. `NULL` with `remoteId`. |
 
-Both are set or cleared together. A new version uploaded from a **file** clears them (the text no longer comes from
+All three are set or cleared together. A new version uploaded from a **file** clears them (the text no longer comes from
 the source); a new version pulled from RR sets them to the pulled resume. No index (never queried by them).
 
 Migration `20261017000000_resume_remote_origin`: `ALTER TABLE "resume" ADD COLUMN "remoteId" TEXT, ADD COLUMN
-"remoteGeneration" TEXT;`. `prisma migrate diff` must be empty against the schema.
+"remoteGeneration" TEXT, ADD COLUMN "remoteHost" TEXT;`. `prisma migrate diff` must be empty against the schema.
 
 `TailoredResume` is unchanged.
 

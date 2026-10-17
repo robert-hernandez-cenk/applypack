@@ -67,7 +67,8 @@ import { FormatComparePage } from '../pages/format-compare';
 import { compareFormats, formatSides } from '../format-compare';
 import { loadLineDiff } from '../../resume/line-diff';
 import { ReactivePickPage, ResumesPage } from '../pages/resumes';
-import { ReactiveSendPage, type SendOutcome } from '../pages/reactive-send';
+import { ReactiveSendPage, ReactiveSentGonePage, type SendOutcome } from '../pages/reactive-send';
+import { readSend, stashSend } from '../send-stash';
 import { ResumeTextError } from '../../resume/docx-text';
 import { markdownResume, reactiveResumeText } from '../../resume/resume-text';
 import {
@@ -143,7 +144,7 @@ async function saveUploaded(c: Context, upload: UploadedResumeFile, name: string
   const same = await findResumeWithText(currentUser().id, upload.text);
   if (same) {
     // A pull of the text already held still tells where it came from (ADR 0079).
-    if (origin) await attachResumeOrigin(currentUser().id, same.id, origin);
+    if (origin) await attachResumeOrigin(currentUser().id, same.id, upload.text, origin);
     return flashRedirect(`/resumes/${same.id}`, 'warn', t('resume.flash.sameAsExisting', { name: same.name, version: same.version }));
   }
   const resume = await createResume(currentUser().id, { name, ...upload, origin });
@@ -230,7 +231,7 @@ resumesRoute.post('/resumes/reactive/import', pullGuard, async (c) => {
     const read = reactiveResumeText(got.data);
     const name = (got.name || read.name || t('upload.defaultName')).slice(0, MAX_RESUME_NAME_CHARS);
     const upload = markdownResume(name, read.text);
-    const origin: ResumeOrigin = { remoteId: id, generation: read.generation };
+    const origin: ResumeOrigin = { remoteId: id, generation: read.generation, host: base.host };
     return current ? await saveNewVersion(c, current, upload, origin) : await saveUploaded(c, upload, name, origin);
   } catch (err) {
     if (err instanceof InstanceError) return flashRedirect(back, 'err', t(SAVED_INSTANCE_FAILURE[err.code]));
@@ -243,7 +244,7 @@ resumesRoute.post('/resumes/reactive/import', pullGuard, async (c) => {
 async function saveNewVersion(c: Context, current: ResumeSummary, upload: UploadedResumeFile, origin: ResumeOrigin | null = null): Promise<Response> {
   // R16: a new version that reads like the one in place changes nothing, and would pay for a scan of it.
   if (sameTextAs(upload.text, [current])) {
-    if (origin) await attachResumeOrigin(currentUser().id, current.id, origin);
+    if (origin) await attachResumeOrigin(currentUser().id, current.id, upload.text, origin);
     return flashRedirect(`/resumes/${current.id}`, 'warn', t('resume.flash.sameAsCurrent', { version: current.version }));
   }
   const resume = await replaceResumeFile(currentUser().id, current.id, { ...upload, origin });
@@ -400,16 +401,20 @@ resumesRoute.post(
     const copy = await getTailoredToSend(user.id, id);
     if (!copy) return flashRedirect('/resumes', 'err', t('resume.tailored.gone'));
     const form = await c.req.parseBody();
-    // Only the two pages that carry the button; anything else goes to the resume.
+    // Only the two pages that carry the button; anything else goes to the resume. The target page
+    // names the comparison it showed, so the way back is to the same resume's page, not the posting's first.
     const fromTarget = formText(form.back) === 'target';
+    const matchId = idParam(form.match);
     const back = fromTarget
-      ? { href: `/jobs/${copy.jobId}/target`, label: t('reactive.send.backToTailoring') }
+      ? { href: `/jobs/${copy.jobId}/target${Number.isFinite(matchId) ? `?match=${matchId}` : ''}`, label: t('reactive.send.backToTailoring') }
       : { href: `/resumes/${copy.resumeId}#tailored`, label: copy.resume.name, labelIsData: true };
     const { resume, job } = copy;
     if (!resume.remoteId || !resume.remoteGeneration) return flashRedirect(back.href, 'err', t('reactive.send.fail.noOrigin'));
     const saved = await readInstanceKey(user.id);
     if (!saved) return flashRedirect(back.href, 'err', t('reactive.fail.noConnection'));
     const base = new URL(saved.base);
+    // The resume's id means something on the instance it came from only.
+    if (resume.remoteHost !== base.host) return flashRedirect(back.href, 'err', t('reactive.send.fail.otherInstance'));
     const reach = await reachable(base, { privileged: mayReachInward() });
     if (!reach.ok) return flashRedirect(back.href, 'err', t(REACH_FAILURE[reach.code]));
 
@@ -443,11 +448,23 @@ resumesRoute.post(
           ok: false,
           code: result.code,
           ...(result.createdRemoteId === undefined ? {} : { created: named(result.createdRemoteId, newName) }),
+          ...(result.maybeCreated ? { maybeCreated: true } : {}),
           ...(result.notApplied ? { notApplied: result.notApplied } : {}),
         };
-    return c.html(<ReactiveSendPage outcome={outcome} jobTitle={job.title} back={back} />);
+    // The POST only writes; the page it shows is a GET, so a reload cannot make a second copy.
+    const token = stashSend({ userId: user.id, jobTitle: job.title, back, outcome });
+    return c.redirect(`/tailored/${id}/reactive-sent?r=${token}`, 303);
   },
 );
+
+resumesRoute.get('/tailored/:id/reactive-sent', async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  // A copy that is not this person's is not found, whatever the token says.
+  if (!(await getTailoredToSend(currentUser().id, id))) return c.text(t('http.notFound'), 404);
+  const found = readSend(c.req.query('r') ?? '', currentUser().id);
+  return found ? c.html(<ReactiveSendPage outcome={found.outcome} jobTitle={found.jobTitle} back={found.back} />) : c.html(<ReactiveSentGonePage />);
+});
 
 resumesRoute.post('/resumes/:id/draft', async (c) => {
   const id = idParam(c.req.param('id'));

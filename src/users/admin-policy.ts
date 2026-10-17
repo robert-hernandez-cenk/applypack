@@ -76,6 +76,7 @@ export const PERSONAL_ROUTES = [
   'POST /tailored/:id/delete',
   'POST /tailored/:id/promote',
   'POST /tailored/:id/reactive-send',
+  'GET /tailored/:id/reactive-sent',
   'POST /resumes/:id/props',
   'POST /resumes/:id/profile',
   'POST /resumes/:id/rescan',

@@ -73,11 +73,14 @@ export async function findResumeWithText(userId: number, text: string): Promise<
 export interface ResumeOrigin {
   remoteId: string;
   generation: Generation;
+  /** The instance's host (with its port): the id means nothing on another one. */
+  host: string;
 }
 
 const originColumns = (origin: ResumeOrigin | null | undefined) => ({
   remoteId: origin?.remoteId ?? null,
   remoteGeneration: origin?.generation ?? null,
+  remoteHost: origin?.host ?? null,
 });
 
 export async function createResume(userId: number, input: {
@@ -132,13 +135,16 @@ export async function replaceResumeFile(
 }
 
 /**
- * A pull whose text equals the stored one changes nothing but where it came
- * from: record that, so a resume imported before the origin existed can be
- * sent back after one more pull. The caller has checked the text is the same.
+ * A pull whose text is the stored text, byte for byte, changes nothing but
+ * where it came from: record that, so a resume imported before the origin
+ * existed can be sent back after one more pull. The match is made by the
+ * database on the text itself — "reads like" (the duplicate check's
+ * normalised key) is not enough, because a send compares exactly.
  */
-export async function attachResumeOrigin(userId: number, id: number, origin: ResumeOrigin): Promise<void> {
-  await prisma.resume.updateMany({ where: { id, userId }, data: originColumns(origin) });
-  logger.info({ id, generation: origin.generation }, 'resume: origin recorded');
+export async function attachResumeOrigin(userId: number, id: number, text: string, origin: ResumeOrigin): Promise<boolean> {
+  const { count } = await prisma.resume.updateMany({ where: { id, userId, text }, data: originColumns(origin) });
+  if (count > 0) logger.info({ id, generation: origin.generation }, 'resume: origin recorded');
+  return count > 0;
 }
 
 /** Renames a resume; null when the row is gone (deleted in another tab). */
@@ -222,7 +228,7 @@ export interface TailoredToSend {
   text: string;
   resumeId: number;
   jobId: number;
-  resume: { name: string; text: string; remoteId: string | null; remoteGeneration: string | null };
+  resume: { name: string; text: string; remoteId: string | null; remoteGeneration: string | null; remoteHost: string | null };
   job: { title: string; employer: string | null; company: { name: string; atsType: string } };
 }
 
@@ -235,7 +241,7 @@ export async function getTailoredToSend(userId: number, id: number): Promise<Tai
       text: true,
       resumeId: true,
       jobId: true,
-      resume: { select: { name: true, text: true, remoteId: true, remoteGeneration: true } },
+      resume: { select: { name: true, text: true, remoteId: true, remoteGeneration: true, remoteHost: true } },
       job: { select: { title: true, employer: true, company: { select: { name: true, atsType: true } } } },
     },
   });
