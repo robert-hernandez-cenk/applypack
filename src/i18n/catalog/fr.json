@@ -3183,6 +3183,7 @@
   "browser.editor.unsaved": "Modifications non enregistrées",
   "browser.editor.shrink": "réduire l'éditeur",
   "browser.editor.expand": "agrandir l'éditeur",
+  "browser.inline.failed": "Votre modification n'a pas été enregistrée. Vérifiez la connexion et réessayez.",
   "browser.card.applied": "Appliquée",
   "browser.card.removed": "Retirée",
   "browser.card.skipped": "Passée",

@@ -145,6 +145,7 @@ export const ENGLISH = {
   "browser.editor.unsaved": "Unsaved changes",
   "browser.editor.shrink": "shrink editor",
   "browser.editor.expand": "expand editor",
+  "browser.inline.failed": "Your change was not saved. Check the connection and try again.",
   "browser.card.applied": "Applied",
   "browser.card.removed": "Removed",
   "browser.card.skipped": "Skipped",
