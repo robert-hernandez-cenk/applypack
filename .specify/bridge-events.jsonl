@@ -252,3 +252,9 @@
 
 {"event":"artifact_drift_detected","timestamp":"2026-10-17T12:02:43.4231750Z","actor":"claude","feature_directory":"specs/053-tailor-edits-no-reload","drifted_artifacts":[{"path":"tasks.md","old_sha256":"83888fc7ec113939ffe3d365e36d2509078a0c113aadc397b916ea2e8779f120","new_sha256":"32790848c8848c846ea69792af9b23455c94449663d2a9b10776fc70786b4d89"}]}
 
+{"timestamp":"2026-10-17T12:21:22Z","action":"guard","status":"allow","feature_directory":"specs/053-tailor-edits-no-reload","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.plan"}
+{"timestamp":"2026-10-17T12:22:50Z","action":"guard","status":"allow","feature_directory":"specs/053-tailor-edits-no-reload","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.tasks"}
+{"timestamp":"2026-10-17T12:23:23.9870703Z","action":"handoff","status":"ready","feature_directory":"specs/053-tailor-edits-no-reload","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261017T1223239565064Z-ready"}
+
+{"timestamp":"2026-10-17T12:23:37.0053165Z","action":"handoff","status":"ready","feature_directory":"specs/054-toast-flash-messages","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261017T1223369845519Z-ready"}
+
