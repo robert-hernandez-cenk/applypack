@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-17T11:21:27.5602545Z",
-  "feature_directory": "specs/052-consider-applying-expired",
+  "updated_at": "2026-10-17T11:33:53.0711319Z",
+  "feature_directory": "specs/053-tailor-edits-no-reload",
   "source_of_truth": {
     "constitution": ".specify/memory/constitution.md",
-    "spec": "specs/052-consider-applying-expired/spec.md",
-    "plan": "specs/052-consider-applying-expired/plan.md",
-    "tasks": "specs/052-consider-applying-expired/tasks.md"
+    "spec": "specs/053-tailor-edits-no-reload/spec.md",
+    "plan": "specs/053-tailor-edits-no-reload/plan.md",
+    "tasks": "specs/053-tailor-edits-no-reload/tasks.md"
   },
   "supersedes": [
     "speckit.implement"
   ],
-  "executor": "superpowers",
+  "executor": "speckit",
   "capabilities": [
     "executing-plans",
     "test-driven-development",
@@ -19,16 +19,11 @@
     "requesting-code-review",
     "finishing-a-development-branch"
   ],
-  "status": "complete",
+  "status": "ready",
   "blocked_reason": null,
   "artifact_owner": "claude",
   "review_only_agents": [],
   "notes": null,
-  "last_snapshot_id": "20261017T1121275482446Z-complete",
-  "instructions": "Use /speckit-superpowers-bridge (Claude Code) or $speckit-superpowers-bridge (Codex). The bridge orchestrates native Superpowers skills against tasks.md; do not run speckit.implement and do not invoke superpowers:writing-plans / :brainstorming for an active Spec Kit feature.",
-  "artifacts_sha256": {
-    "spec.md": "460d1aa43ac6ce72de59cbcfaf065f2b02d9ef87552ae23aff641521cb31f3ad",
-    "plan.md": "317148e59c3d03c6ff1bf7941a02d66b9b84d528862890a47c88d4a5c76a7981",
-    "tasks.md": "70fb13927b1eac309d988e03359f7449a00eafd878d6cf02adac0ebdd4596057"
-  }
+  "last_snapshot_id": "20261017T1133530586322Z-ready",
+  "instructions": "Use /speckit-superpowers-bridge (Claude Code) or $speckit-superpowers-bridge (Codex). The bridge orchestrates native Superpowers skills against tasks.md; do not run speckit.implement and do not invoke superpowers:writing-plans / :brainstorming for an active Spec Kit feature."
 }
