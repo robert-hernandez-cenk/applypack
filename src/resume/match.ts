@@ -31,7 +31,6 @@ import { dropMalformedKeywords } from './keyword-shape';
 import { annotateEvidence } from './evidence';
 import { planKeywordFrame } from './keyword-frame';
 import { loadKeywordMatcher } from './keyword-matcher';
-import { readPageTarget, type PageTarget } from './length';
 import { readMatchEvidence, readMatchMode, type MatchEvidence, type MatchMode } from './match-mode';
 import { pickReusable, readPromptVersion, readVerificationId } from './match-reuse';
 import { scoreMatch } from './score';
@@ -83,14 +82,11 @@ export async function matchResumeToJob(
      * (a one-off file judged alone, before ADR 0076); nothing writes it now.
      */
     evidence?: MatchEvidence;
-    /** ADR 0074: the pages the candidate wants the resume to fit; stored with the row, and Condense aims its cuts at it. */
-    pages?: PageTarget;
     onError?: (reason: string) => void;
   } = {},
 ): Promise<ResumeMatch | null> {
   const mode = opts.mode ?? 'fast';
   const judgedOn = opts.evidence ?? 'own';
-  const pages = opts.pages ?? 'keep';
   // The posting read on its own (ADR 0044): the keyword frame and the
   // requirement groups come from here, and the second comparison of an edited
   // resume reuses the stored reading instead of paying for it again. A failure
@@ -222,8 +218,6 @@ export async function matchResumeToJob(
     frame: frame.reason,
     verificationId: verification?.id ?? null,
     evidence: judgedOn,
-    // A quick check writes no cuts, so it was made for no target.
-    pages: mode === 'full' ? pages : 'keep',
   });
   if (shaped.dropped.length > 0) {
     logger.info({ jobId: job.id, dropped: shaped.dropped }, 'resume: keywords that were not terms');
@@ -302,7 +296,6 @@ export async function findReusableMatch(
   text: string,
   mode: MatchMode,
   evidence: MatchEvidence = 'own',
-  pages: PageTarget = 'keep',
 ): Promise<{ row: ResumeMatch; decision: 'reuse' | 'suggest' } | null> {
   const refreshedAt = await getPostingRefreshedAt(jobId);
   const [rows, verification] = await Promise.all([
@@ -316,8 +309,7 @@ export async function findReusableMatch(
     mode: readMatchMode(match.breakdown),
     verificationId: readVerificationId(match.breakdown),
     evidence: readMatchEvidence(match.breakdown),
-    pages: readPageTarget(match.breakdown),
   }));
-  const best = pickReusable(stored, text, PROMPT_VERSION, mode, verification?.id ?? null, evidence, pages);
+  const best = pickReusable(stored, text, PROMPT_VERSION, mode, verification?.id ?? null, evidence);
   return best ? { row: best.row.match, decision: best.decision } : null;
 }

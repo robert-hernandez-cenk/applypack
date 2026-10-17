@@ -2341,8 +2341,6 @@
   "target.pages.label": "Length",
   "target.pages.keep": "Keep as is",
   "target.pages.n": "{n, plural, one {# page} other {# pages}}",
-  "target.pages.hint": "Pick a page count and the comparison suggests what to cut for this posting. You apply the cuts; nothing changes until you save.",
-  "target.pages.stored": "made for {n, plural, one {# page} other {# pages}}",
   "target.length.title": "An estimate from the number of characters, not an exact page count.",
   "target.step.liveness": "Ask the board and read the posting page",
   "target.step.liveness.detail": "the free checks — seconds, no AI spent",

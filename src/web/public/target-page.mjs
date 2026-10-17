@@ -868,6 +868,12 @@ export function init(data) {
   undoAll?.addEventListener('click', undoEverything);
   removalsBox?.addEventListener('change', paintBatch);
 
+  // The page target is chosen in the Condense panel; the meter follows it before Find cuts saves it.
+  document.getElementById('condense-pages')?.addEventListener('change', (event) => {
+    data.pageTarget = event.target.value === 'keep' ? null : Number(event.target.value);
+    paintLength(editor.value);
+  });
+
   /* ---------- the document view ---------- */
 
   const docView = document.getElementById('doc-view');

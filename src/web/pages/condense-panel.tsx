@@ -1,8 +1,8 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
-import { Button, Hint, SUBMIT_ONCE } from '../ui';
+import { Button, Field, Hint, Select, SUBMIT_ONCE } from '../ui';
 import { condensePanel, type CondenseStage } from '../../resume/condense';
-import type { LengthPlan } from '../../resume/length';
+import { PAGE_TARGETS, type LengthPlan } from '../../resume/length';
 import type { MatchAction, MatchRemoval } from '../../resume/prompts';
 import { ActionsBlock, RemovalsBlock } from './resume-match-card';
 import { t } from '../../i18n/t';
@@ -39,7 +39,20 @@ export const CondensePanel: FC<{
           <div id="condense-cuts-title" class="mb-1 text-note font-medium text-ink-muted">
             {t('condense.cuts.title')}
           </div>
-          <form method="post" action={`${base}/cuts`} onsubmit={SUBMIT_ONCE}>
+          <form method="post" action={`${base}/cuts`} onsubmit={SUBMIT_ONCE} class="space-y-2">
+            {/* The target is set here and kept on the comparison (ADR 0074); the editor's meter follows the choice (target-page.mjs). */}
+            <Field label={t('target.pages.label')} class="min-w-0 max-w-full sm:max-w-xs">
+              <Select name="pages" id="condense-pages" class="!w-auto max-w-full">
+                <option value="keep" selected={plan.target === 'keep'}>
+                  {t('target.pages.keep')}
+                </option>
+                {PAGE_TARGETS.map((n) => (
+                  <option value={String(n)} selected={plan.target === n}>
+                    {t('target.pages.n', { n })}
+                  </option>
+                ))}
+              </Select>
+            </Field>
             <Button variant="secondary" size="sm">
               {stage === 'none' ? t('condense.cuts.button') : t('condense.cuts.again')}
             </Button>

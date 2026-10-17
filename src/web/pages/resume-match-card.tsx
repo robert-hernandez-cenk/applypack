@@ -5,7 +5,6 @@ import {
   Badge,
   Button,
   Card,
-  Field,
   FitBadge,
   Hint,
   HistoryChip,
@@ -35,7 +34,6 @@ import {
 } from '../../resume/prompts';
 import { freshFrame, freshFrameNotice } from '../../resume/keyword-frame';
 import { proposalOf, suggestionKey, suggestionSheet, type Proposal } from '../../resume/change-sheet';
-import { PAGE_TARGETS, readPageTarget } from '../../resume/length';
 import { readMatchEvidence, readMatchMode, type MatchMode } from '../../resume/match-mode';
 import { verificationCautionMessages, verificationHintMessage, type VerificationForHint, type VerificationHint } from '../../resume/verification-hint';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
@@ -133,8 +131,6 @@ export interface KeywordEditTarget {
 export interface RebuildTarget {
   jobId: number;
   resumeId: number;
-  /** The comparison being rebuilt — on the scratch row it names the file whose text is judged again. */
-  matchId?: number;
   mode: MatchMode;
   /** The analysed text when it was an unsaved draft: re-judged as is, so the frame is the only thing that changes. */
   draftText?: string;
@@ -199,17 +195,6 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
               ))}
             </Select>
           </label>
-          {/* ADR 0074: the pages the resume should fit. The default asks for nothing. */}
-          <Field label={t('target.pages.label')} hint={t('target.pages.hint')} class="min-w-0 max-w-full sm:max-w-sm">
-            <Select name="pages" class="!w-auto max-w-full">
-              <option value="keep" selected>
-                {t('target.pages.keep')}
-              </option>
-              {PAGE_TARGETS.map((n) => (
-                <option value={String(n)}>{t('target.pages.n', { n })}</option>
-              ))}
-            </Select>
-          </Field>
           <Button variant="violet" title={t('match.compareTitle')}>
             {t('match.compare')}
           </Button>
@@ -514,7 +499,6 @@ const MatchReport: FC<{
             {match.model}
           </span>
           {match.draft ? ` · ${t('match.draft')}` : ''}
-          {readPageTarget(match.breakdown) !== 'keep' ? ` · ${t('target.pages.stored', { n: readPageTarget(match.breakdown) })}` : ''}
         </span>
         {/* The card's primary once a result exists: free, and the step the verdict leads to (#164). Full-width under the score row on a phone. */}
         <Button href={`/jobs/${match.jobId}/target?match=${match.id}`} size="sm" class="ml-auto max-sm:basis-full">
@@ -568,7 +552,6 @@ const MatchReport: FC<{
         rebuild={{
           jobId: match.jobId,
           resumeId: match.resumeId,
-          matchId: match.id,
           mode: readMatchMode(match.breakdown),
           ...(match.draft ? { draftText: match.resumeText } : {}),
         }}
@@ -1135,7 +1118,6 @@ const RebuildKeywords: FC<{ target: RebuildTarget }> = ({ target }) =>
   ) : (
     <form method="post" action={`/jobs/${target.jobId}/match`} class="ml-auto" onsubmit={SUBMIT_ONCE}>
       <input type="hidden" name="resumeId" value={String(target.resumeId)} />
-      {target.matchId !== undefined && <input type="hidden" name="matchId" value={String(target.matchId)} />}
       <input type="hidden" name="mode" value={target.mode} />
       <input type="hidden" name="rebuild" value="1" />
       {/* A draft row was judged on text no version holds — send it back, or the

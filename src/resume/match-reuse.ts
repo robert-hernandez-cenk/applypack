@@ -1,4 +1,3 @@
-import type { PageTarget } from './length';
 import type { MatchEvidence, MatchMode } from './match-mode';
 import { t } from '../i18n/t';
 
@@ -26,8 +25,6 @@ export interface StoredMatch {
   verificationId?: number | null;
   /** Whose evidence it used (R1): a text-only judgment never answers for one with the owner's facts, or back. */
   evidence?: MatchEvidence;
-  /** The page target it was made for (ADR 0074); a row from before the marker has none. */
-  pages?: PageTarget;
 }
 
 /** reuse = show the row; suggest = the row lacks only suggestions; none = a new analysis. */
@@ -41,12 +38,9 @@ export function reuseDecision(
   /** The verification a full request would read now; a full row that read another one is stale for a full request (#162 stage 2). */
   verificationId: number | null = null,
   evidence: MatchEvidence = 'own',
-  /** Only a full request has cuts to aim at the target; a quick check ignores it. */
-  pages: PageTarget = 'keep',
 ): ReuseDecision {
   if (previous === null || previous.promptVersion !== promptVersion || previous.resumeText !== text) return 'none';
   if ((previous.evidence ?? 'own') !== evidence) return 'none';
-  if (mode === 'full' && (previous.pages ?? 'keep') !== pages) return 'none';
   if (mode === 'full' && previous.mode === 'full' && (previous.verificationId ?? null) !== verificationId) return 'none';
   return previous.mode === 'full' || mode === 'fast' ? 'reuse' : 'suggest';
 }
@@ -64,11 +58,10 @@ export function pickReusable<T extends StoredMatch>(
   mode: MatchMode,
   verificationId: number | null = null,
   evidence: MatchEvidence = 'own',
-  pages: PageTarget = 'keep',
 ): { row: T; decision: Exclude<ReuseDecision, 'none'> } | null {
   let suggest: T | null = null;
   for (const row of rows) {
-    const decision = reuseDecision(row, text, promptVersion, mode, verificationId, evidence, pages);
+    const decision = reuseDecision(row, text, promptVersion, mode, verificationId, evidence);
     if (decision === 'reuse') return { row, decision };
     if (decision === 'suggest' && suggest === null) suggest = row;
   }

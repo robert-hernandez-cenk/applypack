@@ -441,7 +441,6 @@ export const TargetPage: FC<TargetPageProps> = ({
                   onsubmit={SUBMIT_ONCE}
                 >
                   <input type="hidden" name="resumeId" value={resume.id} />
-                  <input type="hidden" name="matchId" value={match.id} />
                   <input
                     type="file"
                     name="file"
@@ -477,7 +476,6 @@ export const TargetPage: FC<TargetPageProps> = ({
                     tell me what to change", which is the full one. */}
                 <form method="post" action={`/jobs/${job.id}/match`} id="reanalyze-form" onsubmit={SUBMIT_ONCE}>
                   <input type="hidden" name="resumeId" value={resume.id} />
-                  <input type="hidden" name="matchId" value={match.id} />
                   <input type="hidden" name="draftText" id="reanalyze-text" value="" />
                   <input type="hidden" name="next" value="target" />
                   <input type="hidden" name="mode" value="full" />

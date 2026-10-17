@@ -229,7 +229,6 @@ export const JobDetailPage: FC<JobDetailProps> = ({
           <input type="hidden" name="force" value="1" />
           {/* Repeat the comparison the user asked for, not the default one. */}
           <input type="hidden" name="mode" value={flash.mode ?? 'fast'} />
-          <input type="hidden" name="pages" value={flash.pages ?? 'keep'} />
           <Button variant="secondary" size="sm">
             {t('job.reRunAnyway')}
           </Button>

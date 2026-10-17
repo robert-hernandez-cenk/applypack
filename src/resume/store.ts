@@ -558,17 +558,22 @@ export async function createMatch(input: {
   result: ResumeMatchResult;
   /** Computed by score.ts — the model never sets the number (ADR 0012). */
   breakdown: ScoreBreakdown;
-  /** All six ride inside the breakdown JSON — the memo key (match-reuse.ts), the row's shape (ADR 0029), where its keyword frame came from (keyword-frame.ts), which verification's company context it read (ADR 0042), whose evidence it used (TASKS R1) and the page target it was made for (ADR 0074). */
+  /** All five ride inside the breakdown JSON — the memo key (match-reuse.ts), the row's shape (ADR 0029), where its keyword frame came from (keyword-frame.ts), which verification's company context it read (ADR 0042) and whose evidence it used (TASKS R1). */
   promptVersion: number;
   mode: MatchMode;
   frame: FrameReason;
   verificationId: number | null;
   /** R1: whether the owner's facts and other resumes were used, or the text alone. */
   evidence: MatchEvidence;
-  /** ADR 0074: the page target the suggestions were asked to cut toward. */
-  pages: PageTarget;
 }): Promise<ResumeMatch> {
   const r = input.result;
+  // The page target is set from Condense, on a comparison; the next one of the same posting and resume (a saved copy's, a re-check) keeps it.
+  const earlier = await prisma.resumeMatch.findFirst({
+    where: { jobId: input.jobId, resumeId: input.resumeId },
+    orderBy: { createdAt: 'desc' },
+    select: { breakdown: true },
+  });
+  const pages = readPageTarget(earlier?.breakdown);
   return prisma.resumeMatch.create({
     data: {
       jobId: input.jobId,
@@ -587,7 +592,7 @@ export async function createMatch(input: {
       keywords: r.keywords as Prisma.InputJsonValue,
       actions: r.actions as Prisma.InputJsonValue,
       removals: r.removals as Prisma.InputJsonValue,
-      breakdown: storedBreakdown(input.breakdown, input) as Prisma.InputJsonValue,
+      breakdown: storedBreakdown(input.breakdown, { ...input, pages }) as Prisma.InputJsonValue,
       hardRequirements: r.hard_requirements as Prisma.InputJsonValue,
     },
   });
@@ -732,6 +737,13 @@ export async function updateMatchSuggestions(
  * were about to change) and are cleared, and the stage marker moves to
  * `removals`. The breakdown is re-read here, like updateMatchSuggestions does.
  */
+/** Condense's page target, set by the person on a comparison (ADR 0074); read back by every step after it. */
+export async function updateMatchPages(id: number, pages: PageTarget): Promise<ResumeMatch> {
+  const current = await prisma.resumeMatch.findUniqueOrThrow({ where: { id }, select: { breakdown: true } });
+  const base = typeof current.breakdown === 'object' && current.breakdown !== null ? current.breakdown : {};
+  return prisma.resumeMatch.update({ where: { id }, data: { breakdown: { ...base, pages } as Prisma.InputJsonValue } });
+}
+
 export async function updateMatchCuts(id: number, removals: MatchRemoval[]): Promise<ResumeMatch> {
   const current = await prisma.resumeMatch.findUniqueOrThrow({ where: { id }, select: { breakdown: true, condense: true } });
   return prisma.resumeMatch.update({

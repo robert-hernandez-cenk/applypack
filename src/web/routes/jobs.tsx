@@ -63,6 +63,7 @@ import { runFailure } from '../run-failure';
 import { startComparison } from '../comparison-run';
 import { startSuggestionsRun } from '../suggestions-run';
 import { startCondenseRun } from '../condense-run';
+import { parsePageTarget } from '../../resume/length';
 import { readCondenseStage } from '../../resume/condense';
 import {
   getCoverLetter,
@@ -76,6 +77,7 @@ import {
   listResumes,
   replaceResumeFile,
   updateCoverLetterEdit,
+  updateMatchPages,
   getResumeOriginal,
 } from '../../resume/store';
 import { getConnectionView } from '../../resume/reactive-connection-store';
@@ -86,7 +88,6 @@ import { postingDepth } from '../../resume/brief-depth';
 import { domainMismatch, domainNoticeMessage } from '../../resume/domain';
 import { postingOrientation } from '../../resume/posting-orientation';
 import { rewriteAction } from '../../resume/rewrite';
-import { parsePageTarget, readPageTarget } from '../../resume/length';
 import { parseMatchMode, readMatchMode } from '../../resume/match-mode';
 import { generateCoverLetter } from '../../resume/cover-letter';
 import {
@@ -907,12 +908,9 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
   const resumeId = idParam(form.resumeId);
   if (!Number.isFinite(resumeId)) return c.text(t('http.badResumeId'), 400);
 
-  const baseId = idParam(form.matchId);
-  // `base` is the comparison a re-run starts from (the editor's form and Rebuild keywords send it).
-  const [job, resume, base] = await Promise.all([
+  const [job, resume] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     getResume(currentUser().id, resumeId),
-    Number.isFinite(baseId) ? getMatch(currentUser().id, baseId) : null,
   ]);
   if (!job || !resume) return c.text(t('http.notFound'), 404);
 
@@ -928,8 +926,6 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     text,
     // The quick check unless the form asked for the full report (ADR 0029).
     mode: parseMatchMode(form.mode),
-    // A re-check of the editor's draft aims at the pages the comparison it came from was made for; "Re-run anyway" names them in the form (ADR 0074).
-    pages: base && base.jobId === id ? readPageTarget(base.breakdown) : parsePageTarget(form.pages),
     // "Rebuild keywords": read the terms out of the posting again instead of
     // inheriting the frame this posting has been carrying (issue #79).
     rebuild: form.rebuild === '1',
@@ -997,9 +993,11 @@ jobsRoute.post('/jobs/:id/matches/:matchId/condense/:step', async (c) => {
   if (step !== 'cuts' && step !== 'words' && step !== 'refresh') return c.text(t('http.notFound'), 404);
   const target = await condenseTarget(id, matchId);
   if (!target) return c.text(t('http.notFound'), 404);
-  const { job, match, resume, editor } = target;
+  const { job, resume, editor } = target;
   const form = await c.req.parseBody();
   const text = editorText(form.text);
+  // The page target is chosen beside Find cuts and kept on the comparison; the step then reads it back from the row.
+  const match = step === 'cuts' && form.pages !== undefined ? await updateMatchPages(target.match.id, parsePageTarget(form.pages)) : target.match;
   const input = { userId: currentUser().id, match, job: postingForPrompt(job), resumeName: resume.name, resultUrl: editor };
   if (step === 'cuts') return c.redirect(startCondenseRun('cuts', input), 303);
   if (step === 'words') {
@@ -1272,11 +1270,9 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   const form = await c.req.parseBody();
   const resumeId = idParam(form.resumeId);
   if (!Number.isFinite(resumeId)) return c.text(t('http.badResumeId'), 400);
-  const baseId = idParam(form.matchId);
-  const [job, resume, base] = await Promise.all([
+  const [job, resume] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } }),
     getResume(currentUser().id, resumeId),
-    Number.isFinite(baseId) ? getMatch(currentUser().id, baseId) : null,
   ]);
   if (!job || !resume) return c.text(t('http.notFound'), 404);
   const upload = await readResumeUpload(form);
@@ -1299,8 +1295,6 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
     // for "the same check without the advice" only ever raised the question of
     // which one to press.
     mode: 'full',
-    // Another file for the same target (ADR 0074).
-    pages: base && base.jobId === id ? readPageTarget(base.breakdown) : 'keep',
     rebuild: false,
     force: false,
     resultUrl: (matchId) => `/jobs/${id}/target?match=${matchId}`,

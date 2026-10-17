@@ -2341,8 +2341,6 @@
   "target.pages.label": "Longueur",
   "target.pages.keep": "Laisser telle quelle",
   "target.pages.n": "{n, plural, one {# page} many {# de pages} other {# pages}}",
-  "target.pages.hint": "Choisissez un nombre de pages et la comparaison propose quoi couper pour cette offre. Vous appliquez les coupes ; rien ne change avant l'enregistrement.",
-  "target.pages.stored": "faite pour {n, plural, one {# page} many {# de pages} other {# pages}}",
   "target.length.title": "Une estimation fondée sur le nombre de caractères, pas un décompte exact de pages.",
   "target.step.liveness": "Interroger le job board et lire la page de l'offre",
   "target.step.liveness.detail": "les vérifications gratuites — quelques secondes, sans IA",
