@@ -32,7 +32,7 @@ description: "Tasks for the jobs list opening on New (#51)"
 
 ## Phase 5: Verify
 
-- [ ] T010 `npm run lint:types`, `npm test`, `npm run exports:audit`; route smoke on a throwaway Postgres; rebuilt dashboard checked by eye at desktop and phone width (quickstart.md step 4)
+- [x] T010 `npm run lint:types`, `npm test`, `npm run exports:audit`; route smoke on a throwaway Postgres; rebuilt dashboard checked by eye at desktop and phone width (quickstart.md step 4)
 
 ## Dependencies
 
