@@ -257,7 +257,7 @@ The flash sentence is built from clauses in a fixed order: "N added", "N as a ne
 
 ### Scoring run (long-running action)
 
-The run lives in web-process memory. The database is the real state: a verdict is written the moment it arrives, so a restart resumes from what is missing. The live queue accepts additions: an upload during a run refills the queue, and "Score again" during a run joins it at the back.
+The run lives in web-process memory. The database is the real state: a verdict is written the moment it arrives, so a restart loses the run but not the verdicts. Nothing restarts it: only a route handler starts a run, so the person presses Score again and it takes the rows still unscored. The live queue accepts additions: an upload during a run refills the queue, and "Score again" during a run joins it at the back.
 
 ```mermaid
 sequenceDiagram
@@ -829,7 +829,7 @@ Page chrome behaviours that apply on every page. The flash contract itself is in
 ```mermaid
 flowchart TD
   POST["Any form POST"]
-  PRG["303 + flash cookie (5 s)"]
+  PRG["303 + flash cookie (5 s, a slower redirect drops it)"]
   GET["GET target page"]
   SLOT["Flash slot always in the page<br/>banner in flow without script"]
   JS{"Script?"}

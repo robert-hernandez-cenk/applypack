@@ -365,7 +365,7 @@ flowchart TD
 
 Behaviour details a rebuild must reproduce:
 
-- **Nothing is saved until Save.** Edits are local to the page. The page text is the stored copy if one exists, else the comparison's own snapshot, else the resume's text. If a tailored copy exists, the editor opens on the copy no matter which comparison was asked for (one working resume per job).
+- **Nothing is saved until Save.** Edits are local to the page, and the browser keeps a draft per comparison in `localStorage` (`target-draft:<match id>`), so a reload or a failed run does not lose them. Nothing asks before leaving the page. Analyse again, Save, Shorter wording and Refresh send the editor text; Find cuts, Rewrite and Rewrite all do not. The page text is the stored copy if one exists, else the comparison's own snapshot, else the resume's text. If a tailored copy exists, the editor opens on the copy no matter which comparison was asked for (one working resume per job).
 - **Live score.** The ring and number are re-drawn in the browser from the keyword levels and the fixed AI frame (alignment, flags, penalty). The AI score is the honest score. After keyword edits the server re-scores the stored row (no AI). "Analyse again" sends the edited text for a fresh AI judgement.
 - **Cards** (suggestion cards) have a stable key so applied and skipped marks survive reloads. Apply is only offered if the model gave a quote or an insert-after anchor and a proposed wording. A card the claim gate refused keeps only "Edit and apply" with the text prefilled.
 - **Fast comparisons** (quick check) show the Get suggestions prompt in place of Condense and cards.
@@ -594,6 +594,7 @@ Form details:
 - The hint notes whether company research is available. Without a stored company snapshot it links to the verify tab.
 - Optional checkboxes on the launcher: "score this resume against the posting first" and "research the company first". Both are skipped by default so the common path is one model call. Match runs in full mode so strengths exist. Verify is skipped if a snapshot already exists.
 - Run key includes job, resume, tone, which enrichers, and a hash of angles and addressee, so a different tone is new work.
+- A failed optional match or verify adds a warning to the result flash and the letter still runs; only the letter step itself can end the run in an error.
 
 Autosave states shown in a status line: "unsaved", "saving", "saved" (or "saved, flagged" for warn/block), "failed". Failure retries with exponential backoff capped at 15 s and reveals the Save button as the fallback. A `sendBeacon` posts on page hide. Without script the Save edit button posts the form normally. The word counter updates as you type.
 
@@ -665,7 +666,7 @@ flowchart TD
   SR -->|"done"| RD
   SR -->|"fail"| SRE["Error panel + back to render page with shape=text"]
   RD --> KN["Knobs form: typeface, body, name, heading pt, accent hex, page size, section order, margins, centre name"]
-  KN -->|"Update the preview: POST mode=preview"| PV["Same page re-rendered with knobs, no redirect"]
+  KN -->|"Update the preview: POST mode=preview"| PV["Same page re-rendered with knobs, no redirect (a reload resubmits)"]
   KN -->|"Download DOCX: mode=docx"| DX["File download"]
   KN -->|"Download PDF: mode=pdf"| PF["File download"]
   KN -->|"Save as a new resume: mode=save"| SV["New resume (name + clean), background scan, redirect /resumes/:newid + flash ok"]
@@ -803,7 +804,7 @@ sequenceDiagram
 | Screen | Route | Key controls | Data shown | States |
 |---|---|---|---|---|
 | Settings card | `/settings?tab=profile#reactive-resume` | URL, key (password), Save, Remove | Connected host | not connected, connected, flash errors |
-| Pick page | result of `POST .../reactive/list` | Radio list, Import, Cancel | Remote resume names, host | zero results become flash warn, expired token |
+| Pick page | result of `POST .../reactive/list` (200 HTML, a reload resubmits) | Radio list, Import, Cancel | Remote resume names, host | zero results become flash warn, expired token |
 | Send result | `GET /tailored/:id/reactive-sent?r=` | Open on instance (new tab), back link | Outcome, count, not-placed table | ok, failed, maybe-created, expired |
 
 ---
