@@ -222,3 +222,7 @@
 {"timestamp":"2026-10-17T07:02:08Z","action":"handoff","status":"blocked","feature_directory":"specs/051-jobs-default-new-tab","decision":"updated","reason":"Missing required Spec Kit artifacts: specs/051-jobs-default-new-tab/spec.md,specs/051-jobs-default-new-tab/plan.md,specs/051-jobs-default-new-tab/tasks.md","actor":"claude","prior_actor":"claude","snapshot_id":""}
 {"timestamp":"2026-10-17T07:02:28.6203630Z","action":"handoff","status":"executing","feature_directory":"specs/051-jobs-default-new-tab","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261017T0702285891700Z-executing"}
 
+{"timestamp":"2026-10-17T07:09:54.5869033Z","action":"handoff","status":"complete","feature_directory":"specs/051-jobs-default-new-tab","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261017T0709545439939Z-complete"}
+
+{"event":"artifact_drift_detected","timestamp":"2026-10-17T07:09:54.5928922Z","actor":"claude","feature_directory":"specs/051-jobs-default-new-tab","drifted_artifacts":[{"path":"tasks.md","old_sha256":"d14ae698f4b2c9524785e4ca0070d0bec2009fc41adbfcae3f942986a98fb1bd","new_sha256":"dc32d450db9c4cba9a0bf004e32ce733f3608f75108c5115037dfc71ada329bc"}]}
+
