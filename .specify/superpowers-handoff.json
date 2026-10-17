@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-17T07:01:50Z",
-  "feature_directory": "specs/050-reactive-resume-writeback",
+  "updated_at": "2026-10-17T07:02:28.6012658Z",
+  "feature_directory": "specs/051-jobs-default-new-tab",
   "source_of_truth": {
     "constitution": ".specify/memory/constitution.md",
-    "spec": "specs/050-reactive-resume-writeback/spec.md",
-    "plan": "specs/050-reactive-resume-writeback/plan.md",
-    "tasks": "specs/050-reactive-resume-writeback/tasks.md"
+    "spec": "specs/051-jobs-default-new-tab/spec.md",
+    "plan": "specs/051-jobs-default-new-tab/plan.md",
+    "tasks": "specs/051-jobs-default-new-tab/tasks.md"
   },
   "supersedes": [
     "speckit.implement"
   ],
-  "executor": "speckit",
+  "executor": "superpowers",
   "capabilities": [
     "executing-plans",
     "test-driven-development",
@@ -19,11 +19,16 @@
     "requesting-code-review",
     "finishing-a-development-branch"
   ],
-  "status": "ready",
+  "status": "executing",
   "blocked_reason": null,
   "artifact_owner": "claude",
   "review_only_agents": [],
   "notes": null,
-  "last_snapshot_id": null,
-  "instructions": "Use /speckit-superpowers-bridge (Claude Code) or $speckit-superpowers-bridge (Codex). The bridge orchestrates native Superpowers skills against tasks.md; do not run speckit.implement and do not invoke superpowers:writing-plans / :brainstorming for an active Spec Kit feature."
+  "last_snapshot_id": "20261017T0702285891700Z-executing",
+  "instructions": "Use /speckit-superpowers-bridge (Claude Code) or $speckit-superpowers-bridge (Codex). The bridge orchestrates native Superpowers skills against tasks.md; do not run speckit.implement and do not invoke superpowers:writing-plans / :brainstorming for an active Spec Kit feature.",
+  "artifacts_sha256": {
+    "spec.md": "6f85bab8a076467eece7658300f0d3949b63f7b64d2f5bad3a7ead3be736b59d",
+    "plan.md": "c6b3ab317e1c53a4b6f2a7e2d98253441c8be0a71d24dbd45de75820c8133b20",
+    "tasks.md": "d14ae698f4b2c9524785e4ca0070d0bec2009fc41adbfcae3f942986a98fb1bd"
+  }
 }
