@@ -527,7 +527,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
     // The resume is not scanned: the copy is not the resume (ADR 0077). The
     // comparison judges the copy's words under the resume's identity.
     const match = await matchResumeToJob({ ...current, text: copy.text }, postingForPrompt(job), { tailoredId: copy.id, onError: noteReason });
-    if (match && Number.isFinite(fromMatchId)) await carryCuts(fromMatchId, match.id, copy.text);
+    if (match && Number.isFinite(fromMatchId)) await carryCuts(fromMatchId, match.id, job.id, copy.text);
     updateRun(run.id, match
       ? {
           stage: 'done',
@@ -544,9 +544,9 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
 });
 
 /** The cuts found on the comparison the person was editing and not accepted follow them to the copy's next one (#64). */
-async function carryCuts(fromId: number, toId: number, text: string): Promise<void> {
+async function carryCuts(fromId: number, toId: number, jobId: number, text: string): Promise<void> {
   const from = await getMatch(currentUser().id, fromId);
-  const cuts = from ? cutsStillApplicable(readRemovals(from.removals), text) : [];
+  const cuts = from && from.jobId === jobId ? cutsStillApplicable(readRemovals(from.removals), text) : [];
   if (cuts.length > 0) await updateMatchCuts(toId, cuts);
 }
 

@@ -1251,7 +1251,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       keywords={await orderedKeywords(match, job.description)}
       matches={editorHistory(matches, copy)}
       previous={previousFor(match, matches)}
-      resumeText={match.resumeText || resume.text}
+      resumeText={copy && match.tailoredId === null && !match.draft ? copy.text : match.resumeText || resume.text}
       postingNotice={depth.notice}
       domainNotice={domain}
       orientation={postingOrientation(storedBrief)}
@@ -1275,7 +1275,8 @@ jobsRoute.post('/jobs/:id/target/restart', async (c) => {
   const form = await c.req.parseBody();
   const copyId = idParam(form.copyId);
   if (!Number.isFinite(copyId)) return c.text(t('http.badId'), 400);
-  const gone = await deleteTailored(currentUser().id, copyId);
+  const ofJob = await prisma.tailoredResume.findFirst({ where: { id: copyId, jobId: id, resume: { userId: currentUser().id } }, select: { id: true } });
+  const gone = ofJob ? await deleteTailored(currentUser().id, copyId) : null;
   if (!gone) return flashRedirect(`/jobs/${id}/target`, 'err', t('resume.tailored.gone'));
   return flashRedirect(`/jobs/${id}/target`, 'ok', t('target.copy.restarted'));
 });
