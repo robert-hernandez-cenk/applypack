@@ -33,6 +33,9 @@ export const INSTANCE_FAILURE = {
   tooLarge: 'resumes.reactive.fail.tooLarge',
   timeout: 'resumes.reactive.fail.timeout',
   unreachable: 'resumes.reactive.fail.unreachable',
+  locked: 'reactive.send.fail.locked',
+  conflict: 'reactive.send.fail.conflict',
+  badPatch: 'reactive.send.fail.badPatch',
 } as const satisfies Record<InstanceFailure, MessageKey>;
 
 /** A saved key the instance refuses is fixed in Settings, not by typing it again. */

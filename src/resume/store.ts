@@ -11,6 +11,7 @@ import { loadKeywordMatcher } from './keyword-matcher';
 import { withEvidence } from './evidence';
 import { effectiveKeywords } from './keyword-overrides';
 import type { JsonResume } from './json-resume';
+import type { Generation } from './reactive-resume';
 import { readCondense, withCondenseStage } from './condense';
 import { readPageTarget, type PageTarget } from './length';
 import { readMatchEvidence, readMatchMode, storedBreakdown, type MatchEvidence, withSuggestionsMode, type MatchMode } from './match-mode';
@@ -64,13 +65,30 @@ export async function findResumeWithText(userId: number, text: string): Promise<
   return hit ? { id: hit.id, name: hit.name, version: hit.version } : null;
 }
 
+/**
+ * The Reactive Resume resume a text was imported from (ADR 0079). Written with
+ * the text and never apart from it: any new text without an origin of its own
+ * clears it, because the instance's resume no longer reads like the stored one.
+ */
+export interface ResumeOrigin {
+  remoteId: string;
+  generation: Generation;
+}
+
+const originColumns = (origin: ResumeOrigin | null | undefined) => ({
+  remoteId: origin?.remoteId ?? null,
+  remoteGeneration: origin?.generation ?? null,
+});
+
 export async function createResume(userId: number, input: {
   name: string;
   sourceFilename: string;
   mimeType: string;
   original: Buffer;
   text: string;
+  origin?: ResumeOrigin | null;
 }): Promise<ResumeSummary> {
+  const { origin, ...file } = input;
   // The first upload becomes the default so the job page has a preselection.
   // Counting and then creating is check-then-act — two first uploads at once
   // both counted 0 and both became the default, so the count and the
@@ -79,7 +97,7 @@ export async function createResume(userId: number, input: {
     const isDefault = (await tx.resume.count({ where: { userId } })) === 0;
     return tx.resume.create({
       // Prisma 6 types Bytes as Uint8Array<ArrayBuffer>; a Buffer's backing store may be shared.
-      data: { ...input, userId, original: new Uint8Array(input.original), isDefault },
+      data: { ...file, ...originColumns(origin), userId, original: new Uint8Array(input.original), isDefault },
       omit: WITHOUT_ORIGINAL,
     });
   });
@@ -87,16 +105,18 @@ export async function createResume(userId: number, input: {
   return row;
 }
 
-/** "Upload new version": swap the file + text, bump version, clear the scan. */
+/** "Upload new version": swap the file + text, bump version, clear the scan — and the origin unless this text has one. */
 export async function replaceResumeFile(
   userId: number,
   id: number,
-  input: { sourceFilename: string; mimeType: string; original: Buffer; text: string },
+  input: { sourceFilename: string; mimeType: string; original: Buffer; text: string; origin?: ResumeOrigin | null },
 ): Promise<ResumeSummary> {
+  const { origin, ...file } = input;
   const row = await prisma.resume.update({
     where: { id, userId },
     data: {
-      ...input,
+      ...file,
+      ...originColumns(origin),
       original: new Uint8Array(input.original),
       version: { increment: 1 },
       scannedAt: null,

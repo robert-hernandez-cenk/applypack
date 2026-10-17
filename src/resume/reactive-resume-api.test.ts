@@ -2,7 +2,14 @@ import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { getInstanceResume, InstanceError, listInstanceResumes, type InstanceFailure } from './reactive-resume-api';
+import {
+  duplicateInstanceResume,
+  getInstanceResume,
+  InstanceError,
+  listInstanceResumes,
+  patchInstanceResume,
+  type InstanceFailure,
+} from './reactive-resume-api';
 
 const KEY = 'rr_live_SECRET_0123456789';
 
@@ -154,5 +161,130 @@ describe('getInstanceResume', () => {
     assert.equal(await failure(() => getInstanceResume(base, KEY, 'x')), 'notApi');
     handler = (_req, res) => json(res, {}, 404);
     assert.equal(await failure(() => getInstanceResume(base, KEY, 'x')), 'notApi');
+  });
+});
+
+describe('getInstanceResume: what a write needs to know', () => {
+  it('returns when the resume was last changed and whether it is locked', async () => {
+    handler = (_req, res) =>
+      json(res, { id: 'a', name: 'Main', isLocked: true, updatedAt: '2026-10-15T21:33:38.248Z', data: { basics: {}, sections: {} } });
+    const got = await getInstanceResume(base, KEY, 'a');
+    assert.equal(got.locked, true);
+    assert.equal(got.updatedAt, '2026-10-15T21:33:38.248Z');
+  });
+
+  it('a resume that does not say is unlocked and has no stamp', async () => {
+    handler = (_req, res) => json(res, { name: 'Main', data: { basics: {}, sections: {} } });
+    const got = await getInstanceResume(base, KEY, 'a');
+    assert.equal(got.locked, false);
+    assert.equal(got.updatedAt, null);
+  });
+});
+
+/** Run `body` against a handler that records what it was sent. */
+function recording(reply: (res: ServerResponse) => void): { bodies: string[] } {
+  const bodies: string[] = [];
+  handler = (req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => chunks.push(c));
+    req.on('end', () => {
+      bodies.push(Buffer.concat(chunks).toString('utf8'));
+      reply(res);
+    });
+  };
+  return { bodies };
+}
+
+describe('duplicateInstanceResume', () => {
+  it('posts the new name to the duplicate path and returns the new id', async () => {
+    seen.length = 0;
+    const { bodies } = recording((res) => json(res, 'new-id-1'));
+    const id = await duplicateInstanceResume(base, KEY, 'a/1', 'Main - Acme - Staff Engineer');
+    assert.equal(id, 'new-id-1');
+    const req = seen[0]!;
+    assert.equal(req.method, 'POST');
+    assert.equal(req.url, '/api/openapi/resumes/a%2F1/duplicate');
+    assert.equal(req.headers['x-api-key'], KEY);
+    assert.match(String(req.headers['content-type']), /application\/json/);
+    assert.deepEqual(JSON.parse(bodies[0]!), { name: 'Main - Acme - Staff Engineer' });
+  });
+
+  it('an answer that is not an id is not this API', async () => {
+    handler = (_req, res) => json(res, { nothing: true });
+    assert.equal(await failure(() => duplicateInstanceResume(base, KEY, 'a', 'n')), 'notApi');
+    handler = (_req, res) => json(res, '');
+    assert.equal(await failure(() => duplicateInstanceResume(base, KEY, 'a', 'n')), 'notApi');
+  });
+
+  it('a missing resume or a missing route is notApi, a refused key is unauthorized', async () => {
+    handler = (_req, res) => json(res, {}, 404);
+    assert.equal(await failure(() => duplicateInstanceResume(base, KEY, 'a', 'n')), 'notApi');
+    handler = (_req, res) => json(res, {}, 401);
+    assert.equal(await failure(() => duplicateInstanceResume(base, KEY, 'a', 'n')), 'unauthorized');
+  });
+
+  it('is never repeated: a timeout is one request', async () => {
+    seen.length = 0;
+    handler = () => undefined;
+    assert.equal(await failure(() => duplicateInstanceResume(base, KEY, 'a', 'n', { timeoutMs: 60 })), 'timeout');
+    assert.equal(seen.length, 1);
+  });
+
+  it('a redirect is not followed and the key stays here', async () => {
+    seen.length = 0;
+    handler = (_req, res) => {
+      res.writeHead(307, { location: `${base.origin}/elsewhere` });
+      res.end();
+    };
+    assert.equal(await failure(() => duplicateInstanceResume(base, KEY, 'a', 'n')), 'redirect');
+    assert.equal(seen.length, 1);
+  });
+});
+
+describe('patchInstanceResume', () => {
+  const ops = [{ op: 'replace' as const, path: '/basics/headline', value: 'Staff Engineer' }];
+
+  it('patches the resume with the operations and the stamp it expects', async () => {
+    seen.length = 0;
+    const { bodies } = recording((res) => json(res, { id: 'c', updatedAt: '2026-10-17T00:00:00.000Z', data: {} }));
+    const got = await patchInstanceResume(base, KEY, 'c', { expectedUpdatedAt: '2026-10-16T00:00:00.000Z', operations: ops });
+    assert.equal(got.updatedAt, '2026-10-17T00:00:00.000Z');
+    const req = seen[0]!;
+    assert.equal(req.method, 'PATCH');
+    assert.equal(req.url, '/api/openapi/resumes/c');
+    assert.equal(req.headers['x-api-key'], KEY);
+    assert.deepEqual(JSON.parse(bodies[0]!), { expectedUpdatedAt: '2026-10-16T00:00:00.000Z', operations: ops });
+  });
+
+  it('a locked resume is locked, whatever else 403 can mean', async () => {
+    handler = (_req, res) => json(res, { defined: true, code: 'RESUME_LOCKED', status: 403, message: 'Unlock the resume first.' }, 403);
+    assert.equal(await failure(() => patchInstanceResume(base, KEY, 'c', { operations: ops })), 'locked');
+    handler = (_req, res) => json(res, { message: 'nope' }, 403);
+    assert.equal(await failure(() => patchInstanceResume(base, KEY, 'c', { operations: ops })), 'unauthorized');
+  });
+
+  it('a resume that changed since it was read is a conflict', async () => {
+    handler = (_req, res) => json(res, { defined: true, code: 'RESUME_VERSION_CONFLICT', status: 409, message: 'changed' }, 409);
+    assert.equal(await failure(() => patchInstanceResume(base, KEY, 'c', { operations: ops })), 'conflict');
+  });
+
+  it('operations the instance refuses are badPatch', async () => {
+    handler = (_req, res) => json(res, { defined: true, code: 'INVALID_PATCH_OPERATIONS', status: 400, message: 'bad' }, 400);
+    assert.equal(await failure(() => patchInstanceResume(base, KEY, 'c', { operations: ops })), 'badPatch');
+  });
+
+  it('is never repeated: a timeout is one request and names nothing secret', async () => {
+    seen.length = 0;
+    handler = () => undefined;
+    assert.equal(await failure(() => patchInstanceResume(base, KEY, 'c', { operations: ops }, { timeoutMs: 60 })), 'timeout');
+    assert.equal(seen.length, 1);
+  });
+
+  it('a body over the cap is refused', async () => {
+    handler = (_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ updatedAt: 'x', pad: 'x'.repeat(5000) }));
+    };
+    assert.equal(await failure(() => patchInstanceResume(base, KEY, 'c', { operations: ops }, { maxBytes: 1000 })), 'tooLarge');
   });
 });
