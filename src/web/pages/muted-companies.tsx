@@ -43,7 +43,7 @@ export const MutedCompaniesSection: FC<{ rows: MutedRow[] }> = ({ rows }) => (
                 <Td class="whitespace-nowrap text-ink-muted">{formatDate(m.createdAt)}</Td>
                 <Td class="tabular-nums text-ink-muted">
                   {m.hidden > 0 ? (
-                    <a href="/jobs?muted=1" class="font-medium text-accent-strong hover:text-accent-deep">
+                    <a href="/jobs?status=all&muted=1" class="font-medium text-accent-strong hover:text-accent-deep">
                       {formatNumber(m.hidden)}
                     </a>
                   ) : (

@@ -35,6 +35,8 @@ import type { WorkplaceCode } from '../../location';
 import { placeLine } from '../place-line';
 import { techLabel } from '../tech-label';
 import {
+  JOBS_ALL_STATUS,
+  JOBS_DEFAULT_STATUS,
   activeFilters,
   clearFiltersHref,
   filterCount,
@@ -105,8 +107,8 @@ export interface JobsListProps {
   flash?: FlashMessage | null;
 }
 
-/** The tabs in order; '' is every status. Each is named when the page renders (`statusLabel`, `jobs.tab.all`). */
-const STATUS_TABS: (JobStatus | '')[] = ['', 'NEW', 'ALERTED', 'APPLIED', 'SAVED', 'DISMISSED'];
+/** The tabs in order; `all` (last) is every status. Each is named when the page renders (`statusLabel`, `jobs.tab.all`). */
+const STATUS_TABS: (JobStatus | typeof JOBS_ALL_STATUS)[] = ['NEW', 'ALERTED', 'APPLIED', 'SAVED', 'DISMISSED', JOBS_ALL_STATUS];
 
 /** The orders the list offers, each with the catalog key of its name. */
 const SORT_OPTIONS: { value: string; label: MessageKey }[] = [
@@ -150,11 +152,13 @@ export const JobsListPage: FC<JobsListProps> = ({
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(total, page * pageSize);
   const active = activeFilters(filters, profiles);
-  const hasFilters = active.length > 0 || filters.q.length > 0 || filters.status.length > 0 || filters.minFit.length > 0;
+  const allStatuses = Object.values(statusCounts).reduce((sum, n) => sum + n, 0);
+  // New is where /jobs opens, so it counts as a filter only once there are postings it hides.
+  const statusNarrows = filters.status !== JOBS_ALL_STATUS && (filters.status !== JOBS_DEFAULT_STATUS || allStatuses > 0);
+  const hasFilters = active.length > 0 || filters.q.length > 0 || statusNarrows || filters.minFit.length > 0;
   const places = splitPlaces(facets.places);
   // A link inside the panel keeps it open on the page it loads.
   const inPanel = (next: Partial<JobsFilters>) => jobsHref({ ...filters, ...next }, { panel: true });
-  const allStatuses = Object.values(statusCounts).reduce((sum, n) => sum + n, 0);
 
   return (
     <Layout title={t('nav.jobs')} active="jobs" fill>
@@ -311,8 +315,8 @@ export const JobsListPage: FC<JobsListProps> = ({
         class="mb-3 shrink-0"
         tabs={STATUS_TABS.map((status) => ({
           href: jobsHref({ ...filters, status }),
-          label: status === '' ? t('jobs.tab.all') : statusLabel(status),
-          count: status === '' ? allStatuses : (statusCounts[status] ?? 0),
+          label: status === JOBS_ALL_STATUS ? t('jobs.tab.all') : statusLabel(status),
+          count: status === JOBS_ALL_STATUS ? allStatuses : (statusCounts[status] ?? 0),
           current: filters.status === status,
         }))}
       />

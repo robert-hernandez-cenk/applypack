@@ -12,6 +12,7 @@ import {
   parseWorkplaces,
   placeWhere,
   postedSince,
+  resolveJobsStatus,
   rowPlaces,
   splitPlaces,
   tallyFacets,
@@ -238,5 +239,36 @@ describe('the active-filter row', () => {
 
   it('clear-all lifts the panel and keeps status, search text, fit floor and sort', () => {
     assert.deepEqual(query(clearFiltersHref(ALL)), { status: 'ALERTED', minFit: '70', q: 'php', sort: 'fetchedAt_desc' });
+  });
+});
+
+describe('resolveJobsStatus', () => {
+  it('opens on New when the status is missing or empty', () => {
+    assert.equal(resolveJobsStatus(undefined), 'NEW');
+    assert.equal(resolveJobsStatus(''), 'NEW');
+  });
+
+  it('reads "all" as every status', () => {
+    assert.equal(resolveJobsStatus('all'), 'all');
+  });
+
+  it('passes each of the five statuses through', () => {
+    for (const s of ['NEW', 'ALERTED', 'APPLIED', 'SAVED', 'DISMISSED']) assert.equal(resolveJobsStatus(s), s);
+  });
+
+  it('refuses anything else, case included', () => {
+    assert.equal(resolveJobsStatus('bogus'), null);
+    assert.equal(resolveJobsStatus('new'), null);
+    assert.equal(resolveJobsStatus('ALL'), null);
+  });
+});
+
+describe('the tab stays in every link', () => {
+  it('jobsHref and clearFiltersHref keep status=all and status=NEW', () => {
+    for (const status of ['all', 'NEW']) {
+      const f = { ...NONE, status, country: ['PL'], sort: 'fitScore_desc' };
+      assert.equal(query(jobsHref(f, { page: 2 })).status, status);
+      assert.equal(query(clearFiltersHref(f)).status, status);
+    }
   });
 });

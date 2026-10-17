@@ -297,3 +297,22 @@ function byCountThenLabel(a: FacetChip, b: FacetChip): number {
 function bump<K>(map: Map<K, number>, key: K): void {
   map.set(key, (map.get(key) ?? 0) + 1);
 }
+
+/** The `status` value for every status at once; an empty `status` can no longer mean that. */
+export const JOBS_ALL_STATUS = 'all';
+
+/** What `/jobs` shows when no status is asked for. */
+export const JOBS_DEFAULT_STATUS = 'NEW';
+
+const JOB_STATUSES: readonly string[] = ['NEW', 'ALERTED', 'APPLIED', 'SAVED', 'DISMISSED'];
+
+/**
+ * The tab `/jobs` opens on, from its `status` query: missing or empty is New,
+ * `all` is every status, a status is itself, anything else is null (the route
+ * answers 400). The one place the rule lives — the route, the page and every
+ * link read the value it returns.
+ */
+export function resolveJobsStatus(raw: string | undefined): string | null {
+  if (raw === undefined || raw === '') return JOBS_DEFAULT_STATUS;
+  return raw === JOBS_ALL_STATUS || JOB_STATUSES.includes(raw) ? raw : null;
+}

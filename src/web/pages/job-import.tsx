@@ -46,7 +46,7 @@ export interface ImportSourceRow {
 export const JobImportPage: FC<{ sources: ImportSourceRow[]; flash?: FlashMessage | null }> = ({ sources, flash }) => (
   <Layout title={t('import.title')} active="jobs">
     <div class="w-full">
-      <PageHeader title={t('import.title')} back={{ href: '/jobs', label: t('job.allJobs') }}>
+      <PageHeader title={t('import.title')} back={{ href: '/jobs?status=all', label: t('job.allJobs') }}>
         {t('import.intro')}
       </PageHeader>
       <Flash flash={flash} />

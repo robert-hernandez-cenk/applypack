@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.59.14] — 2026-10-17
+
+### Changed
+- **The Jobs list opens on New.** A bare `/jobs` shows the postings still
+  waiting for a decision, and the tabs now read New, Alerted, Applied, Saved,
+  Dismissed, All. **All** is the last tab and has its own address
+  (`/jobs?status=all`); links that meant "everything" — "All jobs", the search,
+  country, muted and watched links — point there. An old bookmark of
+  `/jobs?status=` lands on New (#51).
+
 ## [2.59.13] — 2026-10-17
 
 ### Added

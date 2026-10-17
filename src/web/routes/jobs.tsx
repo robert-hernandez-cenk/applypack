@@ -10,11 +10,13 @@ import { logger } from '../../logger';
 import { hashShortId } from '../../text-utils';
 import { appliedResumeColumns, packAsShown, packChoiceValue, readAppliedResumeChoice } from '../applied-resume';
 import {
+  JOBS_ALL_STATUS,
   parsePlaces,
   parsePosted,
   parseWorkplaces,
   placeWhere,
   postedSince,
+  resolveJobsStatus,
   tallyFacets,
 } from '../job-facets';
 import { normalizeSort, sortOrderBy } from '../job-sort';
@@ -123,12 +125,14 @@ const ListQuerySchema = z.object({
   status: z
     .string()
     .optional()
-    .transform((v) => (v === '' ? undefined : v))
-    .refine(
-      (v) =>
-        v === undefined || ['NEW', 'ALERTED', 'APPLIED', 'SAVED', 'DISMISSED'].includes(v),
-      { message: 'invalid status' },
-    ),
+    .transform((v, ctx) => {
+      const resolved = resolveJobsStatus(v);
+      if (resolved === null) {
+        ctx.addIssue({ code: 'custom', message: 'invalid status' });
+        return z.NEVER;
+      }
+      return resolved;
+    }),
   minFit: z
     .string()
     .optional()
@@ -204,7 +208,7 @@ jobsRoute.get('/jobs', async (c) => {
   const userId = currentUser().id;
   const mine: Prisma.UserJobWhereInput = { userId };
   const where: Prisma.JobWhereInput = {};
-  if (status) {
+  if (status !== JOBS_ALL_STATUS) {
     mine.status = status as JobStatus;
   }
   const minFitNum = intQuery(minFit);
@@ -317,7 +321,7 @@ jobsRoute.get('/jobs', async (c) => {
   const jobs = rows.map(flat);
   // The list's own total is one of those counts (or their sum), so it costs no query of its own.
   const statusCounts: Partial<Record<JobStatus, number>> = Object.fromEntries(statusGroups.map((g) => [g.status, g._count._all]));
-  const total = status
+  const total = status !== JOBS_ALL_STATUS
     ? (statusCounts[status as JobStatus] ?? 0)
     : statusGroups.reduce((sum, g) => sum + g._count._all, 0);
 
@@ -328,7 +332,7 @@ jobsRoute.get('/jobs', async (c) => {
       page={page}
       pageSize={PAGE_SIZE}
       filters={{
-        status: status ?? '',
+        status,
         minFit,
         q,
         sort,
