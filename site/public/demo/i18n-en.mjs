@@ -15,6 +15,8 @@ export const ENGLISH = {
   "browser.applyAll.nothing": "Nothing was applied.",
   "browser.applyAll.missed": "{n, plural, one {{n} could not be placed} other {{n} could not be placed}} — the card says why.",
   "browser.board.moveFailed": "Move failed — the stage was not changed. Try again.",
+  "browser.board.collapseNoOffer": "Collapse the No Offer column",
+  "browser.board.expandNoOffer": "Expand the No Offer column",
   "browser.chips.placeholder": "Add and press Enter…",
   "browser.chips.defaultLabel": "Tags",
   "browser.chips.addItem": "{label} — add item",

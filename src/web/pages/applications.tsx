@@ -1,13 +1,19 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { Button, Empty, FitBadge, Flash, PageHeader } from '../ui';
+import { Badge, Button, Empty, FitBadge, Flash, PageHeader } from '../ui';
+import { Icon } from '../icons';
 import type { FlashMessage } from '../flash';
+import type { Tone } from '../format';
+import { isPreApply } from '../../applied-state';
 import {
   allStages,
   boardStages,
   dotClassFor,
+  NO_OFFER_DROP_STAGE,
+  NO_OFFER_STAGE,
   nextStageKey,
+  TERMINAL_KEYS,
   TERMINAL_STAGES,
   UNFILED_STAGE,
   wordedStage,
@@ -35,16 +41,26 @@ export interface ApplicationsProps {
   flash?: FlashMessage | null;
 }
 
+const END_BADGE_TONE: Record<string, Tone> = { rejected: 'danger', ghosted: 'neutral', expired: 'warn' };
+
+/** A card in the No Offer column says which end state it is in: a word, never just a colour. */
+const EndBadge: FC<{ stage: StageDef }> = ({ stage }) => (
+  <Badge tone={END_BADGE_TONE[stage.key] ?? 'neutral'} class="shrink-0">
+    {stage.label}
+  </Badge>
+);
+
 /**
  * One board card: the link navigates, the form below it quick-moves, and
  * board.mjs makes the whole card draggable. With drag active (body[data-dnd],
  * fine pointer, md+) the form collapses until the card has hover or focus —
  * it stays the keyboard and no-JS path.
  */
-const StageCard: FC<{ card: ApplicationCard; stage: string; work: StageDef[] }> = ({
+const StageCard: FC<{ card: ApplicationCard; stage: string; work: StageDef[]; badge?: StageDef }> = ({
   card,
   stage,
   work,
+  badge,
 }) => (
   <li
     class="rounded-md border border-line bg-surface-raised shadow-sm"
@@ -61,6 +77,11 @@ const StageCard: FC<{ card: ApplicationCard; stage: string; work: StageDef[] }> 
       <div class="mt-1 truncate text-note text-ink-muted" translate="no">
         {card.companyName}
       </div>
+      {badge && (
+        <div class="mt-2">
+          <EndBadge stage={badge} />
+        </div>
+      )}
       <div class="mt-2 flex items-center justify-between gap-2">
         <span
           class={`min-w-0 truncate text-meta ${
@@ -68,7 +89,8 @@ const StageCard: FC<{ card: ApplicationCard; stage: string; work: StageDef[] }> 
           }`}
           title={card.stageLine?.since.toISOString().slice(0, 10)}
         >
-          {card.stageLine?.text ?? t('applications.noApplyDate')}
+          {/* Nothing has been sent from Consider or Applying, so "no apply date" would say something is missing. */}
+          {card.stageLine?.text ?? (isPreApply(stage) ? '' : t('applications.noApplyDate'))}
           {card.recruiterContact ? ` · ${card.recruiterContact}` : ''}
         </span>
         <FitBadge score={card.fitScore} />
@@ -106,18 +128,35 @@ const StageCard: FC<{ card: ApplicationCard; stage: string; work: StageDef[] }> 
 const StageName: FC<{ stage: StageDef }> = ({ stage }) =>
   wordedStage(stage) ? <>{stage.label}</> : <span translate="no">{stage.label}</span>;
 
-const ColumnHeader: FC<{ dot: string; id: string; stage: StageDef; count: number }> = ({
+const ColumnHeader: FC<{ dot: string; id: string; stage: StageDef; count: number; toggleFor?: string }> = ({
   dot,
   id,
   stage,
   count,
+  toggleFor,
 }) => (
-  <div class="flex shrink-0 items-center gap-2 px-3 pb-2 pt-3">
+  <div class="col-header flex shrink-0 items-center gap-2 px-3 pb-2 pt-3">
     <span class={`h-2 w-2 rounded-full ${dot}`} aria-hidden="true" />
-    <h2 id={id} class="text-label text-ink">
+    <h2 id={id} class="col-title text-label text-ink">
       <StageName stage={stage} />
     </h2>
-    <span class="ml-auto text-meta text-ink-faint tabular-nums">{count}</span>
+    <span class="col-count ml-auto text-meta text-ink-faint tabular-nums">{count}</span>
+    {toggleFor && (
+      // Desktop only: a phone stacks the columns, so there is nothing to fold. column-collapse.mjs
+      // keeps aria-expanded and the name in step; without script the column is just open.
+      <button
+        type="button"
+        data-collapse-toggle
+        aria-expanded="true"
+        aria-controls={toggleFor}
+        aria-label={t('browser.board.collapseNoOffer')}
+        class="col-toggle -my-2 hidden h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-muted transition-colors duration-150 hover:bg-surface-raised hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 md:inline-flex"
+      >
+        <span class="col-chevron inline-flex" aria-hidden="true">
+          <Icon name="chevron-left" size={16} />
+        </span>
+      </button>
+    )}
   </div>
 );
 
@@ -134,11 +173,28 @@ const BOARD_CSS = `
     body[data-dnd] li[data-job-id]:focus-within .quick-move { height: auto; padding-top: 0.375rem; padding-bottom: 0.375rem; border-top-width: 1px; opacity: 1; }
     body[data-dnd] li[data-job-id] { cursor: grab; }
     body[data-dnd] li[data-job-id]:active { cursor: grabbing; }
+    /* The No Offer column folded to a rail: title and count stay, the cards go (ADR 0080). md+ only. */
+    [data-collapsible] { transition: width 150ms ease; }
+    [data-collapsible][data-collapsed="true"] { width: 3rem; }
+    [data-collapsible][data-collapsed="true"] .col-body { display: none; }
+    [data-collapsible][data-collapsed="true"] .col-header { flex-direction: column-reverse; align-items: center; justify-content: flex-end; padding-left: 0; padding-right: 0; gap: 0.75rem; }
+    [data-collapsible][data-collapsed="true"] .col-title { writing-mode: vertical-rl; }
+    [data-collapsible][data-collapsed="true"] .col-count { margin-left: 0; }
+    [data-collapsible] .col-chevron { transform: rotate(180deg); }
+    [data-collapsible][data-collapsed="true"] .col-chevron { transform: none; }
+  }
+  @media (min-width: 768px) and (prefers-reduced-motion: reduce) {
+    [data-collapsible] { transition: none; }
   }
 `;
 
 /* Coarse-pointer devices can't HTML5-drag reliably — keep their forms visible. */
 const BOARD_BOOT = `
+  // The fold is a convenience: if its module cannot load, dragging still has to work.
+  try {
+    const { initCollapse } = await import('/static/column-collapse.mjs');
+    initCollapse(document);
+  } catch {}
   if (window.matchMedia('(pointer: fine)').matches) {
     const { initBoard } = await import('/static/board.mjs');
     initBoard(document);
@@ -155,10 +211,12 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
   const columns = boardStages(work);
   const count = (key: string) => byStage[key]?.length ?? 0;
   const activeCount = columns.reduce((sum, s) => sum + count(s.key), 0);
-  // "Unfiled" folds in with the closed columns: it is an exception to look at,
-  // not a step of the funnel.
-  const closedColumns = [...TERMINAL_STAGES, ...(stranded ? [UNFILED_STAGE] : [])];
-  const closedCount = closedColumns.reduce((sum, s) => sum + count(s.key), 0);
+  // The end states are one column, No Offer; each card keeps its own state (ADR 0080).
+  const noOfferCards = TERMINAL_STAGES.flatMap((s) => (byStage[s.key] ?? []).map((card) => ({ card, stage: s })));
+  // "Unfiled" is an exception to look at, not a step of the funnel: it keeps a small panel of its
+  // own and is not counted in the header, so the header's numbers are the columns' numbers.
+  const unfiledCount = stranded ? count(UNFILED_STAGE.key) : 0;
+  const noOfferCount = noOfferCards.length;
 
   return (
     <Layout title={t('applications.applications')} active="applications" fill>
@@ -166,14 +224,14 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
         title={t('applications.applications')}
         meta={
           applicationTrackingEnabled
-            ? t(closedCount > 0 ? 'applications.metaClosed' : 'applications.meta', { active: activeCount, closed: closedCount })
+            ? t(noOfferCount > 0 ? 'applications.metaNoOffer' : 'applications.meta', { active: activeCount, noOffer: noOfferCount })
             : undefined
         }
         actions={
           applicationTrackingEnabled ? (
             <div class="flex flex-wrap items-center gap-2">
               {/* TASKS N7: the board as a file, for the spreadsheet people keep anyway. */}
-              {activeCount + closedCount > 0 && (
+              {activeCount + noOfferCount + unfiledCount > 0 && (
                 <>
                   <Button href="/applications/export.csv" variant="secondary" size="sm" title={t('applications.everyApplicationOneRowEach')}>
                     {t('applications.csv')}
@@ -230,19 +288,27 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
               <span class="tabular-nums text-ink-faint">{count(s.key)}</span>
             </a>
           ))}
-          {closedCount > 0 && (
+          <a
+            href={`#stage-col-${NO_OFFER_STAGE.key}`}
+            class="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-line bg-surface-raised px-3 text-meta text-ink-muted"
+          >
+            <StageName stage={NO_OFFER_STAGE} />
+            <span class="tabular-nums text-ink-faint">{noOfferCards.length}</span>
+          </a>
+          {unfiledCount > 0 && (
             <a
-              href="#closed"
+              href="#unfiled"
               class="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-line bg-surface-raised px-3 text-meta text-ink-muted"
             >
-              {t('applications.closed')} <span class="tabular-nums text-ink-faint">{closedCount}</span>
+              <StageName stage={UNFILED_STAGE} />
+              <span class="tabular-nums text-ink-faint">{unfiledCount}</span>
             </a>
           )}
         </nav>
         {/* Layout fill gives the wrapper the viewport height; flex-1 hands
             the leftover to the board, so columns end at the window bottom
             and scroll inside. min-h keeps the board usable when the open
-            Closed panel would otherwise squash it. */}
+            Unfiled panel would otherwise squash it. */}
         <div class="flex min-h-[320px] min-w-0 flex-1 flex-col gap-3 md:flex-row md:items-stretch md:overflow-x-auto md:pb-1">
           {columns.map((s) => {
             const items = byStage[s.key] ?? [];
@@ -270,51 +336,48 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
               </section>
             );
           })}
+          {/* The last column groups the end states. A drop lands as Rejected; a card already in the
+              group stays as it is (data-drop-group), and each card names its own state in a badge. */}
+          <section
+            id={`stage-col-${NO_OFFER_STAGE.key}`}
+            data-collapsible
+            data-collapsed="false"
+            data-drop-stage={NO_OFFER_DROP_STAGE}
+            data-drop-group={TERMINAL_KEYS.join(' ')}
+            class="flex w-full scroll-mt-4 flex-col overflow-hidden rounded-lg bg-surface-overlay md:min-h-[320px] md:w-72 md:shrink-0"
+            aria-labelledby={`stage-${NO_OFFER_STAGE.key}`}
+          >
+            <ColumnHeader
+              dot={dotClassFor(work, NO_OFFER_STAGE.key)}
+              id={`stage-${NO_OFFER_STAGE.key}`}
+              stage={NO_OFFER_STAGE}
+              count={noOfferCards.length}
+              toggleFor={`${NO_OFFER_STAGE.key}-body`}
+            />
+            <ul id={`${NO_OFFER_STAGE.key}-body`} class="col-body min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
+              {noOfferCards.length === 0 ? (
+                <li class="hidden px-1 py-1 text-meta text-ink-faint md:block">{t('applications.noApplications')}</li>
+              ) : (
+                noOfferCards.map(({ card, stage }) => <StageCard card={card} stage={stage.key} work={work} badge={stage} />)
+              )}
+            </ul>
+          </section>
         </div>
-        {closedCount > 0 && (
-          <details id="closed" class="mt-4 scroll-mt-4 rounded-lg bg-surface-overlay">
+        {unfiledCount > 0 && (
+          <details id="unfiled" class="mt-4 scroll-mt-4 rounded-lg bg-surface-overlay">
             <summary class="cursor-pointer select-none rounded-lg px-4 py-2.5 text-sm font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
-              {t('applications.closed')}
-              <span class="ml-2 text-meta font-normal text-ink-faint">
-                {t(stranded ? 'applications.closedCountsUnfiled' : 'applications.closedCounts', {
-                  rejected: count('rejected'),
-                  ghosted: count('ghosted'),
-                  unfiled: count(UNFILED_STAGE.key),
-                })}
-              </span>
+              <StageName stage={UNFILED_STAGE} />
+              <span class="ml-2 text-meta font-normal text-ink-faint tabular-nums">{unfiledCount}</span>
             </summary>
-            <div class="grid gap-4 border-t border-line/70 p-4 md:grid-cols-2">
-              {closedColumns.map((s) => {
-                const items = byStage[s.key] ?? [];
-                return (
-                  <section data-drop-stage={s.key} aria-labelledby={`stage-${s.key}`}>
-                    <div class="flex items-center gap-2 pb-2">
-                      <span
-                        class={`h-2 w-2 rounded-full ${dotClassFor(work, s.key)}`}
-                        aria-hidden="true"
-                      />
-                      <h2 id={`stage-${s.key}`} class="text-label text-ink">
-                        <StageName stage={s} />
-                      </h2>
-                      <span class="ml-auto text-meta text-ink-faint tabular-nums">
-                        {items.length}
-                      </span>
-                    </div>
-                    {s.key === UNFILED_STAGE.key && (
-                      <p data-ui="hint" class="pb-2 text-meta text-ink-faint">
-                        {t('applications.theColumnTheseWereIn')}
-                      </p>
-                    )}
-                    <ul class="space-y-2">
-                      {items.length === 0 ? (
-                        <li class="px-1 py-1 text-meta text-ink-faint">{t('applications.none')}</li>
-                      ) : (
-                        items.map((c) => <StageCard card={c} stage={s.key} work={work} />)
-                      )}
-                    </ul>
-                  </section>
-                );
-              })}
+            <div class="border-t border-line/70 p-4">
+              <p data-ui="hint" class="pb-2 text-meta text-ink-faint">
+                {t('applications.theColumnTheseWereIn')}
+              </p>
+              <ul class="space-y-2" aria-label={t('stages.unfiled')}>
+                {(byStage[UNFILED_STAGE.key] ?? []).map((c) => (
+                  <StageCard card={c} stage={UNFILED_STAGE.key} work={work} />
+                ))}
+              </ul>
             </div>
           </details>
         )}

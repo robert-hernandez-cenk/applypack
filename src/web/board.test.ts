@@ -7,6 +7,7 @@ const board = import('./public/board.mjs') as Promise<{
     jobId: string | undefined,
     fromStage: string | undefined,
     toStage: string | undefined,
+    group?: string[],
   ) => { action: string; body: string } | null;
   initBoard: unknown;
 }>;
@@ -41,4 +42,19 @@ test('planMove url-encodes both values', async () => {
 test('board module imports without a DOM and exposes initBoard', async () => {
   const mod = await board;
   assert.equal(typeof mod.initBoard, 'function');
+});
+
+test('a card already inside the drop target\'s group stays where it is', async () => {
+  const { planMove } = await board;
+  const group = ['rejected', 'ghosted', 'expired'];
+  assert.equal(planMove('12', 'ghosted', 'rejected', group), null);
+  assert.equal(planMove('12', 'expired', 'rejected', group), null);
+  assert.equal(planMove('12', 'rejected', 'rejected', group), null);
+});
+
+test('a card from outside the group moves onto the group\'s target', async () => {
+  const { planMove } = await board;
+  const group = ['rejected', 'ghosted', 'expired'];
+  assert.deepEqual(planMove('12', 'screen', 'rejected', group), { action: '/jobs/12/stage', body: 'toStage=rejected' });
+  assert.deepEqual(planMove('12', 'applied', 'rejected', []), { action: '/jobs/12/stage', body: 'toStage=rejected' });
 });

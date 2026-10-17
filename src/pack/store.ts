@@ -1,4 +1,5 @@
 import type { ApplicationPack, Prisma } from '@prisma/client';
+import { appliedWhere, hasApplied } from '../applied-state';
 import { isUniqueViolation, prisma } from '../db';
 import { companyForMessage, companyForPrompt } from '../employer';
 import { preselectResume } from '../resume/pick';
@@ -44,13 +45,14 @@ export async function getPackFile(userId: number, jobId: number, kind: 'docx' | 
 export type QueueOutcome = 'queued' | 'waiting' | 'busy' | 'sent' | 'kept';
 
 /**
- * A posting the person applied to, by any road: marked applied, or put on
- * their applications board. A pack is the person's own (ADR 0068), so only
- * their application keeps the file that may have gone out.
+ * A posting the person applied to, by any road: marked applied, or on a stage
+ * past Applying on their applications board (not Consider or Applying, ADR
+ * 0080). A pack is the person's own (ADR 0068), so only their application
+ * keeps the file that may have gone out.
  */
 const appliedTo = (userId: number) =>
   ({
-    userJobs: { some: { userId, OR: [{ status: 'APPLIED' }, { appliedAt: { not: null } }, { pipelineStage: { not: null } }] } },
+    userJobs: { some: { userId, ...appliedWhere } },
   }) satisfies Prisma.JobWhereInput;
 
 /**
@@ -220,7 +222,7 @@ export async function packJobState(userId: number, jobId: number): Promise<{ sta
   if (!job) return null;
   const mine = job.userJobs[0];
   if (!mine) return { status: 'DISMISSED', applied: false, employerKey: job.employerKey };
-  return { status: mine.status, applied: mine.status === 'APPLIED' || mine.appliedAt !== null || mine.pipelineStage !== null, employerKey: job.employerKey };
+  return { status: mine.status, applied: hasApplied({ stage: mine.pipelineStage, appliedAt: mine.appliedAt, status: mine.status }), employerKey: job.employerKey };
 }
 
 /**

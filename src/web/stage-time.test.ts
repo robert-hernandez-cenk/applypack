@@ -150,3 +150,27 @@ test('a column ApplyPack names reads in English as its lowercased label always d
   }
   assert.equal(wordedStage({ key: 'hr-call', label: 'HR Call' }), false);
 });
+
+test('Consider and Applying are not dated by an apply date they do not have', () => {
+  for (const stage of ['consider', 'applying']) {
+    assert.equal(stageTimeLine(stage, daysAgo(40), [], NOW), null, stage);
+    assert.equal(stageTimeLine(stage, daysAgo(40), [], NOW, stage, true), null, stage);
+  }
+});
+
+test('Consider and Applying read from their ledger event, and stall past 14 days', () => {
+  assert.deepEqual(stageTimeLine('consider', null, [ev('consider', 5)], NOW), {
+    text: 'in consider 5d',
+    stale: false,
+    since: daysAgo(5),
+  });
+  assert.equal(stageTimeLine('applying', null, [ev('applying', 20)], NOW)?.text, 'in applying 20d · stalled');
+  assert.equal(stageTimeLine('applying', null, [ev('applying', 0)], NOW)?.text, 'in applying today');
+});
+
+test('Expired is an archive: it reads like the other end states and never stalls', () => {
+  const line = stageTimeLine('expired', null, [ev('expired', 30)], NOW);
+  assert.equal(line?.text, 'expired 30d ago');
+  assert.equal(line?.stale, false);
+  assert.equal(stageTimeLine('expired', null, [ev('expired', 0)], NOW)?.text, 'expired today');
+});

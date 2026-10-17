@@ -31,6 +31,7 @@ import { AdzunaLabel, FranceTravailLine, JsonTree } from './attribution';
 import { formatUsdPerYear } from '../../currency';
 import { flagOf } from '../../countries';
 import type { WorkplaceCode } from '../../location';
+import { CONSIDER_KEY, hasApplied } from '../../applied-state';
 import { appliedWithLabel } from '../../jobs/applied-with';
 import { needsAppliedResume } from '../applied-resume';
 import type { FlashMessage } from '../flash';
@@ -250,6 +251,16 @@ export const JobDetailPage: FC<JobDetailProps> = ({
         <div class="p-5">
           <MarkAppliedPicker job={job} picker={appliedResumePicker} tab={tab} />
           <div class="flex flex-wrap items-center gap-2">
+            {/* ADR 0080: park the posting in the board's first column. Left of Mark applied; not offered once it is there or applied. */}
+            {applicationTrackingEnabled &&
+              job.pipelineStage !== CONSIDER_KEY &&
+              !hasApplied({ stage: job.pipelineStage, appliedAt: job.appliedAt, status: job.status }) && (
+                <ActionForm action={`/jobs/${job.id}/consider`} hidden={{ tab }}>
+                  <Button variant="secondary" size="sm">
+                    {t('job.consider')}
+                  </Button>
+                </ActionForm>
+              )}
             {job.status !== 'APPLIED' && (
               <Button variant="secondary" size="sm" form={MARK_APPLIED_FORM}>
                 {t('job.markApplied')}

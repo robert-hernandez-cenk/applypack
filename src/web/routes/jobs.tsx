@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { hashShortId } from '../../text-utils';
+import { seedsApplied } from '../../applied-state';
 import { appliedResumeColumns, packAsShown, packChoiceValue, readAppliedResumeChoice } from '../applied-resume';
 import {
   JOBS_ALL_STATUS,
@@ -637,10 +638,12 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
         where: key,
         select: { pipelineStage: true, appliedAt: true },
       });
-      if (current && !current.pipelineStage) {
+      // From no stage, or from Consider / Applying (ADR 0080): the application has now gone out.
+      // A later stage, a work column or an end state, stays where the person put it.
+      if (current && seedsApplied(current.pipelineStage)) {
         data.pipelineStage = 'applied';
         // F5 (ADR 0024): the seeding is a funnel entry — ledger it.
-        seedEvent = stageChangeEvent(id, null, 'applied', current.appliedAt, new Date());
+        seedEvent = stageChangeEvent(id, current.pipelineStage, 'applied', current.appliedAt, new Date());
       }
       if (!current?.appliedAt) data.appliedAt = new Date();
     }

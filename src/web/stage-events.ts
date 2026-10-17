@@ -40,6 +40,15 @@ export function stageChangeEvent(
 }
 
 /**
+ * The apply date a board move writes: today when a card reaches Applied with
+ * no date yet, nothing otherwise. The date belongs to Applied and only there
+ * (ADR 0080); a move never clears or replaces one the person set.
+ */
+export function appliedAtOnMove(toStage: string, appliedAt: Date | null, now: Date): Date | undefined {
+  return toStage === 'applied' && appliedAt === null ? now : undefined;
+}
+
+/**
  * The correction row for an appliedAt edit while the stage stays put:
  * the apply-day changed, so day-math needs a fresh 'applied' date. Null
  * when there is nothing to correct (stage empty, date unset or equal).

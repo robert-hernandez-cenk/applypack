@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { appliedDateCorrection, dateOnly, stageChangeEvent } from './stage-events';
+import { appliedAtOnMove, appliedDateCorrection, dateOnly, stageChangeEvent } from './stage-events';
 
 const NOW = new Date('2026-08-31T22:15:30.000Z');
 const APPLIED = new Date('2026-04-30T09:00:00.000Z');
@@ -62,4 +62,17 @@ test('appliedAt edits correct the apply day only when something changed', () => 
 
   const first = appliedDateCorrection(1, 'applied', null, APPLIED);
   assert.equal(first?.occurredOn.toISOString(), '2026-04-30T00:00:00.000Z');
+});
+
+test('a move into Applied dates the application, once', () => {
+  assert.deepEqual(appliedAtOnMove('applied', null, NOW), NOW);
+  // A backdated or earlier date is the person's; a move never overwrites it.
+  assert.equal(appliedAtOnMove('applied', APPLIED, NOW), undefined);
+});
+
+test('no other move sets or clears the apply date', () => {
+  for (const to of ['consider', 'applying', 'screen', 'rejected', 'ghosted', 'expired']) {
+    assert.equal(appliedAtOnMove(to, null, NOW), undefined, to);
+    assert.equal(appliedAtOnMove(to, APPLIED, NOW), undefined, to);
+  }
 });

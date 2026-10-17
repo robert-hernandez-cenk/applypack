@@ -13,6 +13,8 @@
  * what an absent form field means, are decided here.
  */
 
+import { hasApplied } from '../applied-state';
+
 /** What a form said about the applied resume. */
 export type AppliedResumeChoice =
   | { kind: 'keep' }
@@ -109,5 +111,5 @@ export function needsAppliedResume(job: {
   status: string;
 }): boolean {
   if (job.appliedResumeId !== null) return false;
-  return job.status === 'APPLIED' || job.appliedAt !== null || job.pipelineStage !== null;
+  return hasApplied({ stage: job.pipelineStage, appliedAt: job.appliedAt, status: job.status });
 }

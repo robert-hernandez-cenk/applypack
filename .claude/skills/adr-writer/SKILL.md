@@ -83,7 +83,7 @@ of truth when the two disagree.
 - 0022 Fences make untrusted text data, and an attempt evidence
 - 0023 Trust is apply-link flags, not a score
 - 0024 Funnel history is an append-only stage ledger — *amended by 0025*
-- 0025 Work columns are user-defined; fixed entry and exits
+- 0025 Work columns are user-defined; fixed entry and exits — *amended by 0080*
 - 0026 Database tables are snake_case, mapped with `@@map()`
 - 0027 Per-engine AI keys live in the database, `.env` as fallback *(extends 0013 and 0014)*
 - 0028 Several searches run in parallel, scored by one call per posting *(supersedes 0004)*
@@ -137,6 +137,7 @@ of truth when the two disagree.
 - 0076 One tailoring front door *(amends 0074, 0029: the Resume match tab is the only way to compare, `/target` and the hidden scratch resume are removed, `/letter` takes a stored job and a saved resume, evidence is always `own` and legacy `text` rows still read)*
 - 0077 Tailored resume copies *(amends 0038, 0076: the editor's save writes a copy for the posting, never the resume; the copy's comparisons stay out of the resume's count and coverage; promote to master is the deliberate overwrite)*
 - 0079 A tailored copy goes back to Reactive Resume as a new resume *(builds on 0073, 0075, 0077: the resume keeps its source id and format, not its JSON; a send duplicates the source on the instance and patches only words inside fields; what cannot be placed is reported, never guessed)*
+- 0080 Consider and Applying before Applied; Expired and one No Offer column after *(amends 0025: three fixed entry stages and three fixed end states; No Offer is a column over the end states, not a stage; one rule, `hasApplied`, decides "applied")*
 
 Check a proposal against these before touching process layout, sources,
 scheduling, profiles, how the AI is called, the resume score or employer

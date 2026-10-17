@@ -97,6 +97,8 @@ export function planSync(stored: readonly StoredOffer[], gone: ReadonlySet<strin
     if (!gone.has(job.externalId)) return { action: 'keep', id: job.id };
     // The same line the cleanup job draws: an application's history is the
     // user's, never garbage-collected — so it is anonymised, not deleted.
+    // Any stage, Consider and Applying included: this asks who owns the row,
+    // not whether it was applied to (applied-state.ts, ADR 0080).
     const own = job.pipelineStage !== null || job.status === JobStatus.APPLIED || job.status === JobStatus.SAVED;
     return { action: own ? 'anonymise' : 'delete', id: job.id };
   });

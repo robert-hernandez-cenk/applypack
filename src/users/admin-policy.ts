@@ -54,6 +54,7 @@ export const PERSONAL_ROUTES = [
   'GET /applications/export.csv',
   'GET /applications/export.md',
   'POST /jobs/:id/stage',
+  'POST /jobs/:id/consider',
   'POST /jobs/:id/application',
   'GET /letter',
   'POST /letter',

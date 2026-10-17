@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.59.15] — 2026-10-17
+
+### Added
+- **Consider, Applying and Expired on the applications board.** The board now
+  reads Consider → Applying → Applied → your own columns → **No Offer**.
+  **Consider** (a new button on a posting's page, left of Mark applied) parks
+  a posting you might apply to; **Applying** is an application in progress.
+  Neither counts as applied anywhere — not for the application pack, the "which
+  resume did you send?" question, nor the stale digest — and the apply date is
+  set only when a card reaches **Applied**. **Mark applied** still works from
+  any stage and records the resume. **Expired** is a new end state you set by
+  hand (#52, ADR 0080).
+
+### Changed
+- **One No Offer column replaces the Closed panel.** Rejected, Ghosted and
+  Expired cards sit together in the last column, each with a badge naming its
+  state; a card dropped on it becomes Rejected, and the exact state is chosen
+  with the card's move menu or on the posting's page. On a wide screen the
+  column folds to a narrow rail (title and count) and remembers it in your
+  browser; it works from the keyboard. Cards from a column you removed keep an
+  "Unfiled" panel below the board (#52).
+
 ## [2.59.14] — 2026-10-17
 
 ### Changed

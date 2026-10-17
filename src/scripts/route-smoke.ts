@@ -916,6 +916,12 @@ async function main(): Promise<void> {
       init: form({ jobId: String(f.jobId) }),
       expect: (res) => res.status === 303 && res.headers.get('location') === '/letter',
     },
+    {
+      // ADR 0080: Consider is a write like any other, so a page on another origin cannot press it.
+      name: 'POST /jobs/:id/consider from another origin (refused)',
+      init: { method: 'POST', headers: { origin: 'http://evil.example', host: 'localhost', 'content-type': 'application/x-www-form-urlencoded' }, body: '' },
+      expect: (res) => res.status === 403,
+    },
   ];
   const postPaths = [
     '/jobs/new',
@@ -984,6 +990,7 @@ async function main(): Promise<void> {
     `/jobs/${f.jobId}/match`,
     '/letter',
     '/letter',
+    `/jobs/${f.jobId}/consider`,
   ];
   for (const [i, p] of posts.entries()) {
     const res = await app.request(postPaths[i]!, p.init);
@@ -1570,6 +1577,92 @@ async function isolationChecks(ownJobId: number): Promise<Check[]> {
   add('GET /applications for the owner (not the other person\'s application)', '/applications', ownerBoard.status, ownerBoard.status === 200 && !(await ownerBoard.text()).includes('Isolation Shared'));
   const foreign = await asTeammate.request(`/jobs/${ownJobId}/status`, form({ status: 'DISMISSED' }));
   add('POST /jobs/:id/status on a posting the second person does not hold (not found)', `/jobs/${ownJobId}/status`, foreign.status, foreign.status === 404);
+
+  // ADR 0080: Consider -> Applying -> Applied, and the end states in one column.
+  const heldRow = (jobId: number) => prisma.userJob.findUniqueOrThrow({ where: { userId_jobId: { userId: teammate.id, jobId } } });
+  const jobPage = await (await asTeammate.request(`/jobs/${theirs.id}`, { headers: ORIGIN })).text();
+  add(
+    'GET /jobs/:id offers Consider immediately left of Mark applied',
+    `/jobs/${theirs.id}`,
+    200,
+    jobPage.includes(`action="/jobs/${theirs.id}/consider"`) && jobPage.indexOf(`/jobs/${theirs.id}/consider`) < jobPage.indexOf('Mark applied'),
+  );
+  const considered = await asTeammate.request(`/jobs/${theirs.id}/consider`, form({ tab: 'match' }));
+  const afterConsider = await heldRow(theirs.id);
+  add(
+    'POST /jobs/:id/consider (the first column, back to that tab, not applied)',
+    `/jobs/${theirs.id}/consider`,
+    considered.status,
+    considered.status === 303 &&
+      considered.headers.get('location') === `/jobs/${theirs.id}?tab=match` &&
+      afterConsider.pipelineStage === 'consider' &&
+      afterConsider.appliedAt === null &&
+      afterConsider.status === 'NEW',
+  );
+  const consideredPage = await (await asTeammate.request(`/jobs/${theirs.id}`, { headers: ORIGIN })).text();
+  add('GET /jobs/:id no longer offers Consider once there', `/jobs/${theirs.id}`, 200, !consideredPage.includes(`action="/jobs/${theirs.id}/consider"`));
+  const consideredBoard = await (await asTeammate.request('/applications', { headers: ORIGIN })).text();
+  const at = (marker: string): number => consideredBoard.indexOf(marker);
+  add(
+    'GET /applications lists a considered posting in the first column, No Offer last',
+    '/applications',
+    200,
+    at('id="stage-col-consider"') >= 0 &&
+      at('id="stage-col-consider"') < at('Isolation Theirs') &&
+      at('Isolation Theirs') < at('id="stage-col-applying"') &&
+      at('id="stage-col-no-offer"') > at('id="stage-col-applied"'),
+  );
+  const applying = await asTeammate.request(`/jobs/${theirs.id}/stage`, form({ toStage: 'applying' }));
+  const afterApplying = await heldRow(theirs.id);
+  add('POST /jobs/:id/stage to Applying (no apply date)', `/jobs/${theirs.id}/stage`, applying.status, applying.status === 303 && afterApplying.pipelineStage === 'applying' && afterApplying.appliedAt === null);
+  const toApplied = await asTeammate.request(`/jobs/${theirs.id}/stage`, form({ toStage: 'applied' }));
+  const afterApplied = await heldRow(theirs.id);
+  add('POST /jobs/:id/stage to Applied (the apply date is set here)', `/jobs/${theirs.id}/stage`, toApplied.status, toApplied.status === 303 && afterApplied.pipelineStage === 'applied' && afterApplied.appliedAt !== null);
+  const ENDS = ['rejected', 'ghosted', 'expired'];
+  await prisma.company.update({
+    where: { id: company.id },
+    data: { jobs: { create: [posting('mark', 'Isolation Mark'), posting('form', 'Isolation Form'), ...ENDS.map((end) => posting(`end-${end}`, `Isolation End ${end}`))] } },
+  });
+  const added = await prisma.job.findMany({ where: { companyId: company.id, externalId: { in: ['mark', 'form', ...ENDS.map((end) => `end-${end}`)] } } });
+  const markPosting = added.find((j) => j.externalId === 'mark')!;
+  const formPosting = added.find((j) => j.externalId === 'form')!;
+  await prisma.userJob.createMany({
+    data: [
+      { userId: teammate.id, jobId: markPosting.id, status: 'NEW', fitScore: 50 },
+      { userId: teammate.id, jobId: formPosting.id, status: 'NEW', fitScore: 50, pipelineStage: 'applying' },
+      ...ENDS.map((end) => ({ userId: teammate.id, jobId: added.find((j) => j.externalId === `end-${end}`)!.id, status: 'NEW' as const, fitScore: 50, pipelineStage: end })),
+    ],
+  });
+  await asTeammate.request(`/jobs/${markPosting.id}/consider`, form({}));
+  const marked = await asTeammate.request(`/jobs/${markPosting.id}/status`, form({ status: 'APPLIED' }));
+  const afterMark = await heldRow(markPosting.id);
+  add(
+    'POST /jobs/:id/status (Mark applied) from Consider lands on Applied with the date',
+    `/jobs/${markPosting.id}/status`,
+    marked.status,
+    marked.status === 303 && afterMark.pipelineStage === 'applied' && afterMark.appliedAt !== null && afterMark.status === 'APPLIED',
+  );
+  const viaForm = await asTeammate.request(`/jobs/${formPosting.id}/application`, form({ pipelineStage: 'applied', appliedAt: '' }));
+  const afterForm = await heldRow(formPosting.id);
+  add(
+    'POST /jobs/:id/application moving a card to Applied with no date dates it today',
+    `/jobs/${formPosting.id}/application`,
+    viaForm.status,
+    viaForm.status === 303 && afterForm.pipelineStage === 'applied' && afterForm.appliedAt !== null,
+  );
+  const endBoard = await (await asTeammate.request('/applications', { headers: ORIGIN })).text();
+  const noOffer = endBoard.slice(endBoard.indexOf('id="stage-col-no-offer"'));
+  add(
+    'GET /applications groups Rejected, Ghosted and Expired in the No Offer column, each with its badge',
+    '/applications',
+    200,
+    ['rejected', 'ghosted', 'expired'].every((end) => noOffer.includes(`Isolation End ${end}`)) &&
+      endBoard.includes('data-drop-group="rejected ghosted expired"') &&
+      /aria-controls="no-offer-body"/.test(endBoard) &&
+      ['Rejected', 'Ghosted', 'Expired'].every((word) => noOffer.includes(word)),
+  );
+  const noOfferStage = await asTeammate.request(`/jobs/${theirs.id}/stage`, form({ toStage: 'no-offer' }));
+  add('POST /jobs/:id/stage to the No Offer column itself is not a stage (refused)', `/jobs/${theirs.id}/stage`, noOfferStage.status, noOfferStage.status === 400);
   return out;
 }
 

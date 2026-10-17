@@ -67,7 +67,7 @@ import {
   parseStageConfig,
   removeStage,
   renameStage,
-  TERMINAL_KEYS,
+  isFixedStage,
   type StageEditError,
 } from '../stage-config';
 import {
@@ -400,7 +400,7 @@ async function loadSettingsProps() {
     pipelineStages: allStages(parseStageConfig(own.pipelineStages)).map((s) => ({
       ...s,
       count: countByStage.get(s.key) ?? 0,
-      fixed: s.key === 'applied' || TERMINAL_KEYS.includes(s.key),
+      fixed: isFixedStage(s.key),
     })),
     staleApplicationsDigestEnabled: own.staleApplicationsDigestEnabled,
     reapplyDays: own.reapplyDays,
