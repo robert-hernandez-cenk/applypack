@@ -321,7 +321,7 @@ export const OverviewPage: FC<OverviewProps> = ({
                       {watched.newJobs === 0 ? (
                         t('overview.nothingNewInTheLast')
                       ) : (
-                        <a href="/jobs?watched=1" class={QUIET_LINK}>
+                        <a href="/jobs?status=all&watched=1" class={QUIET_LINK}>
                           {t('overview.activity.newPostings', { n: watched.newJobs })}
                         </a>
                       )}
@@ -438,7 +438,7 @@ const RecentAlerts: FC<{ jobs: JobRow[]; places: string[] }> = ({ jobs, places }
         bare
         title={t('overview.noAlertsYet')}
         action={
-          <Button href="/jobs" variant="secondary" size="sm">
+          <Button href="/jobs?status=all" variant="secondary" size="sm">
             {t('overview.seeAllJobs')}
           </Button>
         }

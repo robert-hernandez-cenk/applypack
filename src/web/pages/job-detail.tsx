@@ -520,7 +520,7 @@ const ProfileScoreRow: FC<{ scores: ProfileScore[] }> = ({ scores }) => {
             <FitBadge score={s.fitScore} />
             <div class="min-w-0 flex-1">
               <a
-                href={`/jobs?profile=${s.profileId}`}
+                href={`/jobs?status=all&profile=${s.profileId}`}
                 class="font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
                 translate="no"
               >
@@ -601,7 +601,7 @@ const CrossListingNotice: FC<{ job: JobDetail }> = ({ job }) => {
 const PageHeaderBlock: FC<{ job: JobDetail; primary: boolean }> = ({ job, primary }) => (
   <header class="mb-5 shrink-0">
     <a
-      href="/jobs"
+      href="/jobs?status=all"
       class="mb-1.5 inline-flex items-center gap-1 text-note text-ink-faint transition-colors duration-150 hover:text-ink"
     >
       <svg
@@ -689,7 +689,7 @@ const PlaceChips: FC<{ job: Pick<JobDetail, 'workplace' | 'countries' | 'regions
       )}
       {places.map((code) => (
         <li>
-          <a href={`/jobs?country=${encodeURIComponent(code)}`} class="hover:underline">
+          <a href={`/jobs?status=all&country=${encodeURIComponent(code)}`} class="hover:underline">
             <Tag>
               {flagOf(code) && <span aria-hidden="true">{flagOf(code)} </span>}
               {placeName(code)}

@@ -207,7 +207,7 @@ export const TargetPage: FC<TargetPageProps> = ({
     <Layout title={t('target.pageTitle', { title: job.title })} active="jobs">
       <div class="w-full" id="target-root">
       <nav aria-label={t('target.breadcrumb')} class="mb-1.5 flex items-center gap-1.5 text-note text-ink-faint">
-        <a href="/jobs" class="transition-colors duration-150 hover:text-ink">
+        <a href="/jobs?status=all" class="transition-colors duration-150 hover:text-ink">
           {t('nav.jobs')}
         </a>
         <span aria-hidden="true">/</span>

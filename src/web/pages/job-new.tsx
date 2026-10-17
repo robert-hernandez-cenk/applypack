@@ -8,7 +8,7 @@ import { t } from '../../i18n/t';
 export const JobNewPage: FC<{ flash?: FlashMessage | null }> = ({ flash }) => (
   <Layout title={t('job.new.pasteAJob')} active="jobs">
     <div class="w-full">
-      <PageHeader title={t('job.new.pasteAJob')} back={{ href: '/jobs', label: t('job.allJobs') }}>
+      <PageHeader title={t('job.new.pasteAJob')} back={{ href: '/jobs?status=all', label: t('job.allJobs') }}>
         {t('job.new.forPostingsTheFetchersDont')}
       </PageHeader>
       <Flash flash={flash} />

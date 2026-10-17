@@ -432,7 +432,7 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
                 </span>
               ) : r.newJobs > 0 ? (
                 <a
-                  href={`/jobs?q=${encodeURIComponent(r.name)}`}
+                  href={`/jobs?status=all&q=${encodeURIComponent(r.name)}`}
                   class="font-medium text-accent-strong hover:text-accent-deep"
                   aria-label={t('watchlist.newJobsAria', { n: r.newJobs, name: r.name })}
                 >

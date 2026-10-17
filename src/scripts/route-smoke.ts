@@ -1531,6 +1531,38 @@ async function isolationChecks(ownJobId: number): Promise<Check[]> {
     applied.status,
     applied.status === 303 && rows.find((r) => r.userId === DEFAULT_USER_ID)?.status === 'NEW' && rows.find((r) => r.userId === teammate.id)?.status === 'APPLIED',
   );
+  // The tab /jobs opens on (#51): New by default, "all" on purpose. The second person holds one NEW and one APPLIED row.
+  const tabsOf = (page: string) => {
+    const nav = page.slice(page.indexOf('<nav aria-label="Job status"'));
+    return [...nav.matchAll(/<a href="\/jobs[^"]*?status=(\w+)[^"]*"( aria-current="page")?/g)].slice(0, 6).map((m) => ({ status: m[1], current: m[2] !== undefined }));
+  };
+  const currentTab = (page: string) => tabsOf(page).filter((x) => x.current).map((x) => x.status).join();
+  const defaultHtml = await (await asTeammate.request('/jobs', { headers: ORIGIN })).text();
+  add(
+    'GET /jobs opens on New: only the New posting, tabs New … Dismissed, All',
+    '/jobs',
+    200,
+    defaultHtml.includes('Isolation Theirs') &&
+      !defaultHtml.includes('Isolation Shared') &&
+      tabsOf(defaultHtml).map((x) => x.status).join() === 'NEW,ALERTED,APPLIED,SAVED,DISMISSED,all' &&
+      currentTab(defaultHtml) === 'NEW',
+  );
+  const emptyStatus = await (await asTeammate.request('/jobs?status=', { headers: ORIGIN })).text();
+  add('GET /jobs?status= (an old bookmark) lands on New', '/jobs?status=', 200, currentTab(emptyStatus) === 'NEW');
+  const allRes = await asTeammate.request('/jobs?status=all&sort=title_asc', { headers: ORIGIN });
+  const allHtml = await allRes.text();
+  add(
+    'GET /jobs?status=all lists every status, All is current and sort links keep it',
+    '/jobs?status=all&sort=title_asc',
+    allRes.status,
+    allRes.status === 200 &&
+      allHtml.includes('Isolation Theirs') &&
+      allHtml.includes('Isolation Shared') &&
+      currentTab(allHtml) === 'all' &&
+      /href="\/jobs\?[^"]*status=all[^"]*sort=/.test(allHtml),
+  );
+  const junkTab = await asTeammate.request('/jobs?status=bogus', { headers: ORIGIN });
+  add('GET /jobs?status=bogus is refused', '/jobs?status=bogus', junkTab.status, junkTab.status === 400);
   const board = await asTeammate.request('/applications', { headers: ORIGIN });
   const boardHtml = await board.text();
   add('GET /applications for a second person (their application only)', '/applications', board.status, board.status === 200 && boardHtml.includes('Isolation Shared'));
