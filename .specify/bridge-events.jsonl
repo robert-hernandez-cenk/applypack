@@ -262,3 +262,7 @@
 
 {"timestamp":"2026-10-17T12:23:47.6507410Z","action":"guard","status":"allow","feature_directory":"specs/054-toast-flash-messages","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
 
+{"timestamp":"2026-10-17T12:47:50.9102598Z","action":"handoff","status":"complete","feature_directory":"specs/054-toast-flash-messages","decision":"updated","reason":"","actor":"claude","prior_actor":"claude","snapshot_id":"20261017T1247508565245Z-complete"}
+
+{"event":"artifact_drift_detected","timestamp":"2026-10-17T12:47:50.9162957Z","actor":"claude","feature_directory":"specs/054-toast-flash-messages","drifted_artifacts":[{"path":"plan.md","old_sha256":"e002c6bf4b2bb39e4f3e37d7ea6e8cd222ac98458f878bec8dd4452dbf098059","new_sha256":"c4b2a83470ee979cd4592c5f81d04b20e58be96aa127e17b3f752e2289fe40bf"},{"path":"tasks.md","old_sha256":"db7a25855b47b9ccc6cd35d44262b263c06ca3bcb99cf8f241c8e4ae8a521a85","new_sha256":"a4bf4048a58972d3192821190aeda65c8614c011eb55ad58aa9c70553139539c"}]}
+
