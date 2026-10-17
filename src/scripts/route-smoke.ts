@@ -997,6 +997,31 @@ async function main(): Promise<void> {
     rows.push({ route: p.name, url: postPaths[i]!, status: res.status, ok: await p.expect(res) });
   }
 
+  // ADR 0081 (#53): the keyword controls post in place. Both pages carry the regions the module swaps and
+  // the forms that opt in, and the route answers a keyword edit as it always did (a 303 with its message),
+  // because the browser's fetch follows that redirect to read the page.
+  const inlineRegions = ['id="flash-slot"', 'id="keyword-table"', 'data-inline'];
+  for (const [url, extra] of [
+    [`/jobs/${f.jobId}/target?match=1`, ['id="score-advice"', 'id="score-ready"', 'id="delta-box"', 'id="kw-fold-count"']],
+    [`/jobs/${f.jobId}?tab=match`, ['id="match-score"', 'id="match-breakdown"']],
+  ] as const) {
+    const res = await app.request(url, { headers: ORIGIN });
+    const html = await res.text();
+    const missing = [...inlineRegions, ...extra].filter((marker) => !html.includes(marker));
+    rows.push({ route: `GET ${url} carries the inline regions${missing.length ? ` (missing ${missing.join(', ')})` : ''}`, url, status: res.status, ok: res.status === 200 && missing.length === 0 });
+  }
+  const keywordBack = `/jobs/${f.jobId}/target?match=1`;
+  const keywordUrl = `/jobs/${f.jobId}/matches/1/keywords`;
+  const ignored = await app.request(keywordUrl, form({ term: 'Docker', op: 'ignore', back: keywordBack }));
+  rows.push({
+    route: 'POST /jobs/:id/matches/:matchId/keywords (ignore, answered with the redirect the fetch follows)',
+    url: keywordUrl,
+    status: ignored.status,
+    ok: ignored.status === 303 && ignored.headers.get('location') === keywordBack && flashOf(ignored) !== '',
+  });
+  const restored = await app.request(keywordUrl, form({ term: 'Docker', op: 'restore', back: keywordBack }));
+  rows.push({ route: 'POST /jobs/:id/matches/:matchId/keywords (restore)', url: keywordUrl, status: restored.status, ok: restored.status === 303 });
+
   // ADR 0073 / 0075: the saved connection and the pulls from it, as the administrator who owns the
   // fixtures — a loopback stand-in is theirs to reach. The picker never shows the key.
   const instance = await reactiveStandIn(reactiveExport('Smoke Pulled'));

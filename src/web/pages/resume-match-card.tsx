@@ -488,16 +488,19 @@ const MatchReport: FC<{
   return (
     <div class="mt-5 space-y-5 border-t border-line pt-4">
       <div class="flex flex-wrap items-center gap-3">
-        <FitBadge score={match.matchScore} label={t('match.scoreLabel')} />
-        {scoreDelta !== null && previous && (
-          <Badge tone={scoreDelta > 0 ? 'ok' : scoreDelta < 0 ? 'danger' : 'neutral'}>
-            {t('match.delta.badge', {
-              arrow: scoreDelta > 0 ? '▲' : scoreDelta < 0 ? '▼' : '=',
-              delta: fmtDelta(scoreDelta),
-              version: previous.resumeVersion,
-            })}
-          </Badge>
-        )}
+        {/* `contents`: the badges stay flex items of the row; the wrapper is only what a keyword edit replaces (#53). */}
+        <div id="match-score" data-region class="contents">
+          <FitBadge score={match.matchScore} label={t('match.scoreLabel')} />
+          {scoreDelta !== null && previous && (
+            <Badge tone={scoreDelta > 0 ? 'ok' : scoreDelta < 0 ? 'danger' : 'neutral'}>
+              {t('match.delta.badge', {
+                arrow: scoreDelta > 0 ? '▲' : scoreDelta < 0 ? '▼' : '=',
+                delta: fmtDelta(scoreDelta),
+                version: previous.resumeVersion,
+              })}
+            </Badge>
+          )}
+        </div>
         <span class="text-sm text-ink">
           {/* TASKS R20: how strong the resume is on its own is one click away from how it fits. */}
           <a href={`/resumes/${match.resume.id}#resume-strength`} class="hover:underline" title={t('match.strengthTitle')}>
@@ -527,11 +530,13 @@ const MatchReport: FC<{
       {/* The advice line is the tailoring page's, not this card's: the five
           lines below already carry the facts it would rank, and saying the
           same thing twice two lines apart is what the copy pass just cut. */}
-      {bd && (
-        <ScoreBreakdownChips bd={bd} keywords={keywords} hard={readHardRequirements(match.hardRequirements)} />
-      )}
-
-      <DeltaBox match={match} previous={previous} />
+      {/* What a keyword edit moves: the chips count keywords, the delta box says what they gained (#53). */}
+      <div id="match-breakdown" data-region class="space-y-5 empty:hidden">
+        {bd && (
+          <ScoreBreakdownChips bd={bd} keywords={keywords} hard={readHardRequirements(match.hardRequirements)} />
+        )}
+        <DeltaBox match={match} previous={previous} />
+      </div>
       <HardRequirementsBlock hard={readHardRequirements(match.hardRequirements)} />
       <MatchSignals match={match} verification={verification} />
       {/* A file judged on its own text may not be the user's: its questions are not theirs to answer (R1). */}
@@ -1061,7 +1066,7 @@ export const KeywordTable: FC<{
   const attention = counted.filter((k) => k.status !== 'present');
   const matchedKeywords = counted.filter((k) => k.status === 'present');
   return (
-    <div class="-mx-5 -mb-5 border-t border-line">
+    <div id="keyword-table" data-region class="-mx-5 -mb-5 border-t border-line">
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 text-note font-medium text-ink-muted">
         <span>
           {t(ignored.length > 0 ? 'keyword.coverageIgnored' : 'keyword.coverage', {
@@ -1082,7 +1087,7 @@ export const KeywordTable: FC<{
         <Hint class="px-5 pb-3">{t('keyword.allMatched')}</Hint>
       )}
       {matchedKeywords.length > 0 && (
-        <details>
+        <details data-fold="matched">
           <summary class={KEYWORD_SUMMARY}>{t('keyword.matchedFold', { n: matchedKeywords.length })}</summary>
           <Table columns={keywordColumns()}>
             {matchedKeywords.map((k) => (
@@ -1092,7 +1097,7 @@ export const KeywordTable: FC<{
         </details>
       )}
       {ignored.length > 0 && (
-        <details>
+        <details data-fold="ignored">
           <summary class={KEYWORD_SUMMARY}>{t('keyword.ignoredFold', { n: ignored.length })}</summary>
           <Table columns={keywordColumns()}>
             {ignored.map((k) => (
@@ -1242,6 +1247,7 @@ const LevelControls: FC<{ k: CountedKeyword; edit: KeywordEditTarget }> = ({ k, 
       method="post"
       action={`/jobs/${edit.jobId}/matches/${edit.matchId}/keywords`}
       class="flex flex-wrap items-center gap-1.5"
+      data-inline
     >
       <input type="hidden" name="term" value={k.term} />
       <input type="hidden" name="back" value={edit.back} />
@@ -1301,6 +1307,7 @@ const AddKeywordForm: FC<{ edit: KeywordEditTarget }> = ({ edit }) => (
     method="post"
     action={`/jobs/${edit.jobId}/matches/${edit.matchId}/keywords`}
     class="flex flex-wrap items-end gap-2 border-t border-line px-5 py-3"
+    data-inline
   >
     <input type="hidden" name="op" value="add" />
     <input type="hidden" name="back" value={edit.back} />

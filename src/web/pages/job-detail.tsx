@@ -468,8 +468,10 @@ init({ url: '/jobs/${jobId}/pack/state', line: document.getElementById('${PACK_L
 const COPY_BOOT = `
 import { wireCopy } from '/static/copy.mjs';
 import { wireSelectCommits } from '/static/select-commit.mjs';
+import { wireInlinePosts } from '/static/inline-post.mjs';
 wireCopy(document);
 wireSelectCommits(document);
+wireInlinePosts(document);
 `;
 
 /**
