@@ -800,6 +800,7 @@ user's schedule, read in the schedule's own time zone.
 | `GET /target/runs/:id`           | web     | progress page; `public/target-run.mjs` polls `GET /target/runs/:id/state` every 2 s; done → flash + redirect into the result |
 | `POST /resumes/:id/replace`      | web     | new file → `version`+1 → async run: `scanResume` |
 | `POST /resumes/:id/render/shape` | web     | async run: `structureResume` → `Resume.structure` (the render page's "Read the shape with AI") |
+| `POST /jobs/:id/target/restart` | web     | "Start over from master": deletes the posting's tailored copy (and its comparisons); the editor opens on the resume's own text again (#64) |
 | `POST /jobs/:id/target/reupload` | web     | async run (`startComparison`) on the uploaded file's text, full report; the resume row is untouched and nothing is scanned |
 | `POST /jobs/:id/cover`           | web     | async run: `generateCoverLetter` (fact-gated; blocked twice → error, no row); redirects to `/target/runs/:id`. The card form also saves the angle prefills; a Regenerate POST reuses them |
 | `POST /jobs/:id/cover/:letterId` | web     | save a manual edit; re-runs the gate warn-only, updates `gateVerdict`/`gateNotes` |

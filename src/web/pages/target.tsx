@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { Badge, Button, Card, FitBadge, Flash, Hint, HistoryChip, inEnglish, More, SUBMIT_ONCE, TONE_TEXT, When } from '../ui';
+import { Badge, Button, Card, ConfirmAction, FitBadge, Flash, Hint, HistoryChip, inEnglish, More, SUBMIT_ONCE, TONE_TEXT, When } from '../ui';
 import type { FlashMessage } from '../flash';
 import { FIT_OK_FLOOR, fitTone, formatDate } from '../format';
 import type { MatchWithResume } from '../../resume/store';
@@ -497,6 +497,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                 >
                   <input type="hidden" name="text" id="save-text" value="" />
                   <input type="hidden" name="jobId" value={job.id} />
+                  <input type="hidden" name="matchId" value={match.id} />
                   {/* The text the edits started from: the patcher diffs against it (ADR 0038). */}
                   <input type="hidden" name="baseText" value={resumeText} />
                   <Button
@@ -516,6 +517,16 @@ export const TargetPage: FC<TargetPageProps> = ({
                       {t('resume.tailored.download')}
                     </a>
                   </Hint>
+                )}
+                {copy && (
+                  <ConfirmAction
+                    action={`/jobs/${job.id}/target/restart`}
+                    label={t('target.copy.restart')}
+                    confirm={t('target.copy.restartConfirm')}
+                    hidden={{ copyId: copy.id }}
+                    variant="secondary"
+                    class="mt-2"
+                  />
                 )}
                 {copy && reactiveSend && (
                   <div class="mt-2">
@@ -927,7 +938,7 @@ const RunChip: FC<{ m: MatchWithResume; currentId: number; jobId: number }> = ({
   jobId,
 }) => (
   <li>
-    <HistoryChip href={`/jobs/${jobId}/target?match=${m.id}${m.tailoredId === null ? '&base=1' : ''}`} current={m.id === currentId}>
+    <HistoryChip href={`/jobs/${jobId}/target?match=${m.id}`} current={m.id === currentId}>
       <FitBadge score={m.matchScore} label={t('match.scoreLabel')} />
       <span translate="no">{m.resume.name}</span>
       <span class="font-mono font-normal text-ink-faint">v{m.resumeVersion}</span>

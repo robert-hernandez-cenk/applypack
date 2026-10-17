@@ -22,11 +22,21 @@ export function tailoredFileName(resumeName: string, jobTitle: string, ext: stri
   return `${[slug(resumeName), slug(jobTitle)].filter(Boolean).join('-') || 'resume'}.${ext}`;
 }
 
+type Row = { id: number; tailoredId: number | null; draft: boolean };
+
 /**
- * A comparison of the base resume that predates the posting's saved copy: its text is the resume's, not
- * the copy's, so the editor should open the copy's own comparison instead (ADR 0084). A draft, or a
- * comparison made after the save, is the person's newer text and stays.
+ * The comparison the editor opens on. A job has one working resume: the saved copy when there is one, else
+ * the resume itself. A comparison of the resume's own words (not a draft) is only a report once a copy
+ * exists, so the editor shows the copy's newest comparison instead; a draft is a text the person just
+ * brought and stays. `matches` is newest first.
  */
-export function staleBaseMatch(match: { tailoredId: number | null; draft: boolean; createdAt: Date }, copy: { updatedAt: Date } | null): boolean {
-  return copy !== null && match.tailoredId === null && !match.draft && match.createdAt < copy.updatedAt;
+export function workingMatch<T extends Row>(matches: T[], requestedId: number, copy: { id: number } | null): T | undefined {
+  const asked = matches.find((m) => m.id === requestedId) ?? matches[0];
+  if (!asked || !copy || asked.tailoredId !== null || asked.draft) return asked;
+  return matches.find((m) => m.tailoredId === copy.id) ?? asked;
+}
+
+/** The history the editor lists: with a copy saved, the resume's own non-draft runs are reports, not texts to edit. */
+export function editorHistory<T extends Row>(matches: T[], copy: { id: number } | null): T[] {
+  return copy === null ? matches : matches.filter((m) => m.tailoredId !== null || m.draft);
 }

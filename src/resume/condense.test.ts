@@ -5,6 +5,7 @@ import {
   buildCondensePrompt,
   buildRemovalsPrompt,
   condensePanel,
+  cutsStillApplicable,
   cutsWanted,
   parseCutsResponse,
   parseWordsResponse,
@@ -133,4 +134,11 @@ test('shorter only: a replacement as long as or longer than its quote is dropped
   assert.equal(out.actions.length, 1);
   assert.equal(out.actions[0]?.replacement, 'aaaa bbbb');
   assert.equal(out.dropped, 2);
+});
+
+test('cutsStillApplicable: keeps the cuts whose quote is still in the text, drops accepted and unquoted ones', () => {
+  const cut = (quote: string | null) => ({ section: 'skills' as const, where: 'Skills', what: 'drop', why: 'unused', quote });
+  const text = 'Skills: PHP, Laravel\nExperience: built things';
+  const kept = cutsStillApplicable([cut('Laravel'), cut('Cobol'), cut(null), cut('  ')], text);
+  assert.deepEqual(kept.map((r) => r.quote), ['Laravel'], 'Cobol was accepted (gone from the text)');
 });

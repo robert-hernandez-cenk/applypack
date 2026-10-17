@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { patchSource, staleBaseMatch, tailoredFileName } from './tailored';
+import { editorHistory, patchSource, tailoredFileName, workingMatch } from './tailored';
 
 test('patchSource: the copy is the base when the editor started from its text', () => {
   assert.equal(patchSource({ baseText: 'Line one\nLine two', copyText: 'Line one\nLine two' }), 'copy');
@@ -22,13 +22,29 @@ test('tailoredFileName: falls back to "resume" and keeps the extension', () => {
   assert.equal(tailoredFileName('日本語', '日本語', 'docx'), 'resume.docx');
 });
 
-test('staleBaseMatch: only a base comparison older than the copy', () => {
-  const copy = { updatedAt: new Date('2026-10-17T13:39:21Z') };
-  const before = new Date('2026-10-17T13:20:33Z');
-  const after = new Date('2026-10-17T13:50:00Z');
-  assert.equal(staleBaseMatch({ tailoredId: null, draft: false, createdAt: before }, copy), true);
-  assert.equal(staleBaseMatch({ tailoredId: null, draft: false, createdAt: after }, copy), false, 'made after the save');
-  assert.equal(staleBaseMatch({ tailoredId: null, draft: true, createdAt: before }, copy), false, 'a draft is the person\'s own text');
-  assert.equal(staleBaseMatch({ tailoredId: 1, draft: false, createdAt: before }, copy), false, 'the copy\'s own comparison');
-  assert.equal(staleBaseMatch({ tailoredId: null, draft: false, createdAt: before }, null), false, 'no copy');
+const base = { id: 3, tailoredId: null, draft: false };
+const draft = { id: 4, tailoredId: null, draft: true };
+const onCopy = { id: 2, tailoredId: 7, draft: false };
+const olderCopy = { id: 1, tailoredId: 7, draft: false };
+const matches = [draft, base, onCopy, olderCopy];
+
+test("workingMatch: without a copy the comparison asked for, else the newest", () => {
+  assert.equal(workingMatch(matches, 3, null)?.id, 3);
+  assert.equal(workingMatch(matches, 99, null)?.id, 4);
+  assert.equal(workingMatch([], 1, null), undefined);
+});
+
+test("workingMatch: with a copy, a comparison of the resume itself opens the copy's newest instead", () => {
+  assert.equal(workingMatch(matches, 3, { id: 7 })?.id, 2);
+  assert.equal(workingMatch([base], 3, { id: 7 })?.id, 3, 'the copy has no comparison yet');
+});
+
+test("workingMatch: a draft and the copy's own comparisons stay as asked", () => {
+  assert.equal(workingMatch(matches, 4, { id: 7 })?.id, 4);
+  assert.equal(workingMatch(matches, 1, { id: 7 })?.id, 1);
+});
+
+test("editorHistory: with a copy the resume's own runs drop out of the editor's list", () => {
+  assert.deepEqual(editorHistory(matches, { id: 7 }).map((m) => m.id), [4, 2, 1]);
+  assert.deepEqual(editorHistory(matches, null).map((m) => m.id), [4, 3, 2, 1]);
 });

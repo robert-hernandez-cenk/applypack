@@ -96,7 +96,6 @@ gets a dated addendum at the end of the ADR.
 - [0081 — A form can change part of a page in place: the post follows its redirect, named regions are swapped](./0081-inline-keyword-edits.md) *(builds on 0061: `data-inline` forms, `data-region` ids, `inline-post.mjs`, a `refresh()` for the tailor page's live scorer; no new endpoint)*
 - [0082 — A result message is a toast: the server keeps rendering the banner, one browser module pins it to the corner](./0082-flash-messages-as-toasts.md) *(builds on 0081, 0061: `public/toast.mjs`, `data-toast` on the flash slot, sticky for warnings, errors and messages with an action; no second rendering)*
 - [0083 — The page target is set in the Condense panel, not on the compare form](./0083-page-target-set-in-condense.md) *(amends 0074, 0078: `updateMatchPages`; a later comparison of the same posting and resume inherits it)*
-- [0084 — With a tailored copy saved, the editor opens on the copy's comparison](./0084-editor-opens-on-the-copy.md) *(amends 0077: `staleBaseMatch`; `base=1` keeps an older base run viewable)*
 
 ## When to write a new one
 

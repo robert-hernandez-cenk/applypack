@@ -64,13 +64,14 @@ import { startComparison } from '../comparison-run';
 import { startSuggestionsRun } from '../suggestions-run';
 import { startCondenseRun } from '../condense-run';
 import { parsePageTarget } from '../../resume/length';
-import { staleBaseMatch } from '../../resume/tailored';
+import { editorHistory, workingMatch } from '../../resume/tailored';
 import { readCondenseStage } from '../../resume/condense';
 import {
   getCoverLetter,
   getLatestCompanySnapshot,
   getMatch,
   getResume,
+  deleteTailored,
   getTailoredForJob,
   listCoverLettersForJob,
   listFacts,
@@ -978,7 +979,7 @@ async function condenseTarget(id: number, matchId: number) {
   ]);
   if (!job || !match || match.jobId !== id) return null;
   const resume = await getResume(currentUser().id, match.resumeId);
-  return resume ? { job, match, resume, editor: `/jobs/${id}/target?match=${matchId}${match.tailoredId === null ? '&base=1' : ''}` } : null;
+  return resume ? { job, match, resume, editor: `/jobs/${id}/target?match=${matchId}` } : null;
 }
 
 /** The editor's text as the condense forms post it. */
@@ -1222,18 +1223,15 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   ]);
   if (!job) return c.text(t('http.notFound'), 404);
   const requested = idParam(c.req.query('match'));
-  const match = matches.find((m) => m.id === requested) ?? matches[0];
-  if (!match) {
+  const asked = matches.find((m) => m.id === requested) ?? matches[0];
+  if (!asked) {
     return flashRedirect(jobHref(id, 'match', {}, 'resume-match'), 'err', t('jobRoute.target.needsComparison'));
   }
-  const resume = await getResume(currentUser().id, match.resumeId);
+  const resume = await getResume(currentUser().id, asked.resumeId);
   if (!resume) return c.text(t('http.notFound'), 404);
   const copy = await getTailoredForJob(currentUser().id, resume.id, job.id);
-  // A base-resume comparison older than the saved copy shows (and Save would rebuild the copy from) words the copy no longer has (ADR 0077, 0084): open the copy's own comparison instead. A history chip of an older base run says `base=1` to look at it anyway; a draft or a comparison made after the save is the person's own newer text.
-  if (copy && staleBaseMatch(match, copy) && c.req.query('base') !== '1') {
-    const onCopy = matches.find((m) => m.tailoredId === copy.id);
-    if (onCopy) return flashRedirect(`/jobs/${id}/target?match=${onCopy.id}`, 'ok', t('target.copy.opened'));
-  }
+  // One working resume per job: the copy once it exists, whichever comparison was asked for (#64).
+  const match = workingMatch(matches, requested, copy) ?? asked;
   const jobInput = { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description };
   // What the posting itself carried (§17): with little to go on, the page says
   // so rather than letting inferred advice read like the employer's demands —
@@ -1251,7 +1249,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       resume={{ id: resume.id, name: match.resume.name, version: resume.version }}
       match={match}
       keywords={await orderedKeywords(match, job.description)}
-      matches={matches}
+      matches={editorHistory(matches, copy)}
       previous={previousFor(match, matches)}
       resumeText={match.resumeText || resume.text}
       postingNotice={depth.notice}
@@ -1268,6 +1266,18 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
     200,
     { 'Set-Cookie': clearFlashCookie() },
   );
+});
+
+/** "Start over from master" (#64): the copy goes, so the editor opens on the resume's own text again. */
+jobsRoute.post('/jobs/:id/target/restart', async (c) => {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  const form = await c.req.parseBody();
+  const copyId = idParam(form.copyId);
+  if (!Number.isFinite(copyId)) return c.text(t('http.badId'), 400);
+  const gone = await deleteTailored(currentUser().id, copyId);
+  if (!gone) return flashRedirect(`/jobs/${id}/target`, 'err', t('resume.tailored.gone'));
+  return flashRedirect(`/jobs/${id}/target`, 'ok', t('target.copy.restarted'));
 });
 
 jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit(`/jobs/${c.req.param('id')}/target`)(c, next), async (c) => {
