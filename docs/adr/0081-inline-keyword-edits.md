@@ -31,8 +31,9 @@ asked to keep it that way (a browser without script must still work) and to keep
 - **Edits are applied in order, once.** One request at a time; the body is a snapshot taken at submit time (the form
   may be replaced before its turn); a form already waiting ignores a second press. Focus returns to the same
   control (by form, keyword and field name), open folds stay open, and scroll is left alone.
-- **A failure says so.** A request that cannot be made, or an error status, puts `browser.inline.failed` in the
-  flash slot and announces it; nothing looks saved that is not.
+- **A failure says so.** A request that cannot be made, or an error status from the post itself, puts
+  `browser.inline.failed` in the flash slot and announces it; nothing looks saved that is not. An error on the page
+  the post was redirected to means the save happened, so the browser goes to that page as the old reload did.
 
 ## Alternatives considered
 

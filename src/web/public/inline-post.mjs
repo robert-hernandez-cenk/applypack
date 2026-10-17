@@ -172,7 +172,15 @@ async function send({ action, body }) {
     credentials: 'same-origin',
     body,
   });
-  if (!res.ok) throw new Error(`status ${res.status}`);
+  if (!res.ok) {
+    // The post was answered with a redirect and the page it led to is an error (or a sign-in gate): the save
+    // happened, so say nothing false — take the person to that page, as the old reload did.
+    if (res.redirected) {
+      location.assign(res.url);
+      return;
+    }
+    throw new Error(`status ${res.status}`);
+  }
   const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
   const currentIds = [...document.querySelectorAll(REGION)].map((el) => el.id);
   const incomingIds = [...doc.querySelectorAll(REGION)].map((el) => el.id);
@@ -191,18 +199,20 @@ async function send({ action, body }) {
 export function wireInlinePosts(root) {
   if (typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
   const queue = createQueue();
-  const inFlight = new WeakSet();
+  // Keyed by what the form is (its action and keyword), not by the element: a swap replaces the element.
+  const inFlight = new Set();
   root.addEventListener('submit', (event) => {
     const form = event.target;
     if (event.defaultPrevented || !form.matches?.('form[data-inline]')) return;
     event.preventDefault();
+    const key = `${form.getAttribute('action')}|${form.querySelector('input[type=hidden][name=term]')?.getAttribute('value') ?? ''}`;
     // A second press of a form already waiting would apply the edit twice.
-    if (inFlight.has(form)) return;
+    if (inFlight.has(key)) return;
     const entries = [...new FormData(form)].filter(([, value]) => typeof value === 'string');
     const submitter = event.submitter;
     if (submitter?.name) entries.push([submitter.name, submitter.value]);
     const snapshot = { action: form.getAttribute('action') ?? location.pathname, body: formBody(entries) };
-    inFlight.add(form);
+    inFlight.add(key);
     form.setAttribute('aria-busy', 'true');
     form.style.opacity = BUSY_OPACITY;
     queue.push(async () => {
@@ -211,7 +221,7 @@ export function wireInlinePosts(root) {
       } catch {
         showFailure();
       } finally {
-        inFlight.delete(form);
+        inFlight.delete(key);
         form.removeAttribute('aria-busy');
         form.style.opacity = '';
       }
