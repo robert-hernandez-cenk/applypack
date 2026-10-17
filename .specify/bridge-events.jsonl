@@ -213,3 +213,4 @@
 
 {"timestamp":"2026-10-17T01:00:40.9176382Z","action":"guard","status":"allow","feature_directory":"specs/050-reactive-resume-writeback","decision":"allow","reason":"","actor":"claude","checked_action":"superpowers:executing-plans"}
 
+{"timestamp":"2026-10-17T07:00:58Z","action":"guard","status":"allow","feature_directory":"specs/050-reactive-resume-writeback","decision":"allow","reason":"","actor":"claude","checked_action":"speckit.plan"}
